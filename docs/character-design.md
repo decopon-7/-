@@ -108,10 +108,10 @@
 ## 4. 次のステップ
 
 - [x] Gensparkで生成した表情シート(たねちゃん・みどり先生)を確定デザインとして採用([assets/characters/](../assets/characters/))
-- [ ] 確定した表情シートをもとに、アニメーション用の追加ポーズ(お辞儀・手を振る・うなずく等、各台本で使う動作)を同様のプロンプトで追加生成する
+- [x] 台本で使う追加ポーズ・表情バリエーションをGensparkで生成([assets/characters/poses/](../assets/characters/poses/)、§6の台本対応表参照)
+- [x] サムネイル・[ランディングページ](../landing/index.html)に確定デザインの画像を反映する
 - [ ] 各シリーズの台本([scripts/](../scripts/))にある演出メモを、本仕様書のモーションルールと突き合わせて統一する
-- [ ] モーションガイドライン(まばたき間隔、口パクパターン等)をこの表情シートを基準にアニメーション用ガイドとして追補する
-- [ ] サムネイル・[ランディングページ](../landing/index.html)に確定デザインの画像を反映する
+- [ ] モーションガイドライン(まばたき間隔、口パクパターン等)をこの表情シート・ポーズ集を基準にアニメーション用ガイドとして追補する
 
 ---
 
@@ -155,9 +155,31 @@
 
 ---
 
-## 6. 追加ポーズ生成プロンプト(台本準拠)
+## 6. 追加ポーズ(生成済み・確定)
 
-確定デザイン([assets/characters/](../assets/characters/))と同じ配色・シルエットを保ったまま、台本([scripts/](../scripts/))で実際に使うポーズを追加生成する。Gensparkに参照画像アップロード機能がある場合は `tanechan.jpg` / `midori-sensei.jpg` を参照画像として添付し、「この画像と同じキャラクター・同じ配色で、以下のポーズを描いて」と指示すると再現性が上がる。
+Genspark生成により、台本準拠のポーズ集と、それぞれの表情バリエーション展開シートを確定。
+
+| たねちゃん | みどり先生 |
+|---|---|
+| ![たねちゃん ポーズ集](../assets/characters/poses/tanechan-poses.jpg) | ![みどり先生 ポーズ集](../assets/characters/poses/midori-sensei-poses.jpg) |
+| ![たねちゃん 表情バリエーション](../assets/characters/poses/tanechan-poses-variations.jpg) | ![みどり先生 表情バリエーション](../assets/characters/poses/midori-sensei-poses-variations.jpg) |
+
+### 台本対応表
+
+| ポーズ | 使用箇所 |
+|---|---|
+| たねちゃん・手を振る | 全編共通OP/ED挨拶、[01_hamigaki-lesson](../scripts/01_hamigaki-lesson.md) [0:10-0:25]導入 |
+| たねちゃん・万歳よろこび | [01_hamigaki-lesson](../scripts/01_hamigaki-lesson.md) [3:20-3:50]ふりかえり「はなまる」、[02_teasobi-short](../scripts/02_teasobi-short.md) 手遊び歌 |
+| たねちゃん・歯ブラシ | [01_hamigaki-lesson](../scripts/01_hamigaki-lesson.md) [0:25-2:30]本編 |
+| たねちゃん・かんがえる仕草 | [03_kimochi-cooldown](../scripts/03_kimochi-cooldown.md) 気持ちメーターで自分の気持ちを考える間 |
+| たねちゃん・深呼吸(お花をかぐ) | [03_kimochi-cooldown](../scripts/03_kimochi-cooldown.md) [1:30-3:00]クールダウン呼吸法 |
+| みどり先生・指1本 | [04_parent-tips-short](../scripts/04_parent-tips-short.md) [0:15-0:45]コツ1紹介 |
+| みどり先生・指2本(Vサイン) | [04_parent-tips-short](../scripts/04_parent-tips-short.md) [0:15-0:45]コツ2紹介 |
+| みどり先生・語りかけ(開いた手) | [04_parent-tips-short](../scripts/04_parent-tips-short.md) [0:00-0:05]フック、[0:45-0:60]まとめ |
+| みどり先生・鉢植えを掲げる | シリーズタイトルカード、[ランディングページ](../landing/index.html)キャラクター紹介 |
+| みどり先生・穏やかな伏し目 | [04_parent-tips-short](../scripts/04_parent-tips-short.md)「完璧でなくてよい」の優しいシーン |
+
+以下は生成に使用したプロンプト(再生成・追加ポーズが必要な場合に流用する)。Gensparkに参照画像アップロード機能がある場合は `tanechan.jpg` / `midori-sensei.jpg` を添付し、「この画像と同じキャラクター・同じ配色で、以下のポーズを描いて」と指示すると再現性が上がる。
 
 ### たねちゃん ポーズ集
 
@@ -191,5 +213,6 @@
 ```
 
 ### 運用ルール
-- 生成したポーズ集は台本ごとに [scripts/](../scripts/) のどのカットで使うか対応表を作り、アニメーション発注時にまとめて渡す
-- 配色・輪郭がズレたカットは単体で再生成し、確定シート(`tanechan.jpg` / `midori-sensei.jpg`)に追加コミットする
+- 台本対応表(上表)はアニメーション発注時にポーズ集・表情バリエーションと合わせてそのまま制作会社に渡す
+- 配色・輪郭がズレたカットは単体で再生成し、`assets/characters/poses/` に追加コミットする
+- 今後追加の台本でここにないポーズが必要になった場合は、本セクションのプロンプトを流用して同じ配色・造形ルールで生成する
