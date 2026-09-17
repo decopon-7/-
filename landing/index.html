@@ -142,6 +142,23 @@
     gap: 20px;
   }
   .team .card { display: flex; gap: 16px; align-items: flex-start; }
+  .char-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 24px;
+  }
+  .char-card {
+    background: var(--bg-alt);
+    border: 1px solid var(--card-border);
+    border-radius: 20px;
+    overflow: hidden;
+    box-shadow: var(--shadow);
+  }
+  .char-card img { width: 100%; display: block; object-fit: cover; aspect-ratio: 16 / 9; }
+  .char-card .char-body { padding: 20px 24px; }
+  .char-card h3 { margin: 0 0 4px; font-size: 1.1rem; }
+  .char-card .char-role { font-size: 0.8rem; color: var(--brand-dark); font-weight: 700; margin-bottom: 8px; }
+  .char-card p { margin: 0; color: var(--text-muted); font-size: 0.92rem; }
   .avatar {
     width: 56px; height: 56px; border-radius: 50%;
     background: var(--accent-1);
@@ -183,7 +200,7 @@
 
 <header class="hero">
   <div class="wrap">
-    <p style="font-size:2.6rem; margin:0;">🌱</p>
+    <img src="../assets/characters/tanechan.jpg" alt="たねちゃん" style="width:96px; height:96px; object-fit:cover; border-radius:50%; box-shadow: var(--shadow);">
     <h1 class="logo">げんきの<span>たね</span> TV</h1>
     <p class="tagline">保育のプロが作る、見るほど育つチャンネル</p>
     <div class="badge-row">
@@ -242,6 +259,31 @@
         <span class="icon">💡</span>
         <h3>ほいくしのワンポイント</h3>
         <p>保護者向け、現場発の子育てのコツを60秒で</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <h2>キャラクター紹介</h2>
+    <p class="section-sub">2人のナビゲーターが、それぞれのシリーズを案内します</p>
+    <div class="char-grid">
+      <div class="char-card">
+        <img src="../assets/characters/tanechan.jpg" alt="たねちゃん">
+        <div class="char-body">
+          <div class="char-role">CHARACTER 01 ／ 子供向け本編ナビゲーター</div>
+          <h3>たねちゃん</h3>
+          <p>げんきで、まっすぐで、ちょっとおっちょこちょい。「いっしょにやってみよう！」と誘いかける、種と芽がモチーフの案内役。</p>
+        </div>
+      </div>
+      <div class="char-card">
+        <img src="../assets/characters/midori-sensei.jpg" alt="みどり先生">
+        <div class="char-body">
+          <div class="char-role">CHARACTER 02 ／ 保護者向けナビゲーター</div>
+          <h3>みどり先生</h3>
+          <p>落ち着いていて、決めつけず寄り添う。「ほいくしのワンポイント」で、声は監修者本人が担当します。</p>
+        </div>
       </div>
     </div>
   </div>
