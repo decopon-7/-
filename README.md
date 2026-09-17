@@ -8,6 +8,7 @@
 - [`docs/channel-strategy.md`](docs/channel-strategy.md) — チャンネル戦略書(コンセプト、差別化戦略、SEO/アルゴリズム対策、ロードマップ)
 - [`docs/content-calendar.md`](docs/content-calendar.md) — 初期コンテンツカレンダー(立ち上げ第1弾 全20本)
 - [`docs/character-design.md`](docs/character-design.md) — キャラクターデザイン仕様書(たねちゃん・みどり先生、カラーパレット、造形/モーションルール、確定ポーズ集)
+- [`docs/motion-guidelines.md`](docs/motion-guidelines.md) — モーションガイドライン(まばたき・口パク・トランジション等のアニメーション仕様)
 - [`docs/thumbnail-plan.md`](docs/thumbnail-plan.md) — 初期20本のサムネイル計画・カット出し
 - [`scripts/`](scripts/) — 台本サンプル(長尺・ショート・保護者向けTips、使用ポーズ明記)
 - [`landing/index.html`](landing/index.html) — チャンネル紹介ランディングページ
