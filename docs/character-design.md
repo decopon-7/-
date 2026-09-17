@@ -110,7 +110,8 @@
 - [x] Gensparkで生成した表情シート(たねちゃん・みどり先生)を確定デザインとして採用([assets/characters/](../assets/characters/))
 - [x] 台本で使う追加ポーズ・表情バリエーションをGensparkで生成([assets/characters/poses/](../assets/characters/poses/)、§6の台本対応表参照)
 - [x] サムネイル・[ランディングページ](../landing/index.html)に確定デザインの画像を反映する
-- [ ] 各シリーズの台本([scripts/](../scripts/))にある演出メモを、本仕様書のモーションルールと突き合わせて統一する
+- [x] 各シリーズの台本([scripts/](../scripts/))の演出メモに、使用するポーズ画像を明記して統一([scripts/](../scripts/)各ファイル参照)
+- [x] 初期20本のサムネイルのカット出し・生成([thumbnail-plan.md](./thumbnail-plan.md)参照)
 - [ ] モーションガイドライン(まばたき間隔、口パクパターン等)をこの表情シート・ポーズ集を基準にアニメーション用ガイドとして追補する
 
 ---
