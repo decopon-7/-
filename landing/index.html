@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>げんきのたね TV</title>
+<meta name="description" content="保育士・発達支援員が作る、見るほど育つキッズ向けYouTubeチャンネル">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🌱</text></svg>">
+<style>
+  :root {
+    --bg: #fff9f2;
+    --bg-alt: #ffffff;
+    --text: #3a2e26;
+    --text-muted: #6b5d52;
+    --brand: #ff9d5c;
+    --brand-dark: #e8823a;
+    --accent-1: #7dc9a7;
+    --accent-2: #ffd166;
+    --accent-3: #8fb8de;
+    --card-border: #f0e3d3;
+    --shadow: 0 8px 24px rgba(58, 46, 38, 0.08);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #221b15;
+      --bg-alt: #2c231c;
+      --text: #f5ece1;
+      --text-muted: #cbb9a8;
+      --brand: #ffab73;
+      --brand-dark: #ffc79a;
+      --accent-1: #8fd9b6;
+      --accent-2: #ffdd8a;
+      --accent-3: #a7c8ea;
+      --card-border: #3c322a;
+      --shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #221b15;
+    --bg-alt: #2c231c;
+    --text: #f5ece1;
+    --text-muted: #cbb9a8;
+    --brand: #ffab73;
+    --brand-dark: #ffc79a;
+    --accent-1: #8fd9b6;
+    --accent-2: #ffdd8a;
+    --accent-3: #a7c8ea;
+    --card-border: #3c322a;
+    --shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Yu Gothic", sans-serif;
+    line-height: 1.7;
+  }
+  .wrap { max-width: 960px; margin: 0 auto; padding: 0 20px; }
+  header.hero {
+    padding: 56px 20px 48px;
+    text-align: center;
+    background: linear-gradient(180deg, var(--bg-alt), var(--bg));
+  }
+  .logo {
+    font-size: 2.4rem;
+    margin: 0 0 8px;
+    font-weight: 800;
+    letter-spacing: 0.02em;
+  }
+  .logo span { color: var(--brand-dark); }
+  .tagline {
+    font-size: 1.15rem;
+    color: var(--text-muted);
+    margin: 0 0 28px;
+  }
+  .badge-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    justify-content: center;
+    margin-bottom: 32px;
+  }
+  .badge {
+    background: var(--bg-alt);
+    border: 1px solid var(--card-border);
+    border-radius: 999px;
+    padding: 6px 16px;
+    font-size: 0.85rem;
+    color: var(--text-muted);
+  }
+  .cta {
+    display: inline-block;
+    background: var(--brand);
+    color: #fff;
+    text-decoration: none;
+    font-weight: 700;
+    padding: 14px 32px;
+    border-radius: 999px;
+    box-shadow: var(--shadow);
+  }
+  :root[data-theme="dark"] .cta, @media (prefers-color-scheme: dark) { }
+  section { padding: 48px 0; }
+  h2 {
+    font-size: 1.5rem;
+    text-align: center;
+    margin-bottom: 8px;
+  }
+  .section-sub {
+    text-align: center;
+    color: var(--text-muted);
+    margin-bottom: 32px;
+    font-size: 0.95rem;
+  }
+  .mission-box {
+    background: var(--bg-alt);
+    border: 1px solid var(--card-border);
+    border-radius: 20px;
+    padding: 32px;
+    box-shadow: var(--shadow);
+    text-align: center;
+    font-size: 1.05rem;
+  }
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 20px;
+  }
+  .card {
+    background: var(--bg-alt);
+    border: 1px solid var(--card-border);
+    border-radius: 16px;
+    padding: 24px;
+    box-shadow: var(--shadow);
+  }
+  .card .icon { font-size: 1.8rem; margin-bottom: 8px; display: block; }
+  .card h3 { margin: 0 0 8px; font-size: 1.05rem; }
+  .card p { margin: 0; color: var(--text-muted); font-size: 0.92rem; }
+  .team {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+    gap: 20px;
+  }
+  .team .card { display: flex; gap: 16px; align-items: flex-start; }
+  .avatar {
+    width: 56px; height: 56px; border-radius: 50%;
+    background: var(--accent-1);
+    flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 1.5rem;
+  }
+  .why-list { list-style: none; padding: 0; margin: 0; }
+  .why-list li {
+    display: flex;
+    gap: 14px;
+    padding: 14px 0;
+    border-bottom: 1px solid var(--card-border);
+  }
+  .why-list li:last-child { border-bottom: none; }
+  .why-num {
+    flex-shrink: 0;
+    width: 32px; height: 32px;
+    border-radius: 50%;
+    background: var(--accent-2);
+    color: #3a2e26;
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 700;
+    font-size: 0.9rem;
+  }
+  footer {
+    text-align: center;
+    padding: 40px 20px 56px;
+    color: var(--text-muted);
+    font-size: 0.85rem;
+  }
+  footer a { color: var(--brand-dark); }
+  @media (max-width: 600px) {
+    .logo { font-size: 1.9rem; }
+  }
+</style>
+</head>
+<body>
+
+<header class="hero">
+  <div class="wrap">
+    <p style="font-size:2.6rem; margin:0;">🌱</p>
+    <h1 class="logo">げんきの<span>たね</span> TV</h1>
+    <p class="tagline">保育のプロが作る、見るほど育つチャンネル</p>
+    <div class="badge-row">
+      <span class="badge">👶 対象 0〜6歳</span>
+      <span class="badge">🎓 保育士・発達支援員 監修</span>
+      <span class="badge">🔤 全動画 字幕付き</span>
+    </div>
+    <a class="cta" href="#" rel="noopener">チャンネル登録する（準備中）</a>
+  </div>
+</header>
+
+<section>
+  <div class="wrap">
+    <h2>ミッション</h2>
+    <p class="section-sub">「見せて終わり」ではなく「育ちにつながる」動画を届けます</p>
+    <div class="mission-box">
+      毎日子供と向き合う保育者・発達支援員だからこそ知っている、<br>
+      発達にあった関わり方・声かけ・あそびを、動画というかたちでご家庭に届けます。<br>
+      刺激の強さではなく、<strong>専門性への信頼</strong>で選ばれるチャンネルを目指します。
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <h2>コンテンツシリーズ</h2>
+    <p class="section-sub">発達段階に合わせた6つのシリーズを毎週お届け</p>
+    <div class="grid">
+      <div class="card">
+        <span class="icon">🪥</span>
+        <h3>せいかつしゅうかん</h3>
+        <p>手洗い・歯磨き・お着替え・トイレなど、生活の自立を後押し</p>
+      </div>
+      <div class="card">
+        <span class="icon">🎵</span>
+        <h3>ことばとうた</h3>
+        <p>手遊び歌・あいさつうたで語彙とリズム感を育てる</p>
+      </div>
+      <div class="card">
+        <span class="icon">🔢</span>
+        <h3>かず・かたち</h3>
+        <p>数字・図形・仲間分けで数量概念の基礎を楽しく</p>
+      </div>
+      <div class="card">
+        <span class="icon">💛</span>
+        <h3>きもちのじかん</h3>
+        <p>感情理解とクールダウンの方法を身につける</p>
+      </div>
+      <div class="card">
+        <span class="icon">🍃</span>
+        <h3>しぜんとはっけん</h3>
+        <p>自然観察・五感あそびで探究心を育てる</p>
+      </div>
+      <div class="card">
+        <span class="icon">💡</span>
+        <h3>ほいくしのワンポイント</h3>
+        <p>保護者向け、現場発の子育てのコツを60秒で</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <h2>選ばれる理由</h2>
+    <p class="section-sub">派手さではなく、専門性と安心感で選ばれています</p>
+    <ul class="why-list">
+      <li><span class="why-num">1</span><div><strong>監修者の顔と肩書きを明示</strong><br>保育士・発達支援員が実名・経歴付きで登場し、根拠のあるコンテンツをお届けします。</div></li>
+      <li><span class="why-num">2</span><div><strong>すべての動画に「ねらい」を明記</strong><br>概要欄に発達的ねらいを記載。何を育てる動画か、保護者の方にも一目でわかります。</div></li>
+      <li><span class="why-num">3</span><div><strong>感覚に配慮した映像設計</strong><br>急な高速カット・大音量・フラッシュを避け、感覚が敏感なお子さんにも安心です。</div></li>
+      <li><span class="why-num">4</span><div><strong>保護者にも寄り添う</strong><br>子供向け動画だけでなく、保護者向けのワンポイントアドバイスも並行配信します。</div></li>
+    </ul>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <h2>だれが作っているの？</h2>
+    <p class="section-sub">現場経験のあるスタッフが企画・監修しています</p>
+    <div class="team">
+      <div class="card">
+        <div class="avatar">👩‍🏫</div>
+        <div>
+          <h3>保育士</h3>
+          <p>保育現場での経験を活かし、生活習慣・言葉・遊びの企画を担当。子供が「自分からやりたくなる」声かけを設計します。</p>
+        </div>
+      </div>
+      <div class="card">
+        <div class="avatar">🧩</div>
+        <div>
+          <h3>発達支援員</h3>
+          <p>発達に特性のある子供への支援経験を活かし、見通しの持てる構成・感覚配慮の演出を監修します。</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <p>© げんきのたね TV — 保育士・発達支援員監修のキッズ向けチャンネル</p>
+  <p>企画資料: <a href="../docs/channel-strategy.md">チャンネル戦略書</a> ／ <a href="../docs/content-calendar.md">初期コンテンツカレンダー</a></p>
+</footer>
+
+</body>
+</html>
