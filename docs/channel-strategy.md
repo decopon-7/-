@@ -82,7 +82,7 @@
 
 6. **ほいくしのワンポイント**(保護者向けTips・みどり先生担当) — **保留**。たねちゃんでの運用が軌道に乗った後、フェーズ2として再開する([character-design.md](./character-design.md)参照)
 
-詳細な初期コンテンツリストは [content-calendar.md](./content-calendar.md) を参照。
+詳細な初期コンテンツリストは [content-calendar.md](./content-calendar.md)、各シリーズの演出・構成の型は [series-direction-guide.md](./series-direction-guide.md) を参照。
 
 ---
 
