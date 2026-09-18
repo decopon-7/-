@@ -45,7 +45,7 @@
 
 - **呼吸ゆれ**: 体全体を上下に約3〜5pxほどゆっくり動かす、周期2.5〜3秒。振幅は小さく、目立たせない
 - **ふたば/髪の揺れ**: たねちゃんの頭上のふたば、みどり先生の前髪を、4秒周期程度でごくわずかに揺らす(そよ風程度)。生きている感じを出しつつ主張しすぎない
-- 待機時間が3秒を超えるカット(例: [03_kimochi-cooldown.md](../scripts/03_kimochi-cooldown.md)の「5秒間、間を取る」)は、呼吸ゆれのみを継続し、新しいモーションを追加しない(視聴者の思考を妨げない)
+- 待機時間が3秒を超えるカット(例: [05_kimochi-cooldown.md](../scripts/05_kimochi-cooldown.md)の「5秒間、間を取る」)は、呼吸ゆれのみを継続し、新しいモーションを追加しない(視聴者の思考を妨げない)
 
 ---
 
@@ -76,17 +76,17 @@
 
 | 台本 | カット | ポーズ | モーション上の注意 |
 |---|---|---|---|
-| [01_hamigaki-lesson](../scripts/01_hamigaki-lesson.md) | 導入「こんにちは」 | tanechan-wave | 手を振る動きは1往復半程度、速すぎないテンポで |
-| [01_hamigaki-lesson](../scripts/01_hamigaki-lesson.md) | 本編・歯磨き | tanechan-toothbrush | 歯ブラシの上下運動はゆっくり一定リズム、曲のテンポに同期させる |
-| [01_hamigaki-lesson](../scripts/01_hamigaki-lesson.md) | ふりかえり「はなまる」 | tanechan-banzai | 「強調」段階。ジャンプを1回だけ添えてよい |
-| [02_teasobi-short](../scripts/02_teasobi-short.md) | 導入→本編 | tanechan-wave → 手遊びの構え | 手を振る動きから手遊び構えへ0.4秒でスムーズに移行 |
-| [02_teasobi-short](../scripts/02_teasobi-short.md) | 「ばんざーい」 | tanechan-banzai | 曲のリズムに合わせて1拍で切り替え、フライングしない |
-| [03_kimochi-cooldown](../scripts/03_kimochi-cooldown.md) | 気持ちを考える間 | tanechan-thinking | 5秒間の静止。まばたきのみ継続、新規モーション追加なし |
-| [03_kimochi-cooldown](../scripts/03_kimochi-cooldown.md) | 呼吸法(すー) | tanechan-breathing | 4秒かけてゆっくり吸う動作。胸がわずかに膨らむ程度の動き |
-| [03_kimochi-cooldown](../scripts/03_kimochi-cooldown.md) | 呼吸法(ふー) | 同上派生 | 6秒かけてゆっくり吐く動作。テンポを崩さず一定速度で |
-| [04_parent-tips-short](../scripts/04_parent-tips-short.md) | フック | midori-sensei-talking | 語りかけの手振りは小さく、視聴者の目線をそらさない |
-| [04_parent-tips-short](../scripts/04_parent-tips-short.md) | コツ1/コツ2 | midori-sensei-one-finger / two-fingers | 指を立てる動作は0.3秒でスッと、テロップ表示と同期させる |
-| [04_parent-tips-short](../scripts/04_parent-tips-short.md) | まとめ | midori-sensei-calm | 伏し目までゆっくり移行、穏やかな余韻を残す |
+| [02_hamigaki-lesson](../scripts/02_hamigaki-lesson.md) | 導入「こんにちは」 | tanechan-wave | 手を振る動きは1往復半程度、速すぎないテンポで |
+| [02_hamigaki-lesson](../scripts/02_hamigaki-lesson.md) | 本編・歯磨き | tanechan-toothbrush | 歯ブラシの上下運動はゆっくり一定リズム、曲のテンポに同期させる |
+| [02_hamigaki-lesson](../scripts/02_hamigaki-lesson.md) | ふりかえり「はなまる」 | tanechan-banzai | 「強調」段階。ジャンプを1回だけ添えてよい |
+| [03_teasobi-short](../scripts/03_teasobi-short.md) | 導入→本編 | tanechan-wave → 手遊びの構え | 手を振る動きから手遊び構えへ0.4秒でスムーズに移行 |
+| [03_teasobi-short](../scripts/03_teasobi-short.md) | 「ばんざーい」 | tanechan-banzai | 曲のリズムに合わせて1拍で切り替え、フライングしない |
+| [05_kimochi-cooldown](../scripts/05_kimochi-cooldown.md) | 気持ちを考える間 | tanechan-thinking | 5秒間の静止。まばたきのみ継続、新規モーション追加なし |
+| [05_kimochi-cooldown](../scripts/05_kimochi-cooldown.md) | 呼吸法(すー) | tanechan-breathing | 4秒かけてゆっくり吸う動作。胸がわずかに膨らむ程度の動き |
+| [05_kimochi-cooldown](../scripts/05_kimochi-cooldown.md) | 呼吸法(ふー) | 同上派生 | 6秒かけてゆっくり吐く動作。テンポを崩さず一定速度で |
+| [10_parent-tips-short](../scripts/10_parent-tips-short.md) | フック | midori-sensei-talking | 語りかけの手振りは小さく、視聴者の目線をそらさない |
+| [10_parent-tips-short](../scripts/10_parent-tips-short.md) | コツ1/コツ2 | midori-sensei-one-finger / two-fingers | 指を立てる動作は0.3秒でスッと、テロップ表示と同期させる |
+| [10_parent-tips-short](../scripts/10_parent-tips-short.md) | まとめ | midori-sensei-calm | 伏し目までゆっくり移行、穏やかな余韻を残す |
 
 ---
 

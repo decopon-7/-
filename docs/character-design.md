@@ -171,16 +171,16 @@ Genspark生成により、台本準拠のポーズ集と、それぞれの表情
 
 | ポーズ | 使用箇所 |
 |---|---|
-| たねちゃん・手を振る | 全編共通OP/ED挨拶、[01_hamigaki-lesson](../scripts/01_hamigaki-lesson.md) [0:10-0:25]導入 |
-| たねちゃん・万歳よろこび | [01_hamigaki-lesson](../scripts/01_hamigaki-lesson.md) [3:20-3:50]ふりかえり「はなまる」、[02_teasobi-short](../scripts/02_teasobi-short.md) 手遊び歌 |
-| たねちゃん・歯ブラシ | [01_hamigaki-lesson](../scripts/01_hamigaki-lesson.md) [0:25-2:30]本編 |
-| たねちゃん・かんがえる仕草 | [03_kimochi-cooldown](../scripts/03_kimochi-cooldown.md) 気持ちメーターで自分の気持ちを考える間 |
-| たねちゃん・深呼吸(お花をかぐ) | [03_kimochi-cooldown](../scripts/03_kimochi-cooldown.md) [1:30-3:00]クールダウン呼吸法 |
-| みどり先生・指1本 | [04_parent-tips-short](../scripts/04_parent-tips-short.md) [0:15-0:45]コツ1紹介 |
-| みどり先生・指2本(Vサイン) | [04_parent-tips-short](../scripts/04_parent-tips-short.md) [0:15-0:45]コツ2紹介 |
-| みどり先生・語りかけ(開いた手) | [04_parent-tips-short](../scripts/04_parent-tips-short.md) [0:00-0:05]フック、[0:45-0:60]まとめ |
+| たねちゃん・手を振る | 全編共通OP/ED挨拶、[02_hamigaki-lesson](../scripts/02_hamigaki-lesson.md) [0:10-0:25]導入 |
+| たねちゃん・万歳よろこび | [02_hamigaki-lesson](../scripts/02_hamigaki-lesson.md) [3:20-3:50]ふりかえり「はなまる」、[03_teasobi-short](../scripts/03_teasobi-short.md) 手遊び歌 |
+| たねちゃん・歯ブラシ | [02_hamigaki-lesson](../scripts/02_hamigaki-lesson.md) [0:25-2:30]本編 |
+| たねちゃん・かんがえる仕草 | [05_kimochi-cooldown](../scripts/05_kimochi-cooldown.md) 気持ちメーターで自分の気持ちを考える間 |
+| たねちゃん・深呼吸(お花をかぐ) | [05_kimochi-cooldown](../scripts/05_kimochi-cooldown.md) [1:30-3:00]クールダウン呼吸法 |
+| みどり先生・指1本 | [10_parent-tips-short](../scripts/10_parent-tips-short.md) [0:15-0:45]コツ1紹介 |
+| みどり先生・指2本(Vサイン) | [10_parent-tips-short](../scripts/10_parent-tips-short.md) [0:15-0:45]コツ2紹介 |
+| みどり先生・語りかけ(開いた手) | [10_parent-tips-short](../scripts/10_parent-tips-short.md) [0:00-0:05]フック、[0:45-0:60]まとめ |
 | みどり先生・鉢植えを掲げる | シリーズタイトルカード、[ランディングページ](../landing/index.html)キャラクター紹介 |
-| みどり先生・穏やかな伏し目 | [04_parent-tips-short](../scripts/04_parent-tips-short.md)「完璧でなくてよい」の優しいシーン |
+| みどり先生・穏やかな伏し目 | [10_parent-tips-short](../scripts/10_parent-tips-short.md)「完璧でなくてよい」の優しいシーン |
 
 以下は生成に使用したプロンプト(再生成・追加ポーズが必要な場合に流用する)。Gensparkに参照画像アップロード機能がある場合は `tanechan.jpg` / `midori-sensei.jpg` を添付し、「この画像と同じキャラクター・同じ配色で、以下のポーズを描いて」と指示すると再現性が上がる。
 
