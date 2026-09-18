@@ -10,7 +10,7 @@
 - [`docs/character-design.md`](docs/character-design.md) — キャラクターデザイン仕様書(たねちゃん・みどり先生、カラーパレット、造形/モーションルール、確定ポーズ集)
 - [`docs/motion-guidelines.md`](docs/motion-guidelines.md) — モーションガイドライン(まばたき・口パク・トランジション等のアニメーション仕様)
 - [`docs/thumbnail-plan.md`](docs/thumbnail-plan.md) — 初期20本のサムネイル計画・カット出し
-- [`scripts/`](scripts/) — 台本サンプル(長尺・ショート・保護者向けTips、使用ポーズ明記)
+- [`scripts/`](scripts/) — 台本(たねちゃん担当の初期19本 全台本化済み、使用ポーズ明記。みどり先生担当のNo.19のみ保留)
 - [`landing/index.html`](landing/index.html) — チャンネル紹介ランディングページ
 - [`assets/characters/`](assets/characters/) — 確定キャラクター画像・ポーズ集
 - [`assets/thumbnails/`](assets/thumbnails/) — 初期20本のサムネイル画像
