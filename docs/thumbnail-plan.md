@@ -6,6 +6,8 @@
 
 現バージョンは、確定ポーズ集([character-design.md §6](./character-design.md#6-追加ポーズ生成済み確定))にある5種類のポーズを使い回した**プレースホルダー版**。動画ごとの厳密な内容とポーズが一致していないものも含む(例: 「てあらい」に万歳ポーズを使用等)。撮影・編集が具体化した段階で、動画の実際のハイライトシーンに差し替える。
 
+**2026-09-18更新**: 立ち上げ初期は「たねちゃん」に集中する方針のため、No.10・19(みどり先生・ほいくしのワンポイント)のサムネイルは保留対象。画像は参考として残すが、次の制作対象からは外す([channel-strategy.md](./channel-strategy.md) §4参照)。
+
 ## シリーズカラー(サムネイル背景帯)
 
 | シリーズ | カラー | HEX |
@@ -32,7 +34,7 @@
 | 7 | かず・かたち | まるさんかくしかく なかまさがし | なかまさがし | tanechan-thinking | [07.jpg](../assets/thumbnails/07.jpg) |
 | 8 | せいかつしゅうかん | おきがえバッチリ選手権 | おきがえ | tanechan-banzai | [08.jpg](../assets/thumbnails/08.jpg) |
 | 9 | しぜんとはっけん | おそとであきをみつけよう | あきみつけ | tanechan-wave | [09.jpg](../assets/thumbnails/09.jpg) |
-| 10 | ほいくしのワンポイント | 「イヤイヤ期」との向き合い方 | イヤイヤ期 | midori-sensei-talking(完全一致) | [10.jpg](../assets/thumbnails/10.jpg) |
+| 10 | ほいくしのワンポイント **(保留)** | 「イヤイヤ期」との向き合い方 | イヤイヤ期 | midori-sensei-talking(完全一致) | [10.jpg](../assets/thumbnails/10.jpg) |
 | 11 | ことばとうた | おなまえよんで！はーい手遊び | おへんじ | tanechan-wave(完全一致) | [11.jpg](../assets/thumbnails/11.jpg) |
 | 12 | きもちのじかん | ともだちとなかよく | なかよく | tanechan-banzai | [12.jpg](../assets/thumbnails/12.jpg) |
 | 13 | せいかつしゅうかん | トイレさん、こんにちは | といれ | tanechan-wave | [13.jpg](../assets/thumbnails/13.jpg) |
@@ -41,7 +43,7 @@
 | 16 | ことばとうた | どうぶつのなきまねうた | なきまね | tanechan-wave | [16.jpg](../assets/thumbnails/16.jpg) |
 | 17 | きもちのじかん | どきどきしたときのおまじない | どきどき | tanechan-breathing(完全一致) | [17.jpg](../assets/thumbnails/17.jpg) |
 | 18 | せいかつしゅうかん | あさのおしたく、じぶんでできるよ | おしたく | tanechan-toothbrush | [18.jpg](../assets/thumbnails/18.jpg) |
-| 19 | ほいくしのワンポイント | 「発達が気になる」ときの相談先ガイド | そうだん | midori-sensei-pot | [19.jpg](../assets/thumbnails/19.jpg) |
+| 19 | ほいくしのワンポイント **(保留)** | 「発達が気になる」ときの相談先ガイド | そうだん | midori-sensei-pot | [19.jpg](../assets/thumbnails/19.jpg) |
 | 20 | かず・かたち | すうじのうた 1〜10 | すうじのうた | tanechan-banzai | [20.jpg](../assets/thumbnails/20.jpg) |
 
 ## レイアウト仕様
