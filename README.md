@@ -15,6 +15,8 @@
 - [`landing/index.html`](landing/index.html) — チャンネル紹介ランディングページ
 - [`assets/characters/`](assets/characters/) — 確定キャラクター画像・ポーズ集
 - [`assets/thumbnails/`](assets/thumbnails/) — 初期20本のサムネイル画像
+- [`assets/characters/motion-tests/`](assets/characters/motion-tests/) — Veo動画生成のテスト素材・検証ログ(詳細は`docs/motion-guidelines.md`)
+- [`assets/videos/`](assets/videos/) — 編集済みの動画ドラフト(初回: `02_hamigaki-lesson-draft-cut1-3.mp4`、カット1〜3の部分ドラフト)
 
 ## はじめに読むもの
 
