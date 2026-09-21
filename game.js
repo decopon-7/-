@@ -17,8 +17,7 @@
   const HORIZON_FRAC = 0.26;   // horizon line, fraction of screen height
   const PLAYER_Y_FRAC = 0.90;  // player's fixed vertical position, fraction of height
   const ROAD_HALF_W_FRAC = 0.47; // road half-width at the player, fraction of screen width
-  const THICKNESS_GATE = 50;   // world-unit depth of a gate row (for the near/far trapezoid)
-  const THICKNESS_WALL = 78;
+  const THICKNESS_WALL = 78;   // world-unit depth of an enemy barricade (for the near/far trapezoid)
   const TIE_SPACING = 60;      // world-unit spacing of road "speed tie" marks
 
   // Auto-shooting: the crowd continuously fires on the nearest enemy
@@ -33,8 +32,8 @@
   const UPGRADES = [
     { key: "startCrowd", name: "初期人数",   icon: "👥", base: 40, growth: 1.55, maxLevel: 10, step: 5,
       effect: (lv) => `開始人数 +${lv * 5}` },
-    { key: "control",    name: "操作性",     icon: "🎮", base: 70, growth: 1.65, maxLevel: 5,
-      effect: (lv) => `曲がる速さ Lv.${lv}` },
+    { key: "aim",        name: "照準",       icon: "🎯", base: 70, growth: 1.65, maxLevel: 5,
+      effect: (lv) => `的のタップ判定 +${lv * 20}%` },
     { key: "magnet",     name: "マグネット", icon: "🧲", base: 55, growth: 1.6,  maxLevel: 5,
       effect: (lv) => `コイン獲得範囲 Lv.${lv}` },
     { key: "luck",       name: "ラック",     icon: "🍀", base: 90, growth: 1.7,  maxLevel: 5,
@@ -157,13 +156,12 @@
   // Game state
   // ---------------------------------------------------------------
   let state = "menu"; // menu | playing | gameover | shop
-  let world = { rows: [], pickups: [], scrollY: 0 };
-  let player = { f: 0.5, targetF: 0.5, count: 0, displayCount: 0, bump: 0 };
+  let world = { rows: [], targets: [], pickups: [], scrollY: 0 };
+  let player = { f: 0.5, count: 0, displayCount: 0, bump: 0 };
   let particles = [];
   let popups = [];
   let shake = { time: 0, mag: 0 };
   let runStats = { coins: 0, maxCount: 0 };
-  let input;
 
   function upLevel(key) { return (save.upgrades[key] | 0); }
 
@@ -176,13 +174,13 @@
       lastEnemyY: -99999,
       enemyIndex: 0,
       rows: [],
+      targets: [],
       pickups: [],
       bullets: [],
       bulletTimer: 0,
     };
     player = {
-      f: 0.5,          // horizontal position as fraction of road width [0,1]
-      targetF: 0.5,
+      f: 0.5, // fixed — the crowd holds position and doesn't move
       count: 10 + startLv * 5,
       displayCount: 10 + startLv * 5,
       bump: 0,
@@ -226,15 +224,11 @@
       return;
     }
 
-    // gate row: 2-3 segments covering the full width
-    const segCount = Math.random() < 0.38 ? 3 : 2;
-    const bounds = [0];
-    for (let i = 1; i < segCount; i++) bounds.push(i / segCount);
-    bounds.push(1);
-
+    // a wave of tappable target orbs, spread across the width so there's a real choice
+    const waveN = 1 + Math.min(2, Math.floor(dist / 700));
+    const slots = waveN === 1 ? [0.5] : waveN === 2 ? [0.32, 0.68] : [0.2, 0.5, 0.8];
     const growth = 1 + dist * 0.0012;
-    const segments = [];
-    for (let i = 0; i < segCount; i++) {
+    for (const f0 of slots) {
       const isBad = Math.random() < negChance;
       let op, value, color;
       if (isBad) {
@@ -250,29 +244,27 @@
         }
         color = GATE_COLORS[op];
       }
-      segments.push({ x0: bounds[i], x1: bounds[i + 1], op, value, color });
+      world.targets.push({
+        worldY: dist + rand(-15, 15),
+        f: clamp(f0 + rand(-0.05, 0.05), 0.08, 0.92),
+        op, value, color,
+        resolved: false,
+      });
     }
 
-    world.rows.push({
-      kind: "gate",
-      worldY: dist,
-      segments,
-      processed: false,
-    });
-
-    // occasional coin/gem pickup between gates
+    // occasional coin/gem pickup, kept near center since the crowd can't move to chase it
     if (Math.random() < 0.55) {
       const isGem = Math.random() < 0.18;
       world.pickups.push({
         worldY: dist - rand(30, 70),
-        f: clamp(rand(0.15, 0.85), 0.08, 0.92),
+        f: clamp(0.5 + rand(-0.22, 0.22), 0.3, 0.7),
         value: isGem ? 5 : 1,
         gem: isGem,
         collected: false,
       });
     }
 
-    world.nextSpawnY = dist + rand(90, 140);
+    world.nextSpawnY = dist + rand(110, 160);
   }
 
   // ---------------------------------------------------------------
@@ -288,22 +280,31 @@
     showGameOver(reason, isBest);
   }
 
-  function applyGateSegment(seg) {
+  function applyGateEffect(op, value, color, x, y) {
     let before = player.count;
-    switch (seg.op) {
-      case "x": player.count = Math.floor(player.count * seg.value); break;
-      case "+": player.count = player.count + seg.value; break;
-      case "-": player.count = Math.max(0, player.count - seg.value); break;
-      case "/": player.count = Math.floor(player.count / seg.value); break;
+    switch (op) {
+      case "x": player.count = Math.floor(player.count * value); break;
+      case "+": player.count = player.count + value; break;
+      case "-": player.count = Math.max(0, player.count - value); break;
+      case "/": player.count = Math.floor(player.count / value); break;
     }
-    const pos = playerScreenPos();
-    const px = pos.x, py = pos.y;
     const good = player.count >= before;
-    spawnPopup(px, py - 10, (good ? "+" : "") + (player.count - before), good ? "#8fffb0" : "#ff8a95");
-    spawnBurst(px, py, seg.color, 14);
+    spawnPopup(x, y - 10, (good ? "+" : "") + (player.count - before), good ? "#8fffb0" : "#ff8a95");
+    spawnBurst(x, y, color, 16);
     player.bump = 1;
     runStats.maxCount = Math.max(runStats.maxCount, player.count);
     if (player.count <= 0) triggerGameOver("crowd");
+  }
+
+  // called when the player taps a target orb — resolves instantly, plus a
+  // decorative tracer flies out from the crowd to where it was hit
+  function resolveTarget(t) {
+    t.resolved = true;
+    const d = Math.max(t.worldY - world.scrollY, 0);
+    const proj = project(d);
+    const x = xAt(proj, t.f), y = proj.y;
+    applyGateEffect(t.op, t.value, t.color, x, y);
+    world.bullets.push({ d: 0, targetD: Math.max(d, 1), f0: player.f, f1: t.f, alive: true });
   }
 
   // called once when an enemy row reaches the player's line
@@ -365,12 +366,6 @@
     world.bullets = world.bullets.filter(b => b.alive);
   }
 
-  function resolveGateRow(row) {
-    row.processed = true;
-    const seg = row.segments.find(s => player.f >= s.x0 && player.f < s.x1) || row.segments[row.segments.length - 1];
-    applyGateSegment(seg);
-  }
-
   // ---------------------------------------------------------------
   // Particles & popups
   // ---------------------------------------------------------------
@@ -389,26 +384,34 @@
   }
 
   // ---------------------------------------------------------------
-  // Input
+  // Input — the crowd holds its ground; tapping a target orb shoots it
   // ---------------------------------------------------------------
-  input = { active: false, startX: 0, startF: 0.5 };
-
   function pointerX(e) {
     return (e.touches && e.touches[0]) ? e.touches[0].clientX : e.clientX;
   }
+  function pointerY(e) {
+    return (e.touches && e.touches[0]) ? e.touches[0].clientY : e.clientY;
+  }
   canvas.addEventListener("pointerdown", (e) => {
     if (state !== "playing") return;
-    input.active = true;
-    input.startX = pointerX(e);
-    input.startF = player.targetF;
+    const rect = canvas.getBoundingClientRect();
+    const tx = pointerX(e) - rect.left;
+    const ty = pointerY(e) - rect.top;
+    const aimLv = upLevel("aim");
+
+    let best = null, bestDist = Infinity;
+    for (const t of world.targets) {
+      if (t.resolved) continue;
+      const d = t.worldY - world.scrollY;
+      if (d <= 0) continue;
+      const proj = project(d);
+      const x = xAt(proj, t.f), y = proj.y;
+      const hitR = (36 + aimLv * 8) * VSCALE * Math.max(proj.p, 0.4);
+      const dist = Math.hypot(tx - x, ty - y);
+      if (dist < hitR && dist < bestDist) { bestDist = dist; best = t; }
+    }
+    if (best) resolveTarget(best);
   });
-  window.addEventListener("pointermove", (e) => {
-    if (!input.active) return;
-    const dx = pointerX(e) - input.startX;
-    player.targetF = clamp(input.startF + dx / (ROAD_HALF_W * 2), 0.03, 0.97);
-  });
-  window.addEventListener("pointerup", () => { input.active = false; });
-  window.addEventListener("pointercancel", () => { input.active = false; });
 
   // ---------------------------------------------------------------
   // Update
@@ -419,9 +422,6 @@
     world.speed = clamp(SPEED_BASE + world.scrollY * 0.045, SPEED_BASE, SPEED_MAX);
     world.scrollY += world.speed * dt;
 
-    const controlLv = upLevel("control");
-    const t = 1 - Math.pow(1 - clamp(0.22 + controlLv * 0.09, 0.1, 0.85), dt * 60);
-    player.f = lerp(player.f, player.targetF, t);
     player.displayCount = lerp(player.displayCount, player.count, 1 - Math.pow(0.001, dt));
     player.bump = Math.max(0, player.bump - dt * 4);
 
@@ -430,12 +430,11 @@
     updateShooting(dt);
 
     for (const row of world.rows) {
-      if (!row.processed && row.worldY - world.scrollY <= 0) {
-        if (row.kind === "enemy") resolveEnemyCrossing(row); else resolveGateRow(row);
-      }
-      if (row.kind === "enemy" && row.state !== "idle") row.stateTime += dt;
+      if (!row.processed && row.worldY - world.scrollY <= 0) resolveEnemyCrossing(row);
+      if (row.state !== "idle") row.stateTime += dt;
     }
     world.rows = world.rows.filter(r => (r.worldY - world.scrollY) > -REMOVE_MARGIN);
+    world.targets = world.targets.filter(t => !t.resolved && (t.worldY - world.scrollY) > -REMOVE_MARGIN);
 
     const magnetLv = upLevel("magnet");
     const magnetPx = (34 + magnetLv * 16);
@@ -491,6 +490,8 @@
       drawRoad();
       const rows = world.rows.slice().sort((a, b) => b.worldY - a.worldY); // farthest first
       for (const row of rows) drawRow(row);
+      const targets = world.targets.slice().sort((a, b) => b.worldY - a.worldY);
+      for (const t of targets) drawTarget(t);
       const pickups = world.pickups.slice().sort((a, b) => b.worldY - a.worldY);
       for (const p of pickups) drawPickup(p);
       drawPlayer();
@@ -571,79 +572,86 @@
 
   function drawRow(row) {
     const d = row.worldY - world.scrollY;
-    const thickness = row.kind === "enemy" ? THICKNESS_WALL : THICKNESS_GATE;
-    const dNear = d - thickness / 2;
-    const dFar = d + thickness / 2;
+    const dNear = d - THICKNESS_WALL / 2;
+    const dFar = d + THICKNESS_WALL / 2;
     if (dFar < -CAM_DEPTH * 0.85) return;
     const projNear = project(dNear);
     const projFar = project(dFar);
     if (projNear.p < 0.03 && projFar.p < 0.03) return;
 
-    if (row.kind === "enemy") {
-      const destroyed = row.state === "destroyed";
-      const breached = row.state === "breached";
-      const alpha = (destroyed || breached) ? clamp(1 - row.stateTime / 0.5, 0, 1) : 1;
-      if (alpha <= 0) return;
-      const hpFrac = clamp(row.hp / row.maxHp, 0, 1);
-      ctx.globalAlpha = alpha;
-      ctx.fillStyle = breached ? "#ff3b4e" : (destroyed ? "#ffd166" : "#2b3a55");
-      drawQuad(projNear, projFar, 0, 1);
+    const destroyed = row.state === "destroyed";
+    const breached = row.state === "breached";
+    const alpha = (destroyed || breached) ? clamp(1 - row.stateTime / 0.5, 0, 1) : 1;
+    if (alpha <= 0) return;
+    const hpFrac = clamp(row.hp / row.maxHp, 0, 1);
+    ctx.globalAlpha = alpha;
+    ctx.fillStyle = breached ? "#ff3b4e" : (destroyed ? "#ffd166" : "#2b3a55");
+    drawQuad(projNear, projFar, 0, 1);
 
-      const midY = (projNear.y + projFar.y) / 2;
-      const midP = (projNear.p + projFar.p) / 2;
+    const midY = (projNear.y + projFar.y) / 2;
+    const midP = (projNear.p + projFar.p) / 2;
 
-      if (!destroyed && !breached) {
-        // HP bar above the barricade
-        const barW = (xAt(projNear, 1) - xAt(projNear, 0)) * 0.7;
-        const barH = Math.max(4, 9 * midP);
-        const barX = projNear.cx - barW / 2;
-        const barY = projNear.y - (THICKNESS_GATE * 0.9 + 20) * midP;
-        ctx.fillStyle = "rgba(0,0,0,0.4)";
-        roundRect(ctx, barX, barY, barW, barH, barH / 2);
+    if (!destroyed && !breached) {
+      // HP bar above the barricade
+      const barW = (xAt(projNear, 1) - xAt(projNear, 0)) * 0.7;
+      const barH = Math.max(4, 9 * midP);
+      const barX = projNear.cx - barW / 2;
+      const barY = projNear.y - (THICKNESS_WALL * 0.7 + 20) * midP;
+      ctx.fillStyle = "rgba(0,0,0,0.4)";
+      roundRect(ctx, barX, barY, barW, barH, barH / 2);
+      ctx.fill();
+      ctx.fillStyle = hpFrac > 0.5 ? "#6fdc8c" : hpFrac > 0.2 ? "#ffd166" : "#ff5b6e";
+      if (barW * hpFrac > 1) {
+        roundRect(ctx, barX, barY, Math.max(barH, barW * hpFrac), barH, barH / 2);
         ctx.fill();
-        ctx.fillStyle = hpFrac > 0.5 ? "#6fdc8c" : hpFrac > 0.2 ? "#ffd166" : "#ff5b6e";
-        if (barW * hpFrac > 1) {
-          roundRect(ctx, barX, barY, Math.max(barH, barW * hpFrac), barH, barH / 2);
-          ctx.fill();
-        }
-        ctx.fillStyle = "#fff";
-        ctx.font = `800 ${Math.round(clamp(15 * midP, 7, 18))}px sans-serif`;
-        ctx.textAlign = "center";
-        ctx.textBaseline = "bottom";
-        ctx.fillText("HP " + fmtNum(row.hp), projNear.cx, barY - 3 * midP);
       }
+      ctx.fillStyle = "#fff";
+      ctx.font = `800 ${Math.round(clamp(15 * midP, 7, 18))}px sans-serif`;
+      ctx.textAlign = "center";
+      ctx.textBaseline = "bottom";
+      ctx.fillText("HP " + fmtNum(row.hp), projNear.cx, barY - 3 * midP);
+    }
 
+    if (destroyed || breached) {
       ctx.fillStyle = "#fff";
       ctx.font = `900 ${Math.round(clamp(22 * midP, 9, 26))}px sans-serif`;
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
-      ctx.fillText(destroyed ? "撃破！" : breached ? "突破された…" : "🎯", projNear.cx, midY);
-      ctx.globalAlpha = 1;
-      return;
+      ctx.fillText(destroyed ? "撃破！" : "突破された…", projNear.cx, midY);
     }
+    ctx.globalAlpha = 1;
+  }
 
-    for (const seg of row.segments) {
-      ctx.fillStyle = seg.color;
-      drawQuad(projNear, projFar, seg.x0, seg.x1);
+  // a tappable bonus orb (was a "gate" in the old runner version)
+  function drawTarget(t) {
+    const d = t.worldY - world.scrollY;
+    if (d < -CAM_DEPTH * 0.85) return;
+    const proj = project(Math.max(d, 0));
+    if (proj.p < 0.03) return;
+    const x = xAt(proj, t.f), y = proj.y;
+    const w = 66 * VSCALE * proj.p, h = 36 * VSCALE * proj.p;
 
-      const midY = (projNear.y + projFar.y) / 2;
-      const midP = (projNear.p + projFar.p) / 2;
-      const midX = (xAt(projNear, (seg.x0 + seg.x1) / 2) + xAt(projFar, (seg.x0 + seg.x1) / 2)) / 2;
-      ctx.fillStyle = "rgba(255,255,255,0.92)";
-      ctx.font = `800 ${Math.round(clamp(18 * midP, 8, 20))}px sans-serif`;
-      ctx.textAlign = "center";
-      ctx.textBaseline = "middle";
-      const label = seg.op === "x" ? `×${seg.value}` : seg.op === "/" ? `÷${seg.value}` : seg.op + seg.value;
-      ctx.fillText(label, midX, midY);
+    // pulsing ring inviting a tap
+    const pulse = 0.5 + 0.5 * Math.sin(performance.now() / 260 + t.worldY);
+    ctx.strokeStyle = `rgba(255,255,255,${0.18 + 0.18 * pulse})`;
+    ctx.lineWidth = Math.max(1, 3 * proj.p);
+    ctx.beginPath();
+    ctx.ellipse(x, y, w * 0.75, h * 0.85, 0, 0, Math.PI * 2);
+    ctx.stroke();
 
-      // a post at each segment boundary, for a fence-gate feel
-      ctx.strokeStyle = "#7a5230";
-      ctx.lineWidth = Math.max(1, 5 * midP);
-      ctx.beginPath();
-      ctx.moveTo(xAt(projNear, seg.x0), projNear.y - 6 * projNear.p);
-      ctx.lineTo(xAt(projFar, seg.x0), projFar.y - 6 * projFar.p);
-      ctx.stroke();
-    }
+    ctx.fillStyle = t.color;
+    roundRect(ctx, x - w / 2, y - h / 2, w, h, h * 0.3);
+    ctx.fill();
+    ctx.strokeStyle = "rgba(0,0,0,0.25)";
+    ctx.lineWidth = Math.max(1, 2 * proj.p);
+    ctx.stroke();
+
+    ctx.fillStyle = "#fff";
+    ctx.font = `800 ${Math.round(clamp(17 * proj.p, 8, 20))}px sans-serif`;
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    const label = t.op === "x" ? `×${t.value}` : t.op === "/" ? `÷${t.value}` : t.op + t.value;
+    ctx.fillText(label, x, y);
   }
 
   // fills a quad spanning road-fraction [f0,f1] between the near and far projections
