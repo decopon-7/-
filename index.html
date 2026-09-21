@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#1b2a41">
+<title>クラウドラッシュ - Crowd Rush</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div id="app">
+  <canvas id="game"></canvas>
+
+  <div id="hud" class="hidden">
+    <div class="hud-pill" id="hud-coins">🪙 <span>0</span></div>
+    <div class="hud-pill" id="hud-dist"><span>0</span>m</div>
+  </div>
+
+  <div id="screen-menu" class="screen">
+    <div class="panel">
+      <h1>CROWD<br>RUSH</h1>
+      <p class="subtitle">ゲートをくぐって仲間を増やせ！</p>
+      <div class="stat-row"><span>ベストスコア</span><span id="menu-best">0</span></div>
+      <div class="stat-row"><span>🪙 コイン</span><span id="menu-coins">0</span></div>
+      <button id="btn-play" class="btn btn-primary">プレイ</button>
+      <button id="btn-shop" class="btn">ショップ</button>
+    </div>
+  </div>
+
+  <div id="screen-gameover" class="screen hidden">
+    <div class="panel">
+      <h2 id="go-title">ゲームオーバー</h2>
+      <div class="stat-row"><span>スコア(距離)</span><span id="go-score">0</span></div>
+      <div class="stat-row"><span>最大人数</span><span id="go-count">0</span></div>
+      <div class="stat-row"><span>獲得コイン</span><span id="go-coins">+0</span></div>
+      <div id="go-best-badge" class="hidden">🏆 ベスト更新！</div>
+      <button id="btn-retry" class="btn btn-primary">もう一度プレイ</button>
+      <button id="btn-shop2" class="btn">ショップ</button>
+    </div>
+  </div>
+
+  <div id="screen-shop" class="screen hidden">
+    <div class="panel panel-shop">
+      <h2>ショップ</h2>
+      <div class="hud-pill" id="shop-coins">🪙 <span>0</span></div>
+      <div id="shop-list"></div>
+      <button id="btn-back" class="btn">もどる</button>
+    </div>
+  </div>
+
+  <div id="touch-hint" class="hidden">← ドラッグして操作 →</div>
+</div>
+<script src="game.js"></script>
+</body>
+</html>
