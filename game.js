@@ -128,131 +128,140 @@
   };
 
   // ---------------------------------------------------------------
-  // Player character: a hand-drawn chibi fox sprite (vector art, no
+  // Player character: a hand-drawn chibi "plant shop clerk" sprite —
+  // green bob hair, mint apron with a little leaf badge (vector art, no
   // external asset files — keeps things license-free and matches the
   // flat-vector style used everywhere else in the game). Drawn once to
   // an offscreen canvas and blitted for every member of the crowd.
   // ---------------------------------------------------------------
-  function buildFoxSprite() {
+  function buildGirlSprite() {
     const S = 128;
     const cnv = document.createElement("canvas");
     cnv.width = S; cnv.height = S;
     const g = cnv.getContext("2d");
-    const cx = S / 2, cy = S * 0.56;
-    const FUR = "#f6934a", FUR_DARK = "#9c531c", CREAM = "#fff6ea", INNER_EAR = "#ffd3c2";
+    const cx = S / 2, headY = S * 0.42, bodyY = S * 0.76, faceR = 25;
+    const SKIN = "#ffe1c6";
+    const HAIR = "#8fb48a", HAIR_DARK = "#527654";
+    const APRON = "#faf4e6", APRON_LINE = "#d9c8a0";
+    const STRAP = "#9dbd93", STRAP_LINE = "#6d8f66";
+    const LEAF = "#6f9c62";
+    const INK = "#4a3a2c";
 
-    // tail (drawn first, so it sits behind the body)
-    g.save();
-    g.translate(cx, cy);
+    // body / apron
     g.beginPath();
-    g.moveTo(16, 8);
-    g.quadraticCurveTo(44, -4, 48, -32);
-    g.quadraticCurveTo(50, -45, 38, -47);
-    g.quadraticCurveTo(35, -28, 18, -14);
-    g.quadraticCurveTo(9, -5, 9, 11);
+    g.moveTo(cx - 23, bodyY + 30);
+    g.quadraticCurveTo(cx - 26, bodyY + 2, cx - 18, bodyY - 10);
+    g.quadraticCurveTo(cx, bodyY - 18, cx + 18, bodyY - 10);
+    g.quadraticCurveTo(cx + 26, bodyY + 2, cx + 23, bodyY + 30);
     g.closePath();
-    g.fillStyle = FUR;
+    g.fillStyle = APRON;
     g.fill();
-    g.strokeStyle = FUR_DARK;
-    g.lineWidth = 3;
-    g.stroke();
-    g.beginPath();
-    g.ellipse(42, -38, 8, 6.5, 0.5, 0, Math.PI * 2);
-    g.fillStyle = CREAM;
-    g.fill();
-    g.restore();
-
-    // body + belly
-    g.beginPath();
-    g.ellipse(cx, cy + 14, 25, 21, 0, 0, Math.PI * 2);
-    g.fillStyle = FUR;
-    g.fill();
-    g.strokeStyle = FUR_DARK;
-    g.lineWidth = 3;
-    g.stroke();
-    g.beginPath();
-    g.ellipse(cx, cy + 19, 13, 12, 0, 0, Math.PI * 2);
-    g.fillStyle = CREAM;
-    g.fill();
-
-    // feet
-    g.fillStyle = FUR;
-    g.strokeStyle = FUR_DARK;
+    g.strokeStyle = APRON_LINE;
     g.lineWidth = 2.5;
-    for (const dx of [-13, 13]) {
+    g.stroke();
+
+    // shoulder straps
+    for (const s of [-1, 1]) {
       g.beginPath();
-      g.ellipse(cx + dx, cy + 33, 7.5, 5.5, 0, 0, Math.PI * 2);
+      g.ellipse(cx + s * 17, bodyY - 9, 8.5, 13, s * 0.35, 0, Math.PI * 2);
+      g.fillStyle = STRAP;
+      g.fill();
+      g.strokeStyle = STRAP_LINE;
+      g.lineWidth = 2;
+      g.stroke();
+    }
+
+    // little leaf badge on the chest
+    for (const cfg of [{ dx: -2, dy: 4, rot: -0.35 }, { dx: 4, dy: 2, rot: 0.55 }]) {
+      g.save();
+      g.translate(cx + cfg.dx, bodyY + 3 + cfg.dy);
+      g.rotate(cfg.rot);
+      g.beginPath();
+      g.ellipse(0, 0, 4.5, 7.5, 0, 0, Math.PI * 2);
+      g.fillStyle = LEAF;
+      g.fill();
+      g.restore();
+    }
+
+    // hair volume behind the face (top + drooping side locks)
+    g.fillStyle = HAIR;
+    g.strokeStyle = HAIR_DARK;
+    g.lineWidth = 2.5;
+    for (const s of [-1, 1]) {
+      g.beginPath();
+      g.ellipse(cx + s * faceR * 0.9, headY + faceR * 0.5, faceR * 0.34, faceR * 0.62, 0, 0, Math.PI * 2);
       g.fill(); g.stroke();
     }
-
-    // ears (behind the head)
-    for (const s of [-1, 1]) {
-      g.beginPath();
-      g.moveTo(cx + s * 19, cy - 29);
-      g.lineTo(cx + s * 31, cy - 54);
-      g.lineTo(cx + s * 9, cy - 37);
-      g.closePath();
-      g.fillStyle = FUR;
-      g.fill();
-      g.strokeStyle = FUR_DARK;
-      g.lineWidth = 3;
-      g.stroke();
-      g.beginPath();
-      g.moveTo(cx + s * 18, cy - 31);
-      g.lineTo(cx + s * 25, cy - 45);
-      g.lineTo(cx + s * 12, cy - 35);
-      g.closePath();
-      g.fillStyle = INNER_EAR;
-      g.fill();
-    }
-
-    // head
     g.beginPath();
-    g.arc(cx, cy - 13, 25, 0, Math.PI * 2);
-    g.fillStyle = FUR;
+    g.arc(cx, headY - 2, faceR * 1.14, Math.PI, Math.PI * 2);
+    g.closePath();
     g.fill();
-    g.strokeStyle = FUR_DARK;
-    g.lineWidth = 3;
     g.stroke();
 
-    // muzzle
+    // face
     g.beginPath();
-    g.ellipse(cx, cy - 4, 13, 9.5, 0, 0, Math.PI * 2);
-    g.fillStyle = CREAM;
+    g.arc(cx, headY, faceR, 0, Math.PI * 2);
+    g.fillStyle = SKIN;
     g.fill();
 
-    // blush
-    g.fillStyle = "rgba(255,120,120,0.45)";
+    // scalloped bangs across the forehead
+    g.fillStyle = HAIR;
+    const bumps = 5;
+    for (let i = 0; i < bumps; i++) {
+      const t = i / (bumps - 1);
+      const bx = cx + (t - 0.5) * faceR * 1.85;
+      const by = headY - faceR * 0.6 + Math.sin(t * Math.PI) * 3.5;
+      g.beginPath();
+      g.arc(bx, by, faceR * 0.36, 0, Math.PI * 2);
+      g.fill();
+    }
+    g.strokeStyle = HAIR_DARK;
+    g.lineWidth = 2;
+    g.beginPath();
+    g.arc(cx, headY - faceR * 0.12, faceR * 0.98, Math.PI * 1.12, Math.PI * 1.88);
+    g.stroke();
+
+    // eyebrows
+    g.strokeStyle = INK;
+    g.lineWidth = 2;
+    g.lineCap = "round";
     for (const s of [-1, 1]) {
       g.beginPath();
-      g.ellipse(cx + s * 18, cy - 6, 4.6, 3.2, 0, 0, Math.PI * 2);
-      g.fill();
+      g.moveTo(cx + s * 15, headY - 6);
+      g.quadraticCurveTo(cx + s * 10, headY - 10, cx + s * 6, headY - 7);
+      g.stroke();
     }
 
     // eyes + highlight
     for (const s of [-1, 1]) {
-      g.fillStyle = "#3a2416";
+      g.fillStyle = INK;
       g.beginPath();
-      g.ellipse(cx + s * 9.5, cy - 15, 3.4, 4.4, 0, 0, Math.PI * 2);
+      g.ellipse(cx + s * 10, headY + 2, 3.4, 4.4, 0, 0, Math.PI * 2);
       g.fill();
       g.fillStyle = "#fff";
       g.beginPath();
-      g.arc(cx + s * 9.5 - 1.1, cy - 16.5, 1.1, 0, Math.PI * 2);
+      g.arc(cx + s * 10 - 1.1, headY + 0.5, 1.1, 0, Math.PI * 2);
       g.fill();
     }
 
-    // nose
+    // blush
+    g.fillStyle = "rgba(240,130,115,0.5)";
+    for (const s of [-1, 1]) {
+      g.beginPath();
+      g.ellipse(cx + s * 17, headY + 9, 4.8, 3.2, 0, 0, Math.PI * 2);
+      g.fill();
+    }
+
+    // smile
+    g.strokeStyle = INK;
+    g.lineWidth = 1.8;
     g.beginPath();
-    g.moveTo(cx - 3, cy - 2.5);
-    g.lineTo(cx + 3, cy - 2.5);
-    g.lineTo(cx, cy + 1.5);
-    g.closePath();
-    g.fillStyle = "#3a2416";
-    g.fill();
+    g.arc(cx, headY + 8, 4, 0.15 * Math.PI, 0.85 * Math.PI);
+    g.stroke();
 
     return cnv;
   }
-  const FOX_SPRITE = buildFoxSprite();
+  const CHAR_SPRITE = buildGirlSprite();
   const FORMATION_SEED = [];
   for (let i = 0; i < 90; i++) FORMATION_SEED.push(rand(0, Math.PI * 2));
 
@@ -743,7 +752,7 @@
 
     for (const m of members) {
       const size = spriteSize * (0.85 + 0.15 * (m.sortY / formationR + 1) / 2);
-      ctx.drawImage(FOX_SPRITE, x + m.dx - size / 2, y + m.dy - size / 2, size, size);
+      ctx.drawImage(CHAR_SPRITE, x + m.dx - size / 2, y + m.dy - size / 2, size, size);
     }
 
     // count banner above the pack
