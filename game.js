@@ -228,18 +228,22 @@
     // a wave of tappable target orbs, spread across the width so there's a real choice
     const waveN = 1 + Math.min(2, Math.floor(dist / 700));
     const slots = waveN === 1 ? [0.5] : waveN === 2 ? [0.32, 0.68] : [0.2, 0.5, 0.8];
-    const growth = 1 + dist * 0.0012;
+    // +/- magnitudes stay single-digit through the opening stretch and grow from there
+    const addLo = clamp(1 + dist * 0.0015, 1, 5);
+    const addHi = clamp(7 + dist * 0.004, 7, 22);
+    const subLo = clamp(1 + dist * 0.001, 1, 3);
+    const subHi = clamp(4 + dist * 0.003, 4, 14);
     for (const f0 of slots) {
       const isBad = Math.random() < negChance;
       let op, value, color;
       if (isBad) {
         op = Math.random() < 0.5 ? "-" : "/";
-        value = op === "-" ? Math.round(rand(4, 14) * growth) : choice([2, 2, 3]);
+        value = op === "-" ? Math.max(1, Math.floor(rand(subLo, subHi))) : choice([2, 2, 3]);
         color = GATE_COLORS[op];
       } else {
         op = Math.random() < 0.55 ? "+" : "x";
         if (op === "+") {
-          value = Math.round(rand(5, 22) * growth);
+          value = Math.max(1, Math.floor(rand(addLo, addHi)));
         } else {
           value = choice([2, 2, 2, 3, 3, 4]);
         }
