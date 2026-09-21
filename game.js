@@ -21,6 +21,13 @@
   const THICKNESS_WALL = 78;
   const TIE_SPACING = 60;      // world-unit spacing of road "speed tie" marks
 
+  // Auto-shooting: the crowd continuously fires on the nearest enemy
+  // barricade ahead. Crowd size doubles as firepower — DPS scales with count.
+  const FIRE_RANGE = 420;      // world units of engagement range
+  const DPS_PER_UNIT = 1.0;    // damage-per-second, per crowd member
+  const BULLET_INTERVAL = 0.1; // seconds between visual tracer volleys
+  const BULLET_SPEED = 1400;   // world units/sec a tracer travels
+
   const SAVE_KEY = "crowdrush_save_v1";
 
   const UPGRADES = [
@@ -32,6 +39,8 @@
       effect: (lv) => `コイン獲得範囲 Lv.${lv}` },
     { key: "luck",       name: "ラック",     icon: "🍀", base: 90, growth: 1.7,  maxLevel: 5,
       effect: (lv) => `良いゲート率 Lv.${lv}` },
+    { key: "power",      name: "火力",       icon: "🔫", base: 75, growth: 1.65, maxLevel: 5,
+      effect: (lv) => `弾のダメージ +${lv * 20}%` },
   ];
 
   function upgradeCost(def, level) {
@@ -164,10 +173,12 @@
       scrollY: 0,
       speed: SPEED_BASE,
       nextSpawnY: 260,
-      lastWallY: -99999,
-      wallIndex: 0,
+      lastEnemyY: -99999,
+      enemyIndex: 0,
       rows: [],
       pickups: [],
+      bullets: [],
+      bulletTimer: 0,
     };
     player = {
       f: 0.5,          // horizontal position as fraction of road width [0,1]
@@ -181,7 +192,7 @@
     shake = { time: 0, mag: 0 };
     runStats = { coins: 0, maxCount: player.count };
 
-    // seed the road with a few easy rows before the first wall
+    // seed the road with a few easy rows before the first enemy
     for (let i = 0; i < 4; i++) spawnNextRow();
   }
 
@@ -190,26 +201,27 @@
   // ---------------------------------------------------------------
   function spawnNextRow() {
     const dist = world.nextSpawnY;
-    const sinceWall = dist - world.lastWallY;
+    const sinceEnemy = dist - world.lastEnemyY;
     const luckLv = upLevel("luck");
     // ramps up with distance so the opening stretch stays fair and the challenge builds later
     const negChance = clamp(0.16 + dist * 0.00028 - luckLv * 0.045, 0.1, 0.42);
 
-    const wallDue = sinceWall > rand(500, 640) && dist > 420;
+    const enemyDue = sinceEnemy > rand(500, 640) && dist > 420;
 
-    if (wallDue) {
-      const base = 24 + world.wallIndex * 17;
-      const value = Math.round(base * Math.pow(1.4, world.wallIndex) * rand(0.85, 1.15));
+    if (enemyDue) {
+      const base = 24 + world.enemyIndex * 17;
+      const hp = Math.max(6, Math.round(base * Math.pow(1.4, world.enemyIndex) * rand(0.85, 1.15)));
       world.rows.push({
-        kind: "wall",
+        kind: "enemy",
         worldY: dist,
-        value: Math.max(6, value),
+        hp,
+        maxHp: hp,
         processed: false,
-        state: "idle", // idle | broken | failed
+        state: "idle", // idle | destroyed | breached
         stateTime: 0,
       });
-      world.lastWallY = dist;
-      world.wallIndex++;
+      world.lastEnemyY = dist;
+      world.enemyIndex++;
       world.nextSpawnY = dist + rand(150, 210);
       return;
     }
@@ -294,24 +306,63 @@
     if (player.count <= 0) triggerGameOver("crowd");
   }
 
-  function resolveWall(row) {
+  // called once when an enemy row reaches the player's line
+  function resolveEnemyCrossing(row) {
     row.processed = true;
+    if (row.hp <= 0) return; // already shot down before it arrived — pass through freely
+    row.state = "breached";
+    row.stateTime = 0;
     const pos = playerScreenPos();
-    const px = pos.x, py = pos.y;
-    if (player.count >= row.value) {
-      row.state = "broken";
-      const reward = Math.max(1, Math.round(row.value * 0.12));
-      runStats.coins += reward;
-      spawnPopup(px, py - 20, "🪙+" + reward, "#ffd166");
-      spawnBurst(px, py, "#ffd166", 26);
-      shake.time = 0.25; shake.mag = 10;
-      player.bump = 1;
-    } else {
-      row.state = "failed";
-      spawnBurst(px, py, "#ff5b6e", 34);
-      shake.time = 0.4; shake.mag = 16;
-      triggerGameOver("wall");
+    spawnBurst(pos.x, pos.y, "#ff5b6e", 34);
+    shake.time = 0.4; shake.mag = 16;
+    triggerGameOver("enemy");
+  }
+
+  function rewardEnemyKill(row, atX, atY) {
+    row.state = "destroyed";
+    row.stateTime = 0;
+    const reward = Math.max(1, Math.round(row.maxHp * 0.12));
+    runStats.coins += reward;
+    spawnPopup(atX, atY - 16, "🪙+" + reward, "#ffd166");
+    spawnBurst(atX, atY, "#ffd166", 24);
+    shake.time = 0.2; shake.mag = 8;
+  }
+
+  // continuous auto-fire: find the nearest live enemy ahead and chip its HP
+  function updateShooting(dt) {
+    let target = null, targetD = Infinity;
+    for (const row of world.rows) {
+      if (row.kind !== "enemy" || row.state !== "idle") continue;
+      const d = row.worldY - world.scrollY;
+      if (d > 0 && d < targetD) { targetD = d; target = row; }
     }
+
+    if (target && targetD < FIRE_RANGE) {
+      const powerLv = upLevel("power");
+      const dps = player.count * DPS_PER_UNIT * (1 + powerLv * 0.2);
+      target.hp = Math.max(0, target.hp - dps * dt);
+
+      world.bulletTimer -= dt;
+      if (world.bulletTimer <= 0) {
+        world.bulletTimer = BULLET_INTERVAL;
+        world.bullets.push({ d: 0, targetD, f0: player.f, f1: 0.5, alive: true });
+      }
+
+      if (target.hp <= 0) {
+        const proj = project(targetD);
+        rewardEnemyKill(target, xAt(proj, 0.5), proj.y);
+      }
+    }
+
+    for (const b of world.bullets) {
+      b.d += BULLET_SPEED * dt;
+      if (b.d >= b.targetD) {
+        b.alive = false;
+        const proj = project(b.targetD);
+        spawnBurst(xAt(proj, b.f1), proj.y, "#fff3b0", 5);
+      }
+    }
+    world.bullets = world.bullets.filter(b => b.alive);
   }
 
   function resolveGateRow(row) {
@@ -376,11 +427,13 @@
 
     while (world.nextSpawnY < world.scrollY + LOOKAHEAD) spawnNextRow();
 
+    updateShooting(dt);
+
     for (const row of world.rows) {
       if (!row.processed && row.worldY - world.scrollY <= 0) {
-        if (row.kind === "wall") resolveWall(row); else resolveGateRow(row);
+        if (row.kind === "enemy") resolveEnemyCrossing(row); else resolveGateRow(row);
       }
-      if (row.kind === "wall" && row.state !== "idle") row.stateTime += dt;
+      if (row.kind === "enemy" && row.state !== "idle") row.stateTime += dt;
     }
     world.rows = world.rows.filter(r => (r.worldY - world.scrollY) > -REMOVE_MARGIN);
 
@@ -441,6 +494,7 @@
       const pickups = world.pickups.slice().sort((a, b) => b.worldY - a.worldY);
       for (const p of pickups) drawPickup(p);
       drawPlayer();
+      drawBullets();
       drawParticles();
       drawPopups();
     }
@@ -517,7 +571,7 @@
 
   function drawRow(row) {
     const d = row.worldY - world.scrollY;
-    const thickness = row.kind === "wall" ? THICKNESS_WALL : THICKNESS_GATE;
+    const thickness = row.kind === "enemy" ? THICKNESS_WALL : THICKNESS_GATE;
     const dNear = d - thickness / 2;
     const dFar = d + thickness / 2;
     if (dFar < -CAM_DEPTH * 0.85) return;
@@ -525,21 +579,45 @@
     const projFar = project(dFar);
     if (projNear.p < 0.03 && projFar.p < 0.03) return;
 
-    if (row.kind === "wall") {
-      const broken = row.state === "broken";
-      const failed = row.state === "failed";
-      const alpha = (broken || failed) ? clamp(1 - row.stateTime / 0.5, 0, 1) : 1;
+    if (row.kind === "enemy") {
+      const destroyed = row.state === "destroyed";
+      const breached = row.state === "breached";
+      const alpha = (destroyed || breached) ? clamp(1 - row.stateTime / 0.5, 0, 1) : 1;
       if (alpha <= 0) return;
+      const hpFrac = clamp(row.hp / row.maxHp, 0, 1);
       ctx.globalAlpha = alpha;
-      ctx.fillStyle = failed ? "#ff3b4e" : (broken ? "#ffd166" : "#2b3a55");
+      ctx.fillStyle = breached ? "#ff3b4e" : (destroyed ? "#ffd166" : "#2b3a55");
       drawQuad(projNear, projFar, 0, 1);
+
       const midY = (projNear.y + projFar.y) / 2;
       const midP = (projNear.p + projFar.p) / 2;
+
+      if (!destroyed && !breached) {
+        // HP bar above the barricade
+        const barW = (xAt(projNear, 1) - xAt(projNear, 0)) * 0.7;
+        const barH = Math.max(4, 9 * midP);
+        const barX = projNear.cx - barW / 2;
+        const barY = projNear.y - (THICKNESS_GATE * 0.9 + 20) * midP;
+        ctx.fillStyle = "rgba(0,0,0,0.4)";
+        roundRect(ctx, barX, barY, barW, barH, barH / 2);
+        ctx.fill();
+        ctx.fillStyle = hpFrac > 0.5 ? "#6fdc8c" : hpFrac > 0.2 ? "#ffd166" : "#ff5b6e";
+        if (barW * hpFrac > 1) {
+          roundRect(ctx, barX, barY, Math.max(barH, barW * hpFrac), barH, barH / 2);
+          ctx.fill();
+        }
+        ctx.fillStyle = "#fff";
+        ctx.font = `800 ${Math.round(clamp(15 * midP, 7, 18))}px sans-serif`;
+        ctx.textAlign = "center";
+        ctx.textBaseline = "bottom";
+        ctx.fillText("HP " + fmtNum(row.hp), projNear.cx, barY - 3 * midP);
+      }
+
       ctx.fillStyle = "#fff";
-      ctx.font = `800 ${Math.round(clamp(22 * midP, 9, 26))}px sans-serif`;
+      ctx.font = `900 ${Math.round(clamp(22 * midP, 9, 26))}px sans-serif`;
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
-      ctx.fillText(fmtNum(row.value) + " 必要", projNear.cx, midY);
+      ctx.fillText(destroyed ? "撃破！" : breached ? "突破された…" : "🎯", projNear.cx, midY);
       ctx.globalAlpha = 1;
       return;
     }
@@ -673,6 +751,23 @@
     c.closePath();
   }
 
+  function drawBullets() {
+    for (const b of world.bullets) {
+      const f = lerp(b.f0, b.f1, clamp(b.d / b.targetD, 0, 1));
+      const proj = project(b.d);
+      const projTail = project(Math.max(0, b.d - 26));
+      const x = xAt(proj, f), y = proj.y;
+      const xTail = xAt(projTail, f), yTail = projTail.y;
+      ctx.strokeStyle = "#fff3b0";
+      ctx.lineWidth = Math.max(1.5, 4 * proj.p);
+      ctx.lineCap = "round";
+      ctx.beginPath();
+      ctx.moveTo(xTail, yTail);
+      ctx.lineTo(x, y);
+      ctx.stroke();
+    }
+  }
+
   function drawParticles() {
     for (const p of particles) {
       ctx.globalAlpha = clamp(p.life / p.maxLife, 0, 1);
@@ -724,7 +819,7 @@
   }
 
   function showGameOver(reason, isBest) {
-    el("go-title").textContent = reason === "wall" ? "壁を突破できなかった…" : "仲間がいなくなった…";
+    el("go-title").textContent = reason === "enemy" ? "敵を倒しきれなかった…" : "仲間がいなくなった…";
     el("go-score").textContent = fmtNum(Math.round(world.scrollY / 8)) + "m";
     el("go-count").textContent = fmtNum(runStats.maxCount);
     el("go-coins").textContent = "+" + fmtNum(runStats.coins);
