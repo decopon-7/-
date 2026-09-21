@@ -128,6 +128,135 @@
   };
 
   // ---------------------------------------------------------------
+  // Player character: a hand-drawn chibi fox sprite (vector art, no
+  // external asset files — keeps things license-free and matches the
+  // flat-vector style used everywhere else in the game). Drawn once to
+  // an offscreen canvas and blitted for every member of the crowd.
+  // ---------------------------------------------------------------
+  function buildFoxSprite() {
+    const S = 128;
+    const cnv = document.createElement("canvas");
+    cnv.width = S; cnv.height = S;
+    const g = cnv.getContext("2d");
+    const cx = S / 2, cy = S * 0.56;
+    const FUR = "#f6934a", FUR_DARK = "#9c531c", CREAM = "#fff6ea", INNER_EAR = "#ffd3c2";
+
+    // tail (drawn first, so it sits behind the body)
+    g.save();
+    g.translate(cx, cy);
+    g.beginPath();
+    g.moveTo(16, 8);
+    g.quadraticCurveTo(44, -4, 48, -32);
+    g.quadraticCurveTo(50, -45, 38, -47);
+    g.quadraticCurveTo(35, -28, 18, -14);
+    g.quadraticCurveTo(9, -5, 9, 11);
+    g.closePath();
+    g.fillStyle = FUR;
+    g.fill();
+    g.strokeStyle = FUR_DARK;
+    g.lineWidth = 3;
+    g.stroke();
+    g.beginPath();
+    g.ellipse(42, -38, 8, 6.5, 0.5, 0, Math.PI * 2);
+    g.fillStyle = CREAM;
+    g.fill();
+    g.restore();
+
+    // body + belly
+    g.beginPath();
+    g.ellipse(cx, cy + 14, 25, 21, 0, 0, Math.PI * 2);
+    g.fillStyle = FUR;
+    g.fill();
+    g.strokeStyle = FUR_DARK;
+    g.lineWidth = 3;
+    g.stroke();
+    g.beginPath();
+    g.ellipse(cx, cy + 19, 13, 12, 0, 0, Math.PI * 2);
+    g.fillStyle = CREAM;
+    g.fill();
+
+    // feet
+    g.fillStyle = FUR;
+    g.strokeStyle = FUR_DARK;
+    g.lineWidth = 2.5;
+    for (const dx of [-13, 13]) {
+      g.beginPath();
+      g.ellipse(cx + dx, cy + 33, 7.5, 5.5, 0, 0, Math.PI * 2);
+      g.fill(); g.stroke();
+    }
+
+    // ears (behind the head)
+    for (const s of [-1, 1]) {
+      g.beginPath();
+      g.moveTo(cx + s * 19, cy - 29);
+      g.lineTo(cx + s * 31, cy - 54);
+      g.lineTo(cx + s * 9, cy - 37);
+      g.closePath();
+      g.fillStyle = FUR;
+      g.fill();
+      g.strokeStyle = FUR_DARK;
+      g.lineWidth = 3;
+      g.stroke();
+      g.beginPath();
+      g.moveTo(cx + s * 18, cy - 31);
+      g.lineTo(cx + s * 25, cy - 45);
+      g.lineTo(cx + s * 12, cy - 35);
+      g.closePath();
+      g.fillStyle = INNER_EAR;
+      g.fill();
+    }
+
+    // head
+    g.beginPath();
+    g.arc(cx, cy - 13, 25, 0, Math.PI * 2);
+    g.fillStyle = FUR;
+    g.fill();
+    g.strokeStyle = FUR_DARK;
+    g.lineWidth = 3;
+    g.stroke();
+
+    // muzzle
+    g.beginPath();
+    g.ellipse(cx, cy - 4, 13, 9.5, 0, 0, Math.PI * 2);
+    g.fillStyle = CREAM;
+    g.fill();
+
+    // blush
+    g.fillStyle = "rgba(255,120,120,0.45)";
+    for (const s of [-1, 1]) {
+      g.beginPath();
+      g.ellipse(cx + s * 18, cy - 6, 4.6, 3.2, 0, 0, Math.PI * 2);
+      g.fill();
+    }
+
+    // eyes + highlight
+    for (const s of [-1, 1]) {
+      g.fillStyle = "#3a2416";
+      g.beginPath();
+      g.ellipse(cx + s * 9.5, cy - 15, 3.4, 4.4, 0, 0, Math.PI * 2);
+      g.fill();
+      g.fillStyle = "#fff";
+      g.beginPath();
+      g.arc(cx + s * 9.5 - 1.1, cy - 16.5, 1.1, 0, Math.PI * 2);
+      g.fill();
+    }
+
+    // nose
+    g.beginPath();
+    g.moveTo(cx - 3, cy - 2.5);
+    g.lineTo(cx + 3, cy - 2.5);
+    g.lineTo(cx, cy + 1.5);
+    g.closePath();
+    g.fillStyle = "#3a2416";
+    g.fill();
+
+    return cnv;
+  }
+  const FOX_SPRITE = buildFoxSprite();
+  const FORMATION_SEED = [];
+  for (let i = 0; i < 90; i++) FORMATION_SEED.push(rand(0, Math.PI * 2));
+
+  // ---------------------------------------------------------------
   // Game state
   // ---------------------------------------------------------------
   let state = "menu"; // menu | playing | gameover | shop
@@ -587,47 +716,60 @@
     const pos = playerScreenPos();
     const x = pos.x;
     const y = pos.y;
-    const r = clamp(20 + Math.sqrt(player.displayCount) * 2.2, 20, 78) * VSCALE * (1 + player.bump * 0.12);
+    const bumpMul = 1 + player.bump * 0.16;
+    const formationR = clamp(14 + Math.sqrt(player.displayCount) * 5.6, 14, 100) * VSCALE * bumpMul;
+    const visibleN = clamp(Math.round(player.displayCount), 1, 90);
+    // smaller sprites as the crowd gets denser, so it reads as a crowd, not a pile
+    const spriteSize = clamp(30 - Math.sqrt(visibleN) * 1.5, 13, 30) * VSCALE * bumpMul;
 
-    // shadow
+    // one shared shadow under the whole formation
     ctx.beginPath();
-    ctx.ellipse(x, y + r * 0.55, r * 0.9, r * 0.28, 0, 0, Math.PI * 2);
+    ctx.ellipse(x, y + formationR * 0.5, formationR * 1.05, formationR * 0.34, 0, 0, Math.PI * 2);
     ctx.fillStyle = "rgba(0,0,0,0.18)";
     ctx.fill();
 
-    const grad = ctx.createRadialGradient(x - r * 0.3, y - r * 0.3, r * 0.1, x, y, r);
-    grad.addColorStop(0, "#7ec8ff");
-    grad.addColorStop(1, "#2f7fe0");
-    ctx.beginPath();
-    ctx.arc(x, y, r, 0, Math.PI * 2);
-    ctx.fillStyle = grad;
-    ctx.fill();
-    ctx.lineWidth = 3;
-    ctx.strokeStyle = "#134a8f";
-    ctx.stroke();
-
-    // little dot pattern for a "crowd" feel
-    const dots = Math.min(60, Math.round(player.displayCount));
-    ctx.fillStyle = "rgba(255,255,255,0.55)";
-    for (let i = 0; i < dots; i++) {
+    const now = performance.now() / 1000;
+    const members = [];
+    for (let i = 0; i < visibleN; i++) {
       const a = (i * 137.508) * Math.PI / 180;
-      const rad = r * 0.75 * Math.sqrt((i + 1) / dots);
-      const dx = x + Math.cos(a) * rad;
-      const dy = y + Math.sin(a) * rad;
-      ctx.beginPath();
-      ctx.arc(dx, dy, Math.max(1.4, r * 0.05), 0, Math.PI * 2);
-      ctx.fill();
+      const rad = formationR * Math.sqrt((i + 0.5) / visibleN);
+      const seed = FORMATION_SEED[i % FORMATION_SEED.length];
+      const bob = Math.sin(now * 3.2 + seed) * spriteSize * 0.06;
+      const dx = Math.cos(a) * rad;
+      const dy = Math.sin(a) * rad * 0.7; // flatten the formation a bit for a top-down feel
+      members.push({ dx, dy: dy + bob, sortY: dy });
+    }
+    members.sort((m1, m2) => m1.sortY - m2.sortY); // draw back-to-front
+
+    for (const m of members) {
+      const size = spriteSize * (0.85 + 0.15 * (m.sortY / formationR + 1) / 2);
+      ctx.drawImage(FOX_SPRITE, x + m.dx - size / 2, y + m.dy - size / 2, size, size);
     }
 
-    ctx.fillStyle = "#fff";
-    ctx.font = `900 ${Math.round(clamp(16 + r * 0.16, 16, 30))}px sans-serif`;
+    // count banner above the pack
+    const labelY = y - formationR - 14 * VSCALE;
+    const label = fmtNum(player.displayCount);
+    ctx.font = `900 ${Math.round(clamp(15 + formationR * 0.1, 15, 26))}px sans-serif`;
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
-    ctx.lineWidth = 4;
-    ctx.strokeStyle = "rgba(10,30,60,0.65)";
-    const label = fmtNum(player.displayCount);
-    ctx.strokeText(label, x, y);
-    ctx.fillText(label, x, y);
+    const padX = 10 * VSCALE;
+    const tw = ctx.measureText(label).width;
+    const bh = 22 * VSCALE;
+    ctx.fillStyle = "rgba(10,30,60,0.72)";
+    roundRect(ctx, x - tw / 2 - padX, labelY - bh / 2, tw + padX * 2, bh, bh / 2);
+    ctx.fill();
+    ctx.fillStyle = "#fff";
+    ctx.fillText(label, x, labelY + 1);
+  }
+
+  function roundRect(c, x, y, w, h, r) {
+    c.beginPath();
+    c.moveTo(x + r, y);
+    c.arcTo(x + w, y, x + w, y + h, r);
+    c.arcTo(x + w, y + h, x, y + h, r);
+    c.arcTo(x, y + h, x, y, r);
+    c.arcTo(x, y, x + w, y, r);
+    c.closePath();
   }
 
   function drawParticles() {
