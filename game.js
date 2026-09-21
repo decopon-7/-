@@ -128,140 +128,19 @@
   };
 
   // ---------------------------------------------------------------
-  // Player character: a hand-drawn chibi "plant shop clerk" sprite —
-  // green bob hair, mint apron with a little leaf badge (vector art, no
-  // external asset files — keeps things license-free and matches the
-  // flat-vector style used everywhere else in the game). Drawn once to
-  // an offscreen canvas and blitted for every member of the crowd.
+  // Player character: the user's own illustrated "plant shop clerk"
+  // mascot (their artwork, background removed). One pose runs in the
+  // crowd formation; the others decorate the menu/shop/game-over screens.
   // ---------------------------------------------------------------
-  function buildGirlSprite() {
-    const S = 128;
-    const cnv = document.createElement("canvas");
-    cnv.width = S; cnv.height = S;
-    const g = cnv.getContext("2d");
-    const cx = S / 2, headY = S * 0.42, bodyY = S * 0.76, faceR = 25;
-    const SKIN = "#ffe1c6";
-    const HAIR = "#8fb48a", HAIR_DARK = "#527654";
-    const APRON = "#faf4e6", APRON_LINE = "#d9c8a0";
-    const STRAP = "#9dbd93", STRAP_LINE = "#6d8f66";
-    const LEAF = "#6f9c62";
-    const INK = "#4a3a2c";
-
-    // body / apron
-    g.beginPath();
-    g.moveTo(cx - 23, bodyY + 30);
-    g.quadraticCurveTo(cx - 26, bodyY + 2, cx - 18, bodyY - 10);
-    g.quadraticCurveTo(cx, bodyY - 18, cx + 18, bodyY - 10);
-    g.quadraticCurveTo(cx + 26, bodyY + 2, cx + 23, bodyY + 30);
-    g.closePath();
-    g.fillStyle = APRON;
-    g.fill();
-    g.strokeStyle = APRON_LINE;
-    g.lineWidth = 2.5;
-    g.stroke();
-
-    // shoulder straps
-    for (const s of [-1, 1]) {
-      g.beginPath();
-      g.ellipse(cx + s * 17, bodyY - 9, 8.5, 13, s * 0.35, 0, Math.PI * 2);
-      g.fillStyle = STRAP;
-      g.fill();
-      g.strokeStyle = STRAP_LINE;
-      g.lineWidth = 2;
-      g.stroke();
-    }
-
-    // little leaf badge on the chest
-    for (const cfg of [{ dx: -2, dy: 4, rot: -0.35 }, { dx: 4, dy: 2, rot: 0.55 }]) {
-      g.save();
-      g.translate(cx + cfg.dx, bodyY + 3 + cfg.dy);
-      g.rotate(cfg.rot);
-      g.beginPath();
-      g.ellipse(0, 0, 4.5, 7.5, 0, 0, Math.PI * 2);
-      g.fillStyle = LEAF;
-      g.fill();
-      g.restore();
-    }
-
-    // hair volume behind the face (top + drooping side locks)
-    g.fillStyle = HAIR;
-    g.strokeStyle = HAIR_DARK;
-    g.lineWidth = 2.5;
-    for (const s of [-1, 1]) {
-      g.beginPath();
-      g.ellipse(cx + s * faceR * 0.9, headY + faceR * 0.5, faceR * 0.34, faceR * 0.62, 0, 0, Math.PI * 2);
-      g.fill(); g.stroke();
-    }
-    g.beginPath();
-    g.arc(cx, headY - 2, faceR * 1.14, Math.PI, Math.PI * 2);
-    g.closePath();
-    g.fill();
-    g.stroke();
-
-    // face
-    g.beginPath();
-    g.arc(cx, headY, faceR, 0, Math.PI * 2);
-    g.fillStyle = SKIN;
-    g.fill();
-
-    // scalloped bangs across the forehead
-    g.fillStyle = HAIR;
-    const bumps = 5;
-    for (let i = 0; i < bumps; i++) {
-      const t = i / (bumps - 1);
-      const bx = cx + (t - 0.5) * faceR * 1.85;
-      const by = headY - faceR * 0.6 + Math.sin(t * Math.PI) * 3.5;
-      g.beginPath();
-      g.arc(bx, by, faceR * 0.36, 0, Math.PI * 2);
-      g.fill();
-    }
-    g.strokeStyle = HAIR_DARK;
-    g.lineWidth = 2;
-    g.beginPath();
-    g.arc(cx, headY - faceR * 0.12, faceR * 0.98, Math.PI * 1.12, Math.PI * 1.88);
-    g.stroke();
-
-    // eyebrows
-    g.strokeStyle = INK;
-    g.lineWidth = 2;
-    g.lineCap = "round";
-    for (const s of [-1, 1]) {
-      g.beginPath();
-      g.moveTo(cx + s * 15, headY - 6);
-      g.quadraticCurveTo(cx + s * 10, headY - 10, cx + s * 6, headY - 7);
-      g.stroke();
-    }
-
-    // eyes + highlight
-    for (const s of [-1, 1]) {
-      g.fillStyle = INK;
-      g.beginPath();
-      g.ellipse(cx + s * 10, headY + 2, 3.4, 4.4, 0, 0, Math.PI * 2);
-      g.fill();
-      g.fillStyle = "#fff";
-      g.beginPath();
-      g.arc(cx + s * 10 - 1.1, headY + 0.5, 1.1, 0, Math.PI * 2);
-      g.fill();
-    }
-
-    // blush
-    g.fillStyle = "rgba(240,130,115,0.5)";
-    for (const s of [-1, 1]) {
-      g.beginPath();
-      g.ellipse(cx + s * 17, headY + 9, 4.8, 3.2, 0, 0, Math.PI * 2);
-      g.fill();
-    }
-
-    // smile
-    g.strokeStyle = INK;
-    g.lineWidth = 1.8;
-    g.beginPath();
-    g.arc(cx, headY + 8, 4, 0.15 * Math.PI, 0.85 * Math.PI);
-    g.stroke();
-
-    return cnv;
+  function loadSprite(src) {
+    const img = new Image();
+    img.src = src;
+    return img;
   }
-  const CHAR_SPRITE = buildGirlSprite();
+  const CHAR_SPRITE = loadSprite("assets/char-wave.png");
+  const MASCOT_PEACE = loadSprite("assets/char-peace.png");
+  const MASCOT_PLANT = loadSprite("assets/char-plant.png");
+  const MASCOT_SAD = loadSprite("assets/char-sad.png");
   const FORMATION_SEED = [];
   for (let i = 0; i < 90; i++) FORMATION_SEED.push(rand(0, Math.PI * 2));
 
@@ -721,7 +600,12 @@
     ctx.fillText(p.gem ? "+5" : "$", x, y);
   }
 
+  function spriteReady(img) { return img.complete && img.naturalWidth > 0; }
+
   function drawPlayer() {
+    if (!spriteReady(CHAR_SPRITE)) return; // local image, loads almost instantly
+    const aspect = CHAR_SPRITE.naturalWidth / CHAR_SPRITE.naturalHeight;
+
     const pos = playerScreenPos();
     const x = pos.x;
     const y = pos.y;
@@ -729,7 +613,7 @@
     const formationR = clamp(14 + Math.sqrt(player.displayCount) * 5.6, 14, 100) * VSCALE * bumpMul;
     const visibleN = clamp(Math.round(player.displayCount), 1, 90);
     // smaller sprites as the crowd gets denser, so it reads as a crowd, not a pile
-    const spriteSize = clamp(30 - Math.sqrt(visibleN) * 1.5, 13, 30) * VSCALE * bumpMul;
+    const spriteSize = clamp(34 - Math.sqrt(visibleN) * 1.7, 15, 34) * VSCALE * bumpMul;
 
     // one shared shadow under the whole formation
     ctx.beginPath();
@@ -746,17 +630,24 @@
       const bob = Math.sin(now * 3.2 + seed) * spriteSize * 0.06;
       const dx = Math.cos(a) * rad;
       const dy = Math.sin(a) * rad * 0.7; // flatten the formation a bit for a top-down feel
-      members.push({ dx, dy: dy + bob, sortY: dy });
+      const flip = FORMATION_SEED[(i * 7 + 3) % FORMATION_SEED.length] > Math.PI; // cheap per-member variety
+      members.push({ dx, dy: dy + bob, sortY: dy, flip });
     }
     members.sort((m1, m2) => m1.sortY - m2.sortY); // draw back-to-front
 
     for (const m of members) {
-      const size = spriteSize * (0.85 + 0.15 * (m.sortY / formationR + 1) / 2);
-      ctx.drawImage(CHAR_SPRITE, x + m.dx - size / 2, y + m.dy - size / 2, size, size);
+      const h = spriteSize * (0.85 + 0.15 * (m.sortY / formationR + 1) / 2) * 1.3;
+      const w = h * aspect;
+      const cx = x + m.dx, groundY = y + m.dy;
+      ctx.save();
+      ctx.translate(cx, groundY);
+      if (m.flip) ctx.scale(-1, 1);
+      ctx.drawImage(CHAR_SPRITE, -w / 2, -h, w, h);
+      ctx.restore();
     }
 
     // count banner above the pack
-    const labelY = y - formationR - 14 * VSCALE;
+    const labelY = y - formationR * 0.7 - spriteSize * 1.3 - 12 * VSCALE;
     const label = fmtNum(player.displayCount);
     ctx.font = `900 ${Math.round(clamp(15 + formationR * 0.1, 15, 26))}px sans-serif`;
     ctx.textAlign = "center";
