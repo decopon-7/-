@@ -157,7 +157,7 @@
   // ---------------------------------------------------------------
   let state = "menu"; // menu | playing | gameover | shop
   let world = { rows: [], targets: [], pickups: [], scrollY: 0 };
-  let player = { f: 0.5, count: 0, displayCount: 0, bump: 0 };
+  let player = { f: 0.5, targetF: 0.5, count: 0, displayCount: 0, bump: 0 };
   let particles = [];
   let popups = [];
   let shake = { time: 0, mag: 0 };
@@ -180,7 +180,8 @@
       bulletTimer: 0,
     };
     player = {
-      f: 0.5, // fixed — the crowd holds position and doesn't move
+      f: 0.5,          // horizontal position as a fraction of the field width [0,1]
+      targetF: 0.5,    // drag left/right to move here; shooting is a separate tap
       count: 10 + startLv * 5,
       displayCount: 10 + startLv * 5,
       bump: 0,
@@ -252,12 +253,12 @@
       });
     }
 
-    // occasional coin/gem pickup, kept near center since the crowd can't move to chase it
+    // occasional coin/gem pickup — move the crowd under it to collect
     if (Math.random() < 0.55) {
       const isGem = Math.random() < 0.18;
       world.pickups.push({
         worldY: dist - rand(30, 70),
-        f: clamp(0.5 + rand(-0.22, 0.22), 0.3, 0.7),
+        f: clamp(rand(0.15, 0.85), 0.08, 0.92),
         value: isGem ? 5 : 1,
         gem: isGem,
         collected: false,
@@ -384,21 +385,21 @@
   }
 
   // ---------------------------------------------------------------
-  // Input — the crowd holds its ground; tapping a target orb shoots it
+  // Input — drag left/right to move the crowd, tap (no drag) to shoot
+  // whatever target orb is under your finger.
   // ---------------------------------------------------------------
+  const TAP_DRAG_THRESHOLD = 12; // px of movement before a touch counts as a drag, not a tap
+  const dragState = { active: false, dragging: false, startX: 0, startY: 0, startF: 0.5 };
+
   function pointerX(e) {
     return (e.touches && e.touches[0]) ? e.touches[0].clientX : e.clientX;
   }
   function pointerY(e) {
     return (e.touches && e.touches[0]) ? e.touches[0].clientY : e.clientY;
   }
-  canvas.addEventListener("pointerdown", (e) => {
-    if (state !== "playing") return;
-    const rect = canvas.getBoundingClientRect();
-    const tx = pointerX(e) - rect.left;
-    const ty = pointerY(e) - rect.top;
-    const aimLv = upLevel("aim");
 
+  function tryShootAt(tx, ty) {
+    const aimLv = upLevel("aim");
     let best = null, bestDist = Infinity;
     for (const t of world.targets) {
       if (t.resolved) continue;
@@ -411,7 +412,34 @@
       if (dist < hitR && dist < bestDist) { bestDist = dist; best = t; }
     }
     if (best) resolveTarget(best);
+  }
+
+  canvas.addEventListener("pointerdown", (e) => {
+    if (state !== "playing") return;
+    dragState.active = true;
+    dragState.dragging = false;
+    dragState.startX = pointerX(e);
+    dragState.startY = pointerY(e);
+    dragState.startF = player.targetF;
   });
+  window.addEventListener("pointermove", (e) => {
+    if (!dragState.active) return;
+    const dx = pointerX(e) - dragState.startX;
+    const dy = pointerY(e) - dragState.startY;
+    if (!dragState.dragging && Math.hypot(dx, dy) > TAP_DRAG_THRESHOLD) dragState.dragging = true;
+    if (dragState.dragging) {
+      player.targetF = clamp(dragState.startF + dx / (ROAD_HALF_W * 2), 0.04, 0.96);
+    }
+  });
+  window.addEventListener("pointerup", (e) => {
+    if (!dragState.active) return;
+    if (!dragState.dragging) {
+      const rect = canvas.getBoundingClientRect();
+      tryShootAt(pointerX(e) - rect.left, pointerY(e) - rect.top);
+    }
+    dragState.active = false;
+  });
+  window.addEventListener("pointercancel", () => { dragState.active = false; });
 
   // ---------------------------------------------------------------
   // Update
@@ -422,6 +450,8 @@
     world.speed = clamp(SPEED_BASE + world.scrollY * 0.045, SPEED_BASE, SPEED_MAX);
     world.scrollY += world.speed * dt;
 
+    const moveT = 1 - Math.pow(1 - 0.3, dt * 60);
+    player.f = lerp(player.f, player.targetF, moveT);
     player.displayCount = lerp(player.displayCount, player.count, 1 - Math.pow(0.001, dt));
     player.bump = Math.max(0, player.bump - dt * 4);
 
