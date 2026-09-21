@@ -8,7 +8,7 @@
   const LOOKAHEAD = 900;          // how far ahead (world units) to keep rows spawned
   const REMOVE_MARGIN = 120;      // remove rows this far behind the player
   const SPEED_BASE = 150;
-  const SPEED_MAX = 430;
+  const SPEED_MAX = 480;
 
   // Pseudo-3D perspective: the road is a triangle converging on a vanishing
   // point at the horizon. CAM_DEPTH controls how quickly things shrink with
@@ -192,13 +192,14 @@
     const dist = world.nextSpawnY;
     const sinceWall = dist - world.lastWallY;
     const luckLv = upLevel("luck");
-    const negChance = Math.max(0.08, 0.30 - luckLv * 0.04);
+    // ramps up with distance so the opening stretch stays fair and the challenge builds later
+    const negChance = clamp(0.16 + dist * 0.00028 - luckLv * 0.045, 0.1, 0.42);
 
-    const wallDue = sinceWall > rand(620, 780) && dist > 480;
+    const wallDue = sinceWall > rand(500, 640) && dist > 420;
 
     if (wallDue) {
-      const base = 22 + world.wallIndex * 14;
-      const value = Math.round(base * Math.pow(1.28, world.wallIndex) * rand(0.85, 1.15));
+      const base = 24 + world.wallIndex * 17;
+      const value = Math.round(base * Math.pow(1.4, world.wallIndex) * rand(0.85, 1.15));
       world.rows.push({
         kind: "wall",
         worldY: dist,
@@ -219,7 +220,7 @@
     for (let i = 1; i < segCount; i++) bounds.push(i / segCount);
     bounds.push(1);
 
-    const growth = 1 + dist * 0.0016;
+    const growth = 1 + dist * 0.0012;
     const segments = [];
     for (let i = 0; i < segCount; i++) {
       const isBad = Math.random() < negChance;
@@ -364,7 +365,7 @@
   function update(dt) {
     dt = Math.min(dt, 0.05);
 
-    world.speed = clamp(SPEED_BASE + world.scrollY * 0.03, SPEED_BASE, SPEED_MAX);
+    world.speed = clamp(SPEED_BASE + world.scrollY * 0.045, SPEED_BASE, SPEED_MAX);
     world.scrollY += world.speed * dt;
 
     const controlLv = upLevel("control");
