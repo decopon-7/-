@@ -4,13 +4,22 @@
   // ---------------------------------------------------------------
   // Constants
   // ---------------------------------------------------------------
-  const REF_H = 800;              // reference design height (world/vertical units)
-  const ROAD_MARGIN = 0.07;       // fraction of screen width reserved outside the road on each side
+  const REF_H = 800;              // reference design height, used to scale general UI fx
   const LOOKAHEAD = 900;          // how far ahead (world units) to keep rows spawned
   const REMOVE_MARGIN = 120;      // remove rows this far behind the player
-  const PLAYER_SCREEN_FRAC = 0.74; // player's fixed vertical position (fraction of height)
   const SPEED_BASE = 150;
   const SPEED_MAX = 430;
+
+  // Pseudo-3D perspective: the road is a triangle converging on a vanishing
+  // point at the horizon. CAM_DEPTH controls how quickly things shrink with
+  // distance (smaller = more dramatic/fisheye, larger = flatter/telephoto).
+  const CAM_DEPTH = 300;
+  const HORIZON_FRAC = 0.26;   // horizon line, fraction of screen height
+  const PLAYER_Y_FRAC = 0.90;  // player's fixed vertical position, fraction of height
+  const ROAD_HALF_W_FRAC = 0.47; // road half-width at the player, fraction of screen width
+  const THICKNESS_GATE = 50;   // world-unit depth of a gate row (for the near/far trapezoid)
+  const THICKNESS_WALL = 78;
+  const TIE_SPACING = 60;      // world-unit spacing of road "speed tie" marks
 
   const SAVE_KEY = "crowdrush_save_v1";
 
@@ -55,7 +64,7 @@
   const ctx = canvas.getContext("2d");
 
   let cssW = 0, cssH = 0, DPR = 1, VSCALE = 1;
-  let roadX0 = 0, roadW = 0;
+  let HORIZON_Y = 0, PLAYER_Y = 0, ROAD_HALF_W = 0;
 
   function resize() {
     cssW = window.innerWidth;
@@ -67,11 +76,34 @@
     canvas.style.height = cssH + "px";
     ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
     VSCALE = cssH / REF_H;
-    roadX0 = cssW * ROAD_MARGIN;
-    roadW = cssW * (1 - ROAD_MARGIN * 2);
+    HORIZON_Y = cssH * HORIZON_FRAC;
+    PLAYER_Y = cssH * PLAYER_Y_FRAC;
+    ROAD_HALF_W = cssW * ROAD_HALF_W_FRAC;
   }
   window.addEventListener("resize", resize);
   resize();
+
+  // ---------------------------------------------------------------
+  // Perspective projection: world distance-ahead `d` -> screen space.
+  // d = 0 at the player's line, d > 0 further away (toward the horizon).
+  // ---------------------------------------------------------------
+  function project(d) {
+    const dd = Math.max(d, -CAM_DEPTH * 0.9);
+    const p = CAM_DEPTH / (CAM_DEPTH + dd);
+    return { p, y: HORIZON_Y + p * (PLAYER_Y - HORIZON_Y), halfW: ROAD_HALF_W * p, cx: cssW / 2 };
+  }
+  // Inverse: given a screen y, what half-width/scale does the road have there.
+  // Used only for the static road polygon, which must line up with project().
+  function projectForY(y) {
+    const p = (y - HORIZON_Y) / (PLAYER_Y - HORIZON_Y);
+    return { p, y, halfW: ROAD_HALF_W * p, cx: cssW / 2 };
+  }
+  function xAt(proj, f) { return proj.cx + (f - 0.5) * 2 * proj.halfW; }
+  function playerProj() { return project(0); }
+  function playerScreenPos() {
+    const proj = playerProj();
+    return { x: xAt(proj, player.f), y: proj.y, p: proj.p };
+  }
 
   // ---------------------------------------------------------------
   // Utility
@@ -234,8 +266,8 @@
       case "-": player.count = Math.max(0, player.count - seg.value); break;
       case "/": player.count = Math.floor(player.count / seg.value); break;
     }
-    const px = roadX0 + player.f * roadW;
-    const py = cssH * PLAYER_SCREEN_FRAC;
+    const pos = playerScreenPos();
+    const px = pos.x, py = pos.y;
     const good = player.count >= before;
     spawnPopup(px, py - 10, (good ? "+" : "") + (player.count - before), good ? "#8fffb0" : "#ff8a95");
     spawnBurst(px, py, seg.color, 14);
@@ -246,8 +278,8 @@
 
   function resolveWall(row) {
     row.processed = true;
-    const px = roadX0 + player.f * roadW;
-    const py = cssH * PLAYER_SCREEN_FRAC;
+    const pos = playerScreenPos();
+    const px = pos.x, py = pos.y;
     if (player.count >= row.value) {
       row.state = "broken";
       const reward = Math.max(1, Math.round(row.value * 0.12));
@@ -304,7 +336,7 @@
   window.addEventListener("pointermove", (e) => {
     if (!input.active) return;
     const dx = pointerX(e) - input.startX;
-    player.targetF = clamp(input.startF + dx / roadW, 0.03, 0.97);
+    player.targetF = clamp(input.startF + dx / (ROAD_HALF_W * 2), 0.03, 0.97);
   });
   window.addEventListener("pointerup", () => { input.active = false; });
   window.addEventListener("pointercancel", () => { input.active = false; });
@@ -336,15 +368,17 @@
 
     const magnetLv = upLevel("magnet");
     const magnetPx = (34 + magnetLv * 16);
-    const playerPx = roadX0 + player.f * roadW;
+    const playerPos = playerScreenPos();
     for (const p of world.pickups) {
       if (p.collected) continue;
-      if (p.worldY - world.scrollY <= 10) {
-        const px = roadX0 + p.f * roadW;
-        if (Math.abs(px - playerPx) < magnetPx) {
+      const d = p.worldY - world.scrollY;
+      if (d <= 10) {
+        const proj = project(d);
+        const px = xAt(proj, p.f);
+        if (Math.abs(px - playerPos.x) < magnetPx) {
           p.collected = true;
           runStats.coins += p.value;
-          spawnPopup(px, cssH * PLAYER_SCREEN_FRAC - 20, "🪙+" + p.value, "#ffd166");
+          spawnPopup(playerPos.x, playerPos.y - 20, "🪙+" + p.value, "#ffd166");
         }
       }
     }
@@ -372,10 +406,6 @@
   // ---------------------------------------------------------------
   // Rendering
   // ---------------------------------------------------------------
-  function worldToScreenY(worldY) {
-    return cssH * PLAYER_SCREEN_FRAC - (worldY - world.scrollY) * VSCALE;
-  }
-
   function draw() {
     ctx.clearRect(0, 0, cssW, cssH);
 
@@ -385,11 +415,13 @@
       ctx.translate(rand(-m, m), rand(-m, m));
     }
 
-    drawBackground();
+    drawSky();
     if (state === "playing" || state === "gameover") {
       drawRoad();
-      for (const row of world.rows) drawRow(row);
-      for (const p of world.pickups) drawPickup(p);
+      const rows = world.rows.slice().sort((a, b) => b.worldY - a.worldY); // farthest first
+      for (const row of rows) drawRow(row);
+      const pickups = world.pickups.slice().sort((a, b) => b.worldY - a.worldY);
+      for (const p of pickups) drawPickup(p);
       drawPlayer();
       drawParticles();
       drawPopups();
@@ -397,98 +429,164 @@
     ctx.restore();
   }
 
-  function drawBackground() {
-    const g = ctx.createLinearGradient(0, 0, 0, cssH);
+  function drawSky() {
+    const g = ctx.createLinearGradient(0, 0, 0, HORIZON_Y);
     g.addColorStop(0, "#7fd4ff");
-    g.addColorStop(1, "#bfeeb0");
+    g.addColorStop(1, "#cdeeff");
     ctx.fillStyle = g;
-    ctx.fillRect(0, 0, cssW, cssH);
+    ctx.fillRect(0, 0, cssW, HORIZON_Y);
   }
 
   function drawRoad() {
-    ctx.fillStyle = "#e7e9ee";
-    ctx.fillRect(roadX0, 0, roadW, cssH);
+    // ground fills everything below the horizon; the road is a triangle on top of it
+    const groundGrad = ctx.createLinearGradient(0, HORIZON_Y, 0, cssH);
+    groundGrad.addColorStop(0, "#2f9b48");
+    groundGrad.addColorStop(1, "#3fc25f");
+    ctx.fillStyle = groundGrad;
+    ctx.fillRect(0, HORIZON_Y, cssW, cssH - HORIZON_Y);
 
-    ctx.fillStyle = "#3fa34d";
-    ctx.fillRect(0, 0, roadX0, cssH);
-    ctx.fillRect(roadX0 + roadW, 0, cssW - (roadX0 + roadW), cssH);
+    // hedge texture blocks on either side, receding with the tie marks
+    const offset = world.scrollY % TIE_SPACING;
+    ctx.fillStyle = "rgba(0,0,0,0.10)";
+    for (let i = 0; i < 16; i++) {
+      const d = i * TIE_SPACING - offset;
+      if (d < -TIE_SPACING) continue;
+      const proj = project(d);
+      if (proj.p < 0.04) break;
+      const bh = Math.max(1, 16 * proj.p);
+      if (i % 2 === 0) {
+        ctx.fillRect(0, proj.y - bh / 2, Math.max(2, proj.cx - proj.halfW), bh);
+        ctx.fillRect(proj.cx + proj.halfW, proj.y - bh / 2, Math.max(2, cssW - (proj.cx + proj.halfW)), bh);
+      }
+    }
 
-    // scrolling lane stripes for a sense of speed
-    ctx.strokeStyle = "rgba(0,0,0,0.06)";
-    ctx.lineWidth = 2;
-    const spacing = 46 * VSCALE;
-    const offset = (world.scrollY * VSCALE) % spacing;
-    for (let y = -spacing + offset; y < cssH; y += spacing) {
+    // the road itself: a triangle converging on the vanishing point at the horizon
+    const near = projectForY(cssH);
+    const roadGrad = ctx.createLinearGradient(0, HORIZON_Y, 0, cssH);
+    roadGrad.addColorStop(0, "#f3f4f7");
+    roadGrad.addColorStop(1, "#d7dbe3");
+    ctx.beginPath();
+    ctx.moveTo(near.cx - near.halfW, cssH);
+    ctx.lineTo(near.cx + near.halfW, cssH);
+    ctx.lineTo(near.cx, HORIZON_Y);
+    ctx.closePath();
+    ctx.fillStyle = roadGrad;
+    ctx.fill();
+
+    // edge lines + speed tie marks, clipped to the road triangle
+    ctx.save();
+    ctx.beginPath();
+    ctx.moveTo(near.cx - near.halfW, cssH);
+    ctx.lineTo(near.cx + near.halfW, cssH);
+    ctx.lineTo(near.cx, HORIZON_Y);
+    ctx.closePath();
+    ctx.clip();
+
+    ctx.strokeStyle = "rgba(0,0,0,0.09)";
+    for (let i = 0; i < 16; i++) {
+      const d = i * TIE_SPACING - offset;
+      if (d < -TIE_SPACING) continue;
+      const proj = project(d);
+      if (proj.p < 0.04) break;
+      ctx.lineWidth = Math.max(1, 5 * proj.p);
       ctx.beginPath();
-      ctx.moveTo(roadX0, y);
-      ctx.lineTo(roadX0 + roadW, y);
+      ctx.moveTo(xAt(proj, 0), proj.y);
+      ctx.lineTo(xAt(proj, 1), proj.y);
       ctx.stroke();
     }
+    ctx.restore();
   }
 
   function drawRow(row) {
-    const y = worldToScreenY(row.worldY);
-    if (y < -80 || y > cssH + 80) return;
+    const d = row.worldY - world.scrollY;
+    const thickness = row.kind === "wall" ? THICKNESS_WALL : THICKNESS_GATE;
+    const dNear = d - thickness / 2;
+    const dFar = d + thickness / 2;
+    if (dFar < -CAM_DEPTH * 0.85) return;
+    const projNear = project(dNear);
+    const projFar = project(dFar);
+    if (projNear.p < 0.03 && projFar.p < 0.03) return;
 
     if (row.kind === "wall") {
-      const h = 46 * VSCALE;
       const broken = row.state === "broken";
       const failed = row.state === "failed";
       const alpha = (broken || failed) ? clamp(1 - row.stateTime / 0.5, 0, 1) : 1;
       if (alpha <= 0) return;
       ctx.globalAlpha = alpha;
       ctx.fillStyle = failed ? "#ff3b4e" : (broken ? "#ffd166" : "#2b3a55");
-      ctx.fillRect(roadX0, y - h / 2, roadW, h);
+      drawQuad(projNear, projFar, 0, 1);
+      const midY = (projNear.y + projFar.y) / 2;
+      const midP = (projNear.p + projFar.p) / 2;
       ctx.fillStyle = "#fff";
-      ctx.font = `800 ${Math.round(22 * VSCALE)}px sans-serif`;
+      ctx.font = `800 ${Math.round(clamp(22 * midP, 9, 26))}px sans-serif`;
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
-      ctx.fillText(fmtNum(row.value) + " 必要", roadX0 + roadW / 2, y);
+      ctx.fillText(fmtNum(row.value) + " 必要", projNear.cx, midY);
       ctx.globalAlpha = 1;
       return;
     }
 
-    const h = 34 * VSCALE;
     for (const seg of row.segments) {
-      const x0 = roadX0 + seg.x0 * roadW + 3;
-      const x1 = roadX0 + seg.x1 * roadW - 3;
       ctx.fillStyle = seg.color;
-      ctx.fillRect(x0, y - h / 2, x1 - x0, h);
-      ctx.fillStyle = "rgba(255,255,255,0.9)";
-      ctx.font = `800 ${Math.round(17 * VSCALE)}px sans-serif`;
+      drawQuad(projNear, projFar, seg.x0, seg.x1);
+
+      const midY = (projNear.y + projFar.y) / 2;
+      const midP = (projNear.p + projFar.p) / 2;
+      const midX = (xAt(projNear, (seg.x0 + seg.x1) / 2) + xAt(projFar, (seg.x0 + seg.x1) / 2)) / 2;
+      ctx.fillStyle = "rgba(255,255,255,0.92)";
+      ctx.font = `800 ${Math.round(clamp(18 * midP, 8, 20))}px sans-serif`;
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
       const label = seg.op === "x" ? `×${seg.value}` : seg.op === "/" ? `÷${seg.value}` : seg.op + seg.value;
-      ctx.fillText(label, (x0 + x1) / 2, y);
+      ctx.fillText(label, midX, midY);
 
-      // little posts at the segment edges
-      ctx.fillStyle = "#7a5230";
-      ctx.fillRect(x0 - 2, y - h / 2 - 4, 4, h + 8);
+      // a post at each segment boundary, for a fence-gate feel
+      ctx.strokeStyle = "#7a5230";
+      ctx.lineWidth = Math.max(1, 5 * midP);
+      ctx.beginPath();
+      ctx.moveTo(xAt(projNear, seg.x0), projNear.y - 6 * projNear.p);
+      ctx.lineTo(xAt(projFar, seg.x0), projFar.y - 6 * projFar.p);
+      ctx.stroke();
     }
   }
 
+  // fills a quad spanning road-fraction [f0,f1] between the near and far projections
+  function drawQuad(projNear, projFar, f0, f1) {
+    ctx.beginPath();
+    ctx.moveTo(xAt(projNear, f0), projNear.y);
+    ctx.lineTo(xAt(projNear, f1), projNear.y);
+    ctx.lineTo(xAt(projFar, f1), projFar.y);
+    ctx.lineTo(xAt(projFar, f0), projFar.y);
+    ctx.closePath();
+    ctx.fill();
+  }
+
   function drawPickup(p) {
-    const y = worldToScreenY(p.worldY);
-    if (y < -30 || y > cssH + 30) return;
-    const x = roadX0 + p.f * roadW;
-    const r = (p.gem ? 11 : 8) * VSCALE;
+    const d = p.worldY - world.scrollY;
+    if (d < -CAM_DEPTH * 0.85) return;
+    const proj = project(d);
+    if (proj.p < 0.03) return;
+    const x = xAt(proj, p.f);
+    const y = proj.y;
+    const r = (p.gem ? 11 : 8) * VSCALE * proj.p;
     ctx.beginPath();
     ctx.arc(x, y, r, 0, Math.PI * 2);
     ctx.fillStyle = p.gem ? "#a78bfa" : "#ffd166";
     ctx.fill();
     ctx.strokeStyle = "rgba(0,0,0,0.25)";
-    ctx.lineWidth = 2;
+    ctx.lineWidth = Math.max(1, 2 * proj.p);
     ctx.stroke();
     ctx.fillStyle = "rgba(255,255,255,0.85)";
-    ctx.font = `700 ${Math.round(10 * VSCALE)}px sans-serif`;
+    ctx.font = `700 ${Math.round(clamp(10 * proj.p, 5, 10))}px sans-serif`;
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
     ctx.fillText(p.gem ? "+5" : "$", x, y);
   }
 
   function drawPlayer() {
-    const x = roadX0 + player.f * roadW;
-    const y = cssH * PLAYER_SCREEN_FRAC;
+    const pos = playerScreenPos();
+    const x = pos.x;
+    const y = pos.y;
     const r = clamp(20 + Math.sqrt(player.displayCount) * 2.2, 20, 78) * VSCALE * (1 + player.bump * 0.12);
 
     // shadow
