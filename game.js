@@ -32,8 +32,8 @@
   const UPGRADES = [
     { key: "startCrowd", name: "初期人数",   icon: "👥", base: 40, growth: 1.55, maxLevel: 10, step: 5,
       effect: (lv) => `開始人数 +${lv * 5}` },
-    { key: "aim",        name: "照準",       icon: "🎯", base: 70, growth: 1.65, maxLevel: 5,
-      effect: (lv) => `的のタップ判定 +${lv * 20}%` },
+    { key: "aim",        name: "捕獲範囲",   icon: "🎯", base: 70, growth: 1.65, maxLevel: 5,
+      effect: (lv) => `ゲートの当たり判定 +${lv * 20}%` },
     { key: "magnet",     name: "マグネット", icon: "🧲", base: 55, growth: 1.6,  maxLevel: 5,
       effect: (lv) => `コイン獲得範囲 Lv.${lv}` },
     { key: "luck",       name: "ラック",     icon: "🍀", base: 90, growth: 1.7,  maxLevel: 5,
@@ -297,15 +297,11 @@
     if (player.count <= 0) triggerGameOver("crowd");
   }
 
-  // called when the player taps a target orb — resolves instantly, plus a
-  // decorative tracer flies out from the crowd to where it was hit
+  // called when the crowd walks into a target orb
   function resolveTarget(t) {
     t.resolved = true;
-    const d = Math.max(t.worldY - world.scrollY, 0);
-    const proj = project(d);
-    const x = xAt(proj, t.f), y = proj.y;
-    applyGateEffect(t.op, t.value, t.color, x, y);
-    world.bullets.push({ d: 0, targetD: Math.max(d, 1), f0: player.f, f1: t.f, alive: true });
+    const pos = playerScreenPos();
+    applyGateEffect(t.op, t.value, t.color, pos.x, pos.y);
   }
 
   // called once when an enemy row reaches the player's line
@@ -385,60 +381,27 @@
   }
 
   // ---------------------------------------------------------------
-  // Input — drag left/right to move the crowd, tap (no drag) to shoot
-  // whatever target orb is under your finger.
+  // Input — drag left/right to move the crowd. Target orbs and coins
+  // are picked up automatically by walking into them.
   // ---------------------------------------------------------------
-  const TAP_DRAG_THRESHOLD = 12; // px of movement before a touch counts as a drag, not a tap
-  const dragState = { active: false, dragging: false, startX: 0, startY: 0, startF: 0.5 };
+  const dragState = { active: false, startX: 0, startF: 0.5 };
 
   function pointerX(e) {
     return (e.touches && e.touches[0]) ? e.touches[0].clientX : e.clientX;
-  }
-  function pointerY(e) {
-    return (e.touches && e.touches[0]) ? e.touches[0].clientY : e.clientY;
-  }
-
-  function tryShootAt(tx, ty) {
-    const aimLv = upLevel("aim");
-    let best = null, bestDist = Infinity;
-    for (const t of world.targets) {
-      if (t.resolved) continue;
-      const d = t.worldY - world.scrollY;
-      if (d <= 0) continue;
-      const proj = project(d);
-      const x = xAt(proj, t.f), y = proj.y;
-      const hitR = (36 + aimLv * 8) * VSCALE * Math.max(proj.p, 0.4);
-      const dist = Math.hypot(tx - x, ty - y);
-      if (dist < hitR && dist < bestDist) { bestDist = dist; best = t; }
-    }
-    if (best) resolveTarget(best);
   }
 
   canvas.addEventListener("pointerdown", (e) => {
     if (state !== "playing") return;
     dragState.active = true;
-    dragState.dragging = false;
     dragState.startX = pointerX(e);
-    dragState.startY = pointerY(e);
     dragState.startF = player.targetF;
   });
   window.addEventListener("pointermove", (e) => {
     if (!dragState.active) return;
     const dx = pointerX(e) - dragState.startX;
-    const dy = pointerY(e) - dragState.startY;
-    if (!dragState.dragging && Math.hypot(dx, dy) > TAP_DRAG_THRESHOLD) dragState.dragging = true;
-    if (dragState.dragging) {
-      player.targetF = clamp(dragState.startF + dx / (ROAD_HALF_W * 2), 0.04, 0.96);
-    }
+    player.targetF = clamp(dragState.startF + dx / (ROAD_HALF_W * 2), 0.04, 0.96);
   });
-  window.addEventListener("pointerup", (e) => {
-    if (!dragState.active) return;
-    if (!dragState.dragging) {
-      const rect = canvas.getBoundingClientRect();
-      tryShootAt(pointerX(e) - rect.left, pointerY(e) - rect.top);
-    }
-    dragState.active = false;
-  });
+  window.addEventListener("pointerup", () => { dragState.active = false; });
   window.addEventListener("pointercancel", () => { dragState.active = false; });
 
   // ---------------------------------------------------------------
@@ -466,9 +429,26 @@
     world.rows = world.rows.filter(r => (r.worldY - world.scrollY) > -REMOVE_MARGIN);
     world.targets = world.targets.filter(t => !t.resolved && (t.worldY - world.scrollY) > -REMOVE_MARGIN);
 
+    const playerPos = playerScreenPos();
+
+    // target orbs resolve on contact — walk the crowd into the ones you want
+    const aimLv = upLevel("aim");
+    const catchPx = (42 + aimLv * 14) * VSCALE;
+    for (const t of world.targets) {
+      if (t.resolved) continue;
+      const d = t.worldY - world.scrollY;
+      if (d > 14) continue;
+      const proj = project(Math.max(d, 0));
+      const tx = xAt(proj, t.f);
+      if (Math.abs(tx - playerPos.x) < catchPx) {
+        resolveTarget(t);
+      } else if (d < -14) {
+        t.resolved = true; // slipped past without contact
+      }
+    }
+
     const magnetLv = upLevel("magnet");
     const magnetPx = (34 + magnetLv * 16);
-    const playerPos = playerScreenPos();
     for (const p of world.pickups) {
       if (p.collected) continue;
       const d = p.worldY - world.scrollY;
@@ -652,7 +632,7 @@
     ctx.globalAlpha = 1;
   }
 
-  // a tappable bonus orb (was a "gate" in the old runner version)
+  // a bonus orb — walk the crowd into it to collect
   function drawTarget(t) {
     const d = t.worldY - world.scrollY;
     if (d < -CAM_DEPTH * 0.85) return;
@@ -661,7 +641,7 @@
     const x = xAt(proj, t.f), y = proj.y;
     const w = 66 * VSCALE * proj.p, h = 36 * VSCALE * proj.p;
 
-    // pulsing ring inviting a tap
+    // pulsing ring so it reads as something to catch
     const pulse = 0.5 + 0.5 * Math.sin(performance.now() / 260 + t.worldY);
     ctx.strokeStyle = `rgba(255,255,255,${0.18 + 0.18 * pulse})`;
     ctx.lineWidth = Math.max(1, 3 * proj.p);
