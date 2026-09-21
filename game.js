@@ -7,8 +7,8 @@
   const REF_H = 800;              // reference design height, used to scale general UI fx
   const LOOKAHEAD = 900;          // how far ahead (world units) to keep rows spawned
   const REMOVE_MARGIN = 120;      // remove rows this far behind the player
-  const SPEED_BASE = 140;
-  const SPEED_MAX = 380;
+  const SPEED_BASE = 155;
+  const SPEED_MAX = 460;
 
   // Pseudo-3D perspective: the road is a triangle converging on a vanishing
   // point at the horizon. CAM_DEPTH controls how quickly things shrink with
@@ -22,8 +22,8 @@
 
   // Auto-shooting: the crowd continuously fires on the nearest enemy
   // barricade ahead. Crowd size doubles as firepower — DPS scales with count.
-  const FIRE_RANGE = 480;      // world units of engagement range
-  const DPS_PER_UNIT = 1.5;    // damage-per-second, per crowd member
+  const FIRE_RANGE = 400;      // world units of engagement range
+  const DPS_PER_UNIT = 1.05;   // damage-per-second, per crowd member
   const BULLET_INTERVAL = 0.1; // seconds between visual tracer volleys
   const BULLET_SPEED = 1400;   // world units/sec a tracer travels
 
@@ -203,13 +203,13 @@
     const sinceEnemy = dist - world.lastEnemyY;
     const luckLv = upLevel("luck");
     // ramps up with distance so the opening stretch stays fair and the challenge builds later
-    const negChance = clamp(0.1 + dist * 0.0002 - luckLv * 0.045, 0.06, 0.3);
+    const negChance = clamp(0.15 + dist * 0.00028 - luckLv * 0.045, 0.1, 0.4);
 
-    const enemyDue = sinceEnemy > rand(560, 720) && dist > 420;
+    const enemyDue = sinceEnemy > rand(480, 620) && dist > 400;
 
     if (enemyDue) {
-      const base = 20 + world.enemyIndex * 11;
-      const hp = Math.max(6, Math.round(base * Math.pow(1.25, world.enemyIndex) * rand(0.85, 1.15)));
+      const base = 25 + world.enemyIndex * 16;
+      const hp = Math.max(6, Math.round(base * Math.pow(1.38, world.enemyIndex) * rand(0.85, 1.15)));
       world.rows.push({
         kind: "enemy",
         worldY: dist,
@@ -410,7 +410,7 @@
   function update(dt) {
     dt = Math.min(dt, 0.05);
 
-    world.speed = clamp(SPEED_BASE + world.scrollY * 0.03, SPEED_BASE, SPEED_MAX);
+    world.speed = clamp(SPEED_BASE + world.scrollY * 0.042, SPEED_BASE, SPEED_MAX);
     world.scrollY += world.speed * dt;
 
     const moveT = 1 - Math.pow(1 - 0.3, dt * 60);
@@ -433,7 +433,7 @@
 
     // target orbs resolve on contact — walk the crowd into the ones you want
     const aimLv = upLevel("aim");
-    const catchPx = (42 + aimLv * 14) * VSCALE;
+    const catchPx = (32 + aimLv * 14) * VSCALE;
     for (const t of world.targets) {
       if (t.resolved) continue;
       const d = t.worldY - world.scrollY;
