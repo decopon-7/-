@@ -1,0 +1,33 @@
+; Engine configuration file.
+; Godot 4.4 以降で開いてください。
+
+config_version=5
+
+[application]
+
+config/name="Spud Duty"
+config/description="軍の食事のため、ひたすらジャガイモの皮をむく3Dシミュレーション。"
+run/main_scene="res://scenes/main.tscn"
+config/features=PackedStringArray("4.4", "Forward Plus")
+config/icon="res://icon.svg"
+
+[autoload]
+
+GameState="*res://scripts/game_state.gd"
+
+[display]
+
+window/size/viewport_width=1600
+window/size/viewport_height=900
+window/stretch/mode="canvas_items"
+window/stretch/aspect="expand"
+
+[gui]
+
+theme/custom_font="res://fonts/NotoSansJP-Bold.ttf"
+
+[rendering]
+
+anti_aliasing/quality/msaa_3d=2
+lights_and_shadows/directional_shadow/soft_shadow_filter_quality=3
+lights_and_shadows/positional_shadow/soft_shadow_filter_quality=3

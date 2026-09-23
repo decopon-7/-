@@ -1,0 +1,16 @@
+# Godot
+.godot/
+/android/
+*.translation
+
+# 書き出し物
+/build/
+/export/
+*.exe
+*.pck
+*.x86_64
+*.zip
+
+# Steam SDK（再配布不可なのでコミットしない）
+steam_appid.txt
+/addons/godotsteam/
