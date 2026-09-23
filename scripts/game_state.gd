@@ -23,6 +23,7 @@ var money := 0
 var total_grams := 0
 var levels := {}
 var locale := ""
+var muted := false
 
 
 func _ready() -> void:
@@ -32,6 +33,7 @@ func _ready() -> void:
 	if locale == "":
 		locale = "ja" if OS.get_locale_language() == "ja" else "en"
 	TranslationServer.set_locale(locale)
+	AudioServer.set_bus_mute(0, muted)
 
 
 func reset() -> void:
@@ -105,6 +107,12 @@ func buy(id: String) -> bool:
 	return true
 
 
+func set_muted(value: bool) -> void:
+	muted = value
+	AudioServer.set_bus_mute(0, muted)
+	save_game()
+
+
 func set_locale(value: String) -> void:
 	locale = value
 	TranslationServer.set_locale(locale)
@@ -125,6 +133,7 @@ func save_game() -> void:
 		"total_grams": total_grams,
 		"levels": levels,
 		"locale": locale,
+		"muted": muted,
 	}, "\t"))
 
 
@@ -139,6 +148,7 @@ func load_game() -> void:
 	money = int(data.get("money", 0))
 	total_grams = int(data.get("total_grams", 0))
 	locale = str(data.get("locale", ""))
+	muted = bool(data.get("muted", false))
 	var saved_levels: Dictionary = data.get("levels", {})
 	for id in UPGRADE_IDS:
 		levels[id] = clampi(int(saved_levels.get(id, 0)), 0, UPGRADES[id]["max"])

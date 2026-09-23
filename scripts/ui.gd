@@ -51,6 +51,7 @@ var _start_day_button: Button
 
 var _pause_title: Label
 var _resume_button: Button
+var _sound_button: Button
 var _to_title_button: Button
 
 
@@ -97,6 +98,7 @@ func refresh_texts() -> void:
 	_pause_title.text = tr("PAUSE_TITLE")
 	_resume_button.text = tr("BTN_RESUME")
 	_to_title_button.text = tr("BTN_TO_TITLE")
+	_sound_button.text = tr("BTN_SOUND_OFF") if GameState.muted else tr("BTN_SOUND_ON")
 	refresh_shop()
 
 
@@ -241,6 +243,7 @@ func _build_hud() -> Control:
 	_end_shift_button.offset_top = 24
 	_end_shift_button.offset_bottom = 80
 	_end_shift_button.pressed.connect(end_shift_pressed.emit)
+	_end_shift_button.pressed.connect(_click)
 	c.add_child(_end_shift_button)
 	return c
 
@@ -318,11 +321,18 @@ func _build_pause() -> Control:
 	box.add_child(_pause_title)
 	box.add_child(_spacer(20))
 	_resume_button = _button(box, resume_pressed.emit)
+	_sound_button = _button(box, func():
+		GameState.set_muted(not GameState.muted)
+		refresh_texts())
 	_to_title_button = _button(box, to_title_pressed.emit)
 	return c
 
 
 # ---------------------------------------------------------------- 部品
+
+func _click() -> void:
+	Sfx.play("click", -6.0)
+
 
 func _make_theme() -> Theme:
 	var t := Theme.new()
@@ -391,6 +401,7 @@ func _button(parent: Control, callback: Callable) -> Button:
 	var b := Button.new()
 	b.custom_minimum_size = Vector2(360, 58)
 	b.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	b.pressed.connect(_click)
 	b.pressed.connect(callback)
 	parent.add_child(b)
 	return b

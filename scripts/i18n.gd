@@ -60,6 +60,8 @@ const STRINGS := {
 	"BTN_START_DAY": {"ja": "仕込み開始", "en": "Start prep"},
 	"PAUSE_TITLE": {"ja": "一時停止", "en": "Paused"},
 	"BTN_RESUME": {"ja": "再開", "en": "Resume"},
+	"BTN_SOUND_ON": {"ja": "音: オン", "en": "Sound: On"},
+	"BTN_SOUND_OFF": {"ja": "音: オフ", "en": "Sound: Off"},
 	"BTN_TO_TITLE": {"ja": "タイトルへ（自動保存）", "en": "Back to title (autosave)"},
 }
 

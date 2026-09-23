@@ -100,6 +100,7 @@ func _start_day() -> void:
 	processor.visible = GameState.processor_interval() > 0.0
 	if onion == null:
 		_spawn_onion(true)
+	Sfx.play("bell", -8.0, 0.0, 1.2)
 	_set_state(State.PLAYING)
 
 
@@ -113,6 +114,8 @@ func _end_day() -> void:
 		bonus = GameState.quota_bonus()
 		GameState.money += bonus
 	ui.show_day_end(success, grams_today, quota, earned_today, bonus)
+	Sfx.play("bell", -2.0, 0.0)
+	Sfx.set_loop("processor", false)
 	if success:
 		GameState.day += 1
 	GameState.save_game()
@@ -124,6 +127,7 @@ func _process(delta: float) -> void:
 		time_left -= delta
 		_update_tears(delta)
 		_update_processor(delta)
+		Sfx.set_loop("processor", processor.visible, -16.0)
 		_update_chopping(delta)
 		_update_gap_markers()
 		ui.update_hud(time_left, grams_today, _step_text(), onion.get_progress() if onion else 1.0,
@@ -133,6 +137,7 @@ func _process(delta: float) -> void:
 	else:
 		for m in gap_markers:
 			m.visible = false
+		Sfx.set_loop("processor", false)
 	_update_knife_pose(delta)
 	_update_tear_overlay(delta)
 	_chips_time -= delta
@@ -188,19 +193,26 @@ func _chop() -> void:
 		return
 	_cooldown = GameState.CHOP_COOLDOWN
 	_chop_t = 0.0
-	chop_at(_knife_x)
+	if not chop_at(_knife_x):
+		# 何も切れなかった（まな板を叩いただけ）
+		Sfx.play("knock", -8.0, 0.1)
 
 
 ## ワールド座標 x の位置で包丁を下ろす（テスト・デモからも呼ぶ）
-func chop_at(x: float) -> void:
+func chop_at(x: float) -> bool:
 	if onion == null:
-		return
+		return false
 	var mincing := onion.phase == Onion.Phase.MINCE
 	if not onion.chop(x, GameState.chop_reach()):
-		return
+		return false
+	if mincing:
+		Sfx.play("mince", -2.0, 0.12)
+	else:
+		Sfx.play("cut", 0.0, 0.1)
 	tears += (TEARS_PER_CHOP if mincing else TEARS_PER_CUT) * GameState.tear_multiplier()
 	chips.global_position = Vector3(x, BOARD_TOP + 0.03, WORK_POS.z)
 	_chips_time = 0.06
+	return true
 
 
 func _mouse_board_x() -> float:
@@ -243,13 +255,19 @@ func _spawn_onion(animated: bool) -> void:
 		onion.position = CRATE_POS + Vector3(0, 0.06, 0)
 		var tw := onion.create_tween()
 		tw.tween_property(onion, "position", WORK_POS, 0.3).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+		Sfx.play_later(0.25, "knock", -10.0)
 	else:
 		onion.position = WORK_POS
 
 
 func _on_onion_phase(p: int) -> void:
+	if p == Onion.Phase.CROSSWISE or p == Onion.Phase.MINCE:
+		# 玉ねぎを回す / かき集める
+		Sfx.play_later(0.1, "whoosh", -4.0)
 	if p != Onion.Phase.DONE:
 		return
+	Sfx.play("coin", -6.0, 0.0)
+	Sfx.play_later(0.65, "plop", -2.0)
 	var done := onion
 	onion = null
 	var pay := GameState.pay_for(done.grams)
@@ -309,6 +327,7 @@ func _update_tears(delta: float) -> void:
 	tears = maxf(0.0, tears - TEARS_DECAY * delta)
 	if tears >= 1.0:
 		stun = TEARS_STUN_TIME
+		Sfx.play("sniff", 0.0, 0.05)
 		tears = 0.75
 		_holding = false
 		ui.popup(tr("POP_TEARS"), get_viewport().get_visible_rect().size * 0.5, Color(0.6, 0.8, 1.0))
@@ -351,6 +370,7 @@ func _update_processor(delta: float) -> void:
 		return
 	processor_timer -= interval
 	_award(100, GameState.pay_for(100))
+	Sfx.play("plop", -10.0, 0.1, 0.8)
 	ui.popup(tr("POP_PROCESSOR") % 100, camera.unproject_position(PROCESSOR_POS + Vector3(0, 0.3, 0)), GameUI.COL_GOOD)
 
 
@@ -373,6 +393,7 @@ func _on_to_title() -> void:
 
 func _on_upgrade_bought(id: String) -> void:
 	if GameState.buy(id):
+		Sfx.play("coin", -4.0, 0.0, 0.8)
 		ui.refresh_shop()
 
 
