@@ -5,8 +5,9 @@
 
 ## いまあるもの
 
-- **午睡チェック（保育士用 v0.2）**
-  - 職員ごとのログイン、管理者／職員の権限
+- **午睡チェック（保育士用 v0.3）**
+  - 管理者が端末を登録し、職員は名前を選ぶだけ（午睡担当2名・①②のどちらが入力したかを記録）
+  - 体位（矢印）・室温・湿度の記録、監査用の記録表の印刷
   - 園の複数のタブレットで同じ記録を共有（15秒ごとに更新）
   - Wi-Fi が切れても記録を続けられ、つながったら自動で送信
   - 設計：[docs/gosui-check-design.md](docs/gosui-check-design.md)、[docs/server-design.md](docs/server-design.md)
@@ -16,7 +17,7 @@
 | フォルダ | 中身 |
 |---|---|
 | `app/` | 画面（PWA）。ビルド不要の HTML / CSS / JavaScript |
-| `worker/` | サーバー（Cloudflare Workers）。ログインとAPI |
+| `worker/` | サーバー（Cloudflare Workers）。端末の登録とAPI |
 | `migrations/` | データベース（Cloudflare D1）の定義 |
 | `scripts/` | 園と最初の管理者を作るスクリプト |
 | `tests/` | テスト（`npm test`） |
@@ -28,7 +29,7 @@ npm install
 npm run db:migrate:local
 node scripts/create-facility.mjs "テスト園" admin "テスト管理者"   # 初期パスワードが表示される
 npx wrangler d1 execute hoiku-tsunagu --local --file .setup/facility.sql
-npm run dev        # http://localhost:8787
+npm run dev        # http://localhost:8787 を開き、管理者のIDと初期パスワードで端末を登録
 npm test
 ```
 
@@ -46,7 +47,7 @@ Cloudflare のアカウントが必要です。料金・無料枠の範囲は Cl
    node scripts/create-facility.mjs "園の名前" ログインID "管理者の名前"
    npx wrangler d1 execute hoiku-tsunagu --remote --file .setup/facility.sql
    ```
-   表示された初期パスワードでログインし、設定タブから変更する。終わったら `.setup/` フォルダを削除する
+   表示された初期パスワードで端末を登録し、設定タブの管理者モードからパスワードを変更する。終わったら `.setup/` フォルダを削除する
 5. `npm run deploy` で公開。表示された URL をタブレットで開き、「ホーム画面に追加」する
 
 実在の園児の情報を入れる前に、[docs/server-design.md](docs/server-design.md) の「まだやっていないこと」を確認してください。

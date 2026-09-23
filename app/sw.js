@@ -1,5 +1,5 @@
 // オフラインでも開けるように、画面のファイルを端末に保存しておく
-const CACHE = 'hoiku-nap-v2';
+const CACHE = 'hoiku-nap-v3';
 const FILES = ['./', 'index.html', 'style.css', 'app.js', 'logic.js', 'ops.js', 'manifest.webmanifest', 'icon.svg'];
 
 self.addEventListener('install', (e) => {

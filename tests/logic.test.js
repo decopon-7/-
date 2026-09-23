@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { childStatus, summarize, buildRecordTable, SOON_MS } from '../app/logic.js';
-import { applyOp, applyOps, sessionsByChild } from '../app/ops.js';
+import { childStatus, summarize, buildRecordTable, slotIndex, recorderMarks, fmtRoom, SOON_MS } from '../app/logic.js';
+import { applyOp, applyOps, applyDayOps, sessionsByChild } from '../app/ops.js';
 
 const MIN = 60 * 1000;
 const T0 = new Date(2026, 8, 23, 12, 0).getTime();
@@ -169,4 +169,29 @@ test('記録表：「未」は確認が本当に遅れていた枠だけ（枠�
   const now = sessionsByChild(applyOps([], [start('n1', 'a', T0)]));
   const c = buildRecordTable([{ id: 'a' }], now, 5, T0 + 12 * MIN);
   assert.deepEqual(c.rows[0].cells.map((x) => x.missing), [false, true, true]);
+});
+
+test('室温・湿度：記録・二重防止・取り消し、午睡の操作と混ざっても正しく振り分ける', () => {
+  const room = { type: 'room', id: 'r1', classId: 'c', t: T0, tempC10: 245, humidity: 55, recorderId: 'u1' };
+  let d = applyDayOps({ naps: [], rooms: [] }, [room, room, start('n1', 'a', T0)]);
+  assert.equal(d.rooms.length, 1);
+  assert.equal(d.naps.length, 1);
+  assert.equal(fmtRoom(d.rooms[0]), '24.5℃ 55%');
+  d = applyDayOps(d, [{ type: 'undoRoom', roomId: 'r1' }]);
+  assert.equal(d.rooms.length, 0);
+});
+
+test('記録者の印：その日に初めて記録した順に ①② と付く', () => {
+  const marks = recorderMarks([
+    { t: T0 + 2 * MIN, recorderId: 'sato' }, { t: T0, recorderId: 'suzuki' }, { t: T0 + 3 * MIN, recorderId: 'sato' },
+  ]);
+  assert.deepEqual([...marks], [['suzuki', '①'], ['sato', '②']]);
+});
+
+test('記録表：室温・湿度の時刻も表の範囲に入り、枠の番号が求められる', () => {
+  const byChild = sessionsByChild(applyOps([], [start('n1', 'a', T0 + 10 * MIN)]));
+  const { slots } = buildRecordTable([{ id: 'a' }], byChild, 5, T0 + 12 * MIN, [T0]);
+  assert.equal(slots[0], T0);
+  assert.equal(slotIndex(slots, 5, T0 + 7 * MIN), 1);
+  assert.equal(slotIndex(slots, 5, T0 - MIN), -1);
 });

@@ -72,6 +72,7 @@ button {
 .banner.demo { background: var(--soon-soft); color: #7a4f0d; }
 .banner.offline { background: var(--alert-soft); color: var(--alert); font-weight: 700; }
 .banner.pending { background: var(--green-soft); color: var(--green-dark); }
+.banner.admin { background: var(--green-dark); color: #fff; }
 
 /* ログイン */
 .login { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 16px; }
@@ -88,6 +89,7 @@ button {
 .login-brand { display: flex; flex-direction: column; align-items: center; gap: 2px; color: var(--green); }
 .login-name { font-size: 24px; font-weight: 700; }
 .login-sub { font-size: 14px; color: var(--muted); }
+.login-lead { font-size: 13px; color: var(--muted); margin: 0; }
 .login-form { display: flex; flex-direction: column; gap: 12px; }
 .login-form label { display: flex; flex-direction: column; gap: 4px; font-size: 13px; color: var(--muted); }
 .login-note { font-size: 13px; color: #7a4f0d; background: var(--soon-soft); border-radius: 10px; padding: 10px; margin: 0; }
@@ -183,7 +185,49 @@ main { padding: 8px 16px calc(32px + env(safe-area-inset-bottom)); }
 .sum.soon.has { background: var(--soon-soft); border-color: var(--soon); }
 .sum.overdue.has { background: var(--alert-soft); border-color: var(--alert); color: var(--alert); }
 
-.bulk { display: flex; justify-content: flex-end; margin-bottom: 10px; }
+.bulk { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 10px; flex-wrap: wrap; }
+
+/* 午睡担当（2名） */
+.duty { display: flex; gap: 8px; align-items: stretch; margin: 4px 0 10px; flex-wrap: wrap; }
+.duty > .btn.big { flex: 1; }
+.duty-btn {
+  flex: 1 1 120px;
+  border: 2px solid var(--line);
+  background: #fff;
+  border-radius: 12px;
+  padding: 8px 10px;
+  font-size: 16px;
+  font-weight: 700;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+}
+.duty-btn small { font-size: 11px; font-weight: 400; color: var(--muted); }
+.duty-btn.active { border-color: var(--green); background: var(--green); color: #fff; }
+.duty-btn.active small { color: rgba(255,255,255,.85); }
+.duty-edit { flex: 0 0 auto; font-size: 13px; }
+
+/* 室温・湿度 */
+.room-panel {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 8px 12px;
+  margin-bottom: 10px;
+}
+.room-label { font-size: 13px; color: var(--muted); white-space: nowrap; }
+.room-value { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+.room-value b { font-size: 17px; font-variant-numeric: tabular-nums; }
+.room-value small { font-size: 11px; color: var(--muted); }
+.muted { color: var(--muted); font-weight: 400; font-size: 13px !important; }
+.stepper.big-stepper { flex-direction: column; align-items: stretch; gap: 6px; }
+.stepper.big-stepper .ctrl { display: grid; grid-template-columns: 1fr 1fr auto 1fr 1fr; gap: 6px; align-items: center; }
+.stepper.big-stepper .ctrl .btn { width: auto; padding: 14px 0; font-size: 15px; white-space: nowrap; }
+.stepper.big-stepper .ctrl b { min-width: 4.2em; font-size: 22px; text-align: center; }
 
 /* 子どもカード */
 .grid {
@@ -282,12 +326,17 @@ table.record { border-collapse: collapse; font-size: 13px; min-width: 100%; }
 .record .chk small, .record td.cell > small { display: block; color: var(--muted); font-size: 10px; }
 .record .chk.prone { background: var(--alert-soft); color: var(--alert); }
 .record .chk.late { border-color: var(--alert); }
+.recorders { font-size: 14px; font-weight: 700; margin: 0 0 6px; }
+.record tr.room-row td { background: #f7faf8; }
+.record .room-v { font-size: 12px !important; line-height: 1.2; }
 .record .warn { color: var(--alert); font-size: 11px; font-weight: 700; }
 .record td.missing { background: #fff5f5; }
 
 /* 設定 */
 .section { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); padding: 14px; margin-bottom: 12px; }
 .section h2 { font-size: 15px; margin: 0 0 10px; }
+details summary { font-size: 13px; color: var(--green-dark); cursor: pointer; padding: 6px 0; }
+.admin-head { border-color: var(--green); background: var(--green-soft); }
 .section h3 { font-size: 14px; margin: 14px 0 4px; color: var(--green-dark); }
 .gap-top { margin-top: 12px; }
 .inactive { opacity: .55; }

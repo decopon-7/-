@@ -17,15 +17,19 @@
         <span class="login-name">ほいくつなぐ</span>
         <span class="login-sub">午睡チェック</span>
       </div>
+      <p class="login-lead">この端末を園の端末として登録します。登録は最初の1回だけで、職員は名前を選ぶだけで使えます。</p>
       <form id="loginForm" class="login-form">
-        <label>ログインID
+        <label>管理者のログインID
           <input name="loginId" autocomplete="username" autocapitalize="none" spellcheck="false" required>
         </label>
         <label>パスワード
           <input name="password" type="password" autocomplete="current-password" required>
         </label>
+        <label>この端末の名前
+          <input name="deviceName" placeholder="例：0歳児室のタブレット" maxlength="20" required>
+        </label>
         <p id="loginError" class="error" hidden></p>
-        <button class="btn primary big" type="submit">ログイン</button>
+        <button class="btn primary big" type="submit">この端末を登録する</button>
       </form>
       <p id="loginNote" class="login-note" hidden></p>
       <button id="demoBtn" class="btn ghost" type="button" hidden>デモで試す（サンプルデータ）</button>

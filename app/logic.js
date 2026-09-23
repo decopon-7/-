@@ -54,13 +54,14 @@ export function summarize(statuses) {
 //   late: 前の確認（または入眠）から確認間隔より長く空いた確認
 //         表に出る「分」で比べる（12:30→12:35 は遅れなし、12:30→12:36 は遅れ）。秒の差で印がつくと表と食い違うため
 //   missing: 確認が遅れていた時間にかかる枠で、確認の記録がない
-export function buildRecordTable(children, napsByChild, intervalMin, until) {
+// extraTimes: 室温・湿度など、表の範囲に含めたい時刻
+export function buildRecordTable(children, napsByChild, intervalMin, until, extraTimes = []) {
   const endOf = (s) => {
     if (s.end != null) return until == null ? s.end : Math.min(s.end, until);
     if (until != null) return until;
     return s.checks.length ? Math.max(...s.checks.map((c) => c.t)) : s.start;
   };
-  const all = [];
+  const all = [...extraTimes];
   for (const ch of children) {
     for (const s of napsByChild[ch.id] || []) {
       all.push(s.start, endOf(s));
@@ -108,6 +109,28 @@ export function buildRecordTable(children, napsByChild, intervalMin, until) {
 // 表示上の時刻（分）どうしの差
 export function minutesBetween(a, b) {
   return Math.floor(b / 60000) - Math.floor(a / 60000);
+}
+
+// 時刻を時間枠の番号にする（buildRecordTable の slots と同じ区切り）
+export function slotIndex(slots, intervalMin, t) {
+  if (!slots.length) return -1;
+  const i = Math.floor((t - slots[0]) / (intervalMin * 60 * 1000));
+  return i >= 0 && i < slots.length ? i : -1;
+}
+
+// 記録者に ①②③… の印をつける（その日に初めて記録した順）
+const MARKS = '①②③④⑤⑥⑦⑧⑨⑩⑪⑫⑬⑭⑮⑯⑰⑱⑲⑳';
+export function recorderMarks(entries) {
+  const order = [];
+  for (const e of [...entries].sort((a, b) => a.t - b.t)) {
+    if (e.recorderId && !order.includes(e.recorderId)) order.push(e.recorderId);
+  }
+  return new Map(order.map((id, i) => [id, MARKS[i] || `(${i + 1})`]));
+}
+
+// 室温・湿度の表示
+export function fmtRoom(r) {
+  return `${(r.tempC10 / 10).toFixed(1)}℃ ${r.humidity}%`;
 }
 
 export function fmtTime(t) {

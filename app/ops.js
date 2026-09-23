@@ -36,6 +36,25 @@ export function applyOps(naps, ops) {
   return ops.reduce(applyOp, naps);
 }
 
+// 室温・湿度
+// rooms: [{ id, classId, t, tempC10, humidity, recorderId }]
+export function applyRoomOp(rooms, op) {
+  if (op.type === 'room') {
+    if (rooms.some((r) => r.id === op.id)) return rooms;
+    const { id, classId, t, tempC10, humidity, recorderId } = op;
+    return [...rooms, { id, classId, t, tempC10, humidity, recorderId }].sort((a, b) => a.t - b.t);
+  }
+  if (op.type === 'undoRoom') return rooms.filter((r) => r.id !== op.roomId);
+  return rooms;
+}
+
+// その日の記録 { naps, rooms } に操作をまとめて反映する
+export function applyDayOps(data, ops) {
+  return ops.reduce((d, op) => (op.type === 'room' || op.type === 'undoRoom'
+    ? { ...d, rooms: applyRoomOp(d.rooms, op) }
+    : { ...d, naps: applyOp(d.naps, op) }), data);
+}
+
 // 子どもごとに、入眠の早い順に並べる
 export function sessionsByChild(naps) {
   const out = {};

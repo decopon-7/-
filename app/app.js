@@ -1,26 +1,28 @@
 import {
-  POSTURES, FIXED_SHORT, childStatus, summarize, buildRecordTable, fmtTime, fmtDuration, dateKey,
+  POSTURES, FIXED_SHORT, childStatus, summarize, buildRecordTable, slotIndex, recorderMarks, fmtRoom,
+  fmtTime, fmtDuration, dateKey,
 } from './logic.js';
-import { applyOp, applyOps, sessionsByChild, newId } from './ops.js';
+import { applyDayOps, sessionsByChild, newId } from './ops.js';
 
 // ---------- 端末に残す情報 ----------
-// ログイン中の園の情報・その日の記録・送信待ちの操作だけを保存し、ログアウトで消す
+// 登録した園の情報・その日の記録・送信待ちの操作だけを保存し、登録解除で消す
 
-const CACHE_KEY = 'hs-cache-v2';
-const UI_KEY = 'hs-ui-v2';
+const CACHE_KEY = 'hs-cache-v3';
+const UI_KEY = 'hs-ui-v3';
 const POLL_MS = 15 * 1000;
+const EMPTY_DAY = () => ({ naps: [], rooms: [] });
 
 let st = {
   mode: null, // 'server' | 'demo'
-  boot: null, // { me, facility, classes, children, staff }
+  boot: null, // { device, admin, facility, classes, children, staff }
   day: dateKey(Date.now()),
-  naps: [], // サーバーから受け取った当日の記録
+  data: EMPTY_DAY(), // サーバーから受け取った当日の記録 { naps, rooms }
   outbox: [], // 送信待ちの操作
-  recorderId: '',
   lastSync: 0,
 };
 let online = true;
-let ui = { tab: 'check', classId: null, recordDay: null };
+// duty: クラスごとの午睡担当 { [classId]: { ids: [職員ID, 職員ID], active: 0 | 1 } }（端末ごと）
+let ui = { tab: 'check', classId: null, recordDay: null, duty: {}, sound: true };
 
 function load(key) {
   try {
@@ -41,12 +43,13 @@ function save(key, value) {
 }
 
 const persist = () => save(CACHE_KEY, st);
-const saveUi = () => save(UI_KEY, { ...load(UI_KEY), tab: ui.tab, classId: ui.classId });
+const saveUi = () => save(UI_KEY, { tab: ui.tab, classId: ui.classId, duty: ui.duty, sound: ui.sound });
 
 // ---------- デモ用のサンプル ----------
 
 const DEMO_BOOT = {
-  me: { id: 'demo-s1', name: 'サンプル先生A', role: 'staff' },
+  device: { name: 'デモ' },
+  admin: null,
   facility: { id: 'demo', name: 'デモ園' },
   classes: [
     { id: 'demo-c0', name: '0歳児', age: 0, intervalMin: 5, active: true },
@@ -58,7 +61,7 @@ const DEMO_BOOT = {
     ['k4', 'そうた', 'c1'], ['k5', 'めい', 'c1'], ['k6', 'りく', 'c1'], ['k7', 'こはる', 'c1'],
     ['k8', 'いつき', 'c2'], ['k9', 'ひなた', 'c2'], ['k10', 'さな', 'c2'], ['k11', 'れん', 'c2'],
   ].map(([id, name, c]) => ({ id: `demo-${id}`, name: `サンプル ${name}`, classId: `demo-${c}`, active: true })),
-  staff: ['A', 'B', 'C'].map((x, i) => ({ id: `demo-s${i + 1}`, name: `サンプル先生${x}`, active: true })),
+  staff: ['佐藤', '鈴木', '高橋', '田中'].map((x, i) => ({ id: `demo-s${i + 1}`, name: `サンプル${x}`, active: true })),
 };
 
 // ---------- サーバーとのやりとり ----------
@@ -96,18 +99,17 @@ const MESSAGES = {
   login_id_taken: 'そのログインIDはすでに使われています',
   invalid_login_id: 'ログインIDは半角英数字（. _ - も可）3〜32字で入力してください',
   weak_password: 'パスワードは8文字以上にしてください',
-  wrong_password: '今のパスワードが違います',
-  cannot_demote_self: '自分自身を停止・変更することはできません',
-  forbidden: '管理者だけができる操作です',
+  cannot_demote_self: '自分自身を停止することはできません',
+  admin_mode_required: '管理者モードの時間が過ぎました。もう一度管理者モードにしてください',
   invalid_input: '入力内容を確かめてください',
 };
 const messageOf = (e) => MESSAGES[e.code] || `うまくいきませんでした（${e.code}）`;
 
 // 送信待ちの操作をまとめて送る
 let flushing = false;
-const loggedOut = () => !$('#loginView').hidden;
+const unregistered = () => !$('#loginView').hidden;
 async function flush() {
-  if (st.mode !== 'server' || flushing || !st.outbox.length || loggedOut()) return;
+  if (st.mode !== 'server' || flushing || !st.outbox.length || unregistered()) return;
   flushing = true;
   let sentOk = false;
   const batch = st.outbox.slice(0, 200);
@@ -119,7 +121,7 @@ async function flush() {
     if (failed) toast(`${failed}件の記録を保存できませんでした。もう一度記録してください`);
     online = true;
     sentOk = true;
-    receiveNaps(r.day, r.naps);
+    receiveDay(r);
   } catch (e) {
     handleApiError(e);
   } finally {
@@ -132,12 +134,12 @@ async function flush() {
 }
 
 async function poll() {
-  if (st.mode !== 'server' || loggedOut()) return;
+  if (st.mode !== 'server' || unregistered()) return;
   if (st.outbox.length) return flush();
   try {
-    const r = await api('GET', `/api/naps?day=${dateKey(Date.now())}`);
+    const r = await api('GET', `/api/day?day=${dateKey(Date.now())}`);
     online = true;
-    receiveNaps(r.day, r.naps);
+    receiveDay(r);
     persist();
   } catch (e) {
     handleApiError(e);
@@ -146,10 +148,11 @@ async function poll() {
 }
 
 // 受け取った記録が変わっていた時だけ描き直す（押している途中のボタンを作り直さないため）
-function receiveNaps(day, naps) {
-  const changed = day !== st.day || JSON.stringify(naps) !== JSON.stringify(st.naps);
+function receiveDay({ day, naps, rooms }) {
+  const next = { naps, rooms };
+  const changed = day !== st.day || JSON.stringify(next) !== JSON.stringify(st.data);
   st.day = day;
-  st.naps = naps;
+  st.data = next;
   st.lastSync = Date.now();
   if (changed) render();
 }
@@ -170,10 +173,13 @@ async function refreshBoot() {
 function handleApiError(e) {
   if (e.status === 401) {
     showLogin(st.outbox.length
-      ? `ログインの期限が切れました。送信待ちの記録が${st.outbox.length}件あります。ログインすると送信します。`
-      : 'ログインの期限が切れました。もう一度ログインしてください。');
+      ? `この端末の登録が切れました。送信待ちの記録が${st.outbox.length}件あります。管理者が登録し直すと送信します。`
+      : 'この端末の登録が切れました。管理者が登録し直してください。');
   } else if (e.status === 0) {
     online = false;
+  } else if (e.code === 'admin_mode_required') {
+    toast(messageOf(e));
+    refreshBoot();
   } else {
     toast(messageOf(e));
   }
@@ -181,9 +187,13 @@ function handleApiError(e) {
 
 function setBoot(boot) {
   st.boot = boot;
-  const staffIds = new Set(boot.staff.filter((s) => s.active).map((s) => s.id));
-  if (!staffIds.has(st.recorderId)) st.recorderId = boot.me.id;
   if (!activeClasses().some((c) => c.id === ui.classId)) ui.classId = activeClasses()[0]?.id ?? null;
+  // 停止した職員は担当から外す
+  const activeIds = new Set(boot.staff.filter((s) => s.active).map((s) => s.id));
+  for (const d of Object.values(ui.duty)) {
+    d.ids = d.ids.filter((x) => activeIds.has(x));
+    if (d.active >= d.ids.length) d.active = 0;
+  }
 }
 
 // ---------- 画面の部品 ----------
@@ -234,10 +244,10 @@ function confirmDialog(title, note, okLabel, onOk, danger = false) {
     <button class="btn ghost" data-act="cancel">キャンセル</button>`, (a) => { if (a === 'ok') onOk(); });
 }
 
-function inputDialog(title, note, { value = '', type = 'text', okLabel = '決定' }, onOk) {
+function inputDialog(title, note, { value = '', okLabel = '決定' }, onOk) {
   openDialog(`
     <h3>${esc(title)}</h3>${note ? `<p>${esc(note)}</p>` : ''}
-    <input id="dlgInput" class="field" type="${type}" value="${esc(value)}" autocomplete="off">
+    <input id="dlgInput" class="field" value="${esc(value)}" autocomplete="off">
     <button class="btn primary big" data-act="ok">${esc(okLabel)}</button>
     <button class="btn ghost" data-act="cancel">キャンセル</button>`, (a) => {
     if (a !== 'ok') return false;
@@ -250,16 +260,17 @@ function inputDialog(title, note, { value = '', type = 'text', okLabel = '決定
 
 // ---------- データの見方 ----------
 
-const isAdmin = () => st.mode === 'server' && st.boot?.me.role === 'admin';
+const isAdmin = () => st.mode === 'server' && !!st.boot?.admin && st.boot.admin.until > Date.now();
 const activeClasses = () => (st.boot?.classes || []).filter((c) => c.active);
 const currentClass = () => activeClasses().find((c) => c.id === ui.classId);
 const childrenOf = (classId) => st.boot.children.filter((ch) => ch.active && ch.classId === classId);
 const classById = (id) => st.boot.classes.find((c) => c.id === id);
-const staffName = (id) => st.boot.staff.find((s) => s.id === id)?.name || '（不明）';
+const staffById = (id) => st.boot.staff.find((s) => s.id === id);
+const staffName = (id) => staffById(id)?.name || '（不明）';
 const intervalOf = (child) => classById(child.classId)?.intervalMin || 5;
 
-function todayNaps() {
-  return st.mode === 'server' ? applyOps(st.naps, st.outbox) : st.naps;
+function todayData() {
+  return st.mode === 'server' ? applyDayOps(st.data, st.outbox) : st.data;
 }
 
 function statusOf(child, byChild, now = Date.now()) {
@@ -269,7 +280,7 @@ function statusOf(child, byChild, now = Date.now()) {
 function dispatch(op) {
   const withKey = { ...op, key: newId() };
   if (st.mode === 'demo') {
-    st.naps = applyOp(st.naps, withKey);
+    st.data = applyDayOps(st.data, [withKey]);
   } else {
     st.outbox.push(withKey);
   }
@@ -278,7 +289,61 @@ function dispatch(op) {
   flush();
 }
 
-// ---------- ログイン ----------
+// ---------- 午睡担当（2名） ----------
+
+function dutyOf(classId) {
+  return ui.duty[classId] || { ids: [], active: 0 };
+}
+
+// いま入力している人
+function inputterId(classId = ui.classId) {
+  const d = dutyOf(classId);
+  return d.ids[d.active] || null;
+}
+
+// 担当を選ぶ（名前をタップ。2名まで）。選び終わったら then を呼ぶ
+function editDuty(then) {
+  const cls = currentClass();
+  const picked = [...dutyOf(cls.id).ids];
+  const draw = () => {
+    const items = st.boot.staff.filter((s) => s.active).map((s) => {
+      const i = picked.indexOf(s.id);
+      return `<button class="btn ${i >= 0 ? 'primary' : ''}" data-act="toggle" data-id="${s.id}">${i >= 0 ? `${'①②'[i]} ` : ''}${esc(s.name)}</button>`;
+    }).join('');
+    dialogBody.innerHTML = `
+      <h3>${esc(cls.name)}の午睡担当</h3>
+      <p>2名まで選べます。選んだ順に①②になります。記録するたびに、①②のどちらが入力したかが残ります。</p>
+      <div class="choice-list">${items || '<p>職員が登録されていません。</p>'}</div>
+      <button class="btn primary big" data-act="ok" ${picked.length ? '' : 'disabled'}>決定</button>
+      <button class="btn ghost" data-act="cancel">キャンセル</button>`;
+  };
+  openDialog('', (act, data) => {
+    if (act === 'toggle') {
+      const i = picked.indexOf(data.id);
+      if (i >= 0) picked.splice(i, 1);
+      else if (picked.length < 2) picked.push(data.id);
+      else toast('担当は2名までです。先にどちらかを外してください');
+      draw();
+      return true;
+    }
+    if (act === 'ok' && picked.length) {
+      ui.duty[cls.id] = { ids: picked, active: 0 };
+      saveUi();
+      render();
+      then?.();
+    }
+    return false;
+  });
+  draw();
+}
+
+// 入力する人がまだ決まっていない時は、先に担当を選んでもらう
+function withInputter(fn) {
+  if (inputterId()) fn(inputterId());
+  else editDuty(() => { if (inputterId()) fn(inputterId()); });
+}
+
+// ---------- 端末の登録 ----------
 
 function showLogin(note, { demo = false } = {}) {
   $('#appView').hidden = true;
@@ -305,12 +370,13 @@ $('#loginForm').addEventListener('submit', async (e) => {
   err.hidden = true;
   btn.disabled = true;
   try {
-    await api('POST', '/api/login', { loginId: form.loginId.value.trim(), password: form.password.value });
+    await api('POST', '/api/device/register', {
+      loginId: form.loginId.value.trim(), password: form.password.value, deviceName: form.deviceName.value.trim(),
+    });
     const boot = await api('GET', '/api/bootstrap');
-    // 別の園でログインした場合は、前の園の送信待ちを持ち越さない
+    // 別の園で登録した場合は、前の園の送信待ちを持ち越さない
     if (st.boot?.facility.id !== boot.facility.id) st.outbox = [];
     st.mode = 'server';
-    st.recorderId = boot.me.id;
     setBoot(boot);
     persist();
     form.password.value = '';
@@ -328,24 +394,26 @@ $('#loginForm').addEventListener('submit', async (e) => {
 });
 
 $('#demoBtn').addEventListener('click', () => {
-  st = { mode: 'demo', boot: DEMO_BOOT, day: dateKey(Date.now()), naps: [], outbox: [], recorderId: '', lastSync: 0 };
+  st = { mode: 'demo', boot: DEMO_BOOT, day: dateKey(Date.now()), data: EMPTY_DAY(), outbox: [], lastSync: 0 };
   setBoot(DEMO_BOOT);
   persist();
   showApp();
 });
 
-function logout() {
+function unregister() {
   const pending = st.outbox.length;
   const go = async () => {
-    if (st.mode === 'server') await api('POST', '/api/logout', {}).catch(() => {});
-    st = { mode: null, boot: null, day: dateKey(Date.now()), naps: [], outbox: [], recorderId: '', lastSync: 0 };
+    if (st.mode === 'server') await api('POST', '/api/device/unregister', {}).catch(() => {});
+    st = { mode: null, boot: null, day: dateKey(Date.now()), data: EMPTY_DAY(), outbox: [], lastSync: 0 };
     save(CACHE_KEY, null);
-    showLogin('', { demo: false });
+    showLogin('');
   };
   if (pending) {
-    confirmDialog(`送信待ちの記録が${pending}件あります`, 'ログアウトすると、この記録は消えます。通信がつながるまで待つことをおすすめします。', 'それでもログアウト', go, true);
+    confirmDialog(`送信待ちの記録が${pending}件あります`, '登録を解除すると、この記録は消えます。通信がつながるまで待つことをおすすめします。', 'それでも解除', go, true);
+  } else if (st.mode === 'demo') {
+    go();
   } else {
-    confirmDialog('ログアウトしますか？', '', 'ログアウト', go);
+    confirmDialog('この端末の登録を解除しますか？', 'もう一度使うには、管理者が登録し直す必要があります。', '解除', go, true);
   }
 }
 
@@ -365,21 +433,33 @@ function renderBanner() {
   } else if (st.outbox.length) {
     html = `送信中…（${st.outbox.length}件）`;
     cls = 'pending';
+  } else if (isAdmin()) {
+    html = `管理者モード中（${st.boot.admin.name}）　設定タブの「管理者モードを終わる」で戻ります`;
+    cls = 'admin';
   }
   b.textContent = html;
   b.className = `banner ${cls}`;
   b.hidden = !html;
 }
 
+// ヘッダーには「いま入力している人」を出し、タップでもう1人に切り替える
+function renderInputterChip() {
+  const chip = $('#staffBtn');
+  const d = dutyOf(ui.classId);
+  const id = inputterId();
+  chip.textContent = id ? `入力：${'①②'[d.active]} ${staffName(id)}` : '午睡担当を選ぶ';
+  chip.classList.toggle('empty', !id);
+  chip.hidden = ui.tab === 'settings' || !currentClass();
+}
+
 function renderChrome() {
-  const staffBtn = $('#staffBtn');
-  staffBtn.textContent = `記録者：${staffName(st.recorderId)}`;
+  renderInputterChip();
   document.querySelectorAll('.tab').forEach((t) => t.classList.toggle('active', t.dataset.tab === ui.tab));
   renderClassBar();
   renderBanner();
 }
 
-function renderClassBar(byChild = sessionsByChild(todayNaps())) {
+function renderClassBar(byChild = sessionsByChild(todayData().naps)) {
   const bar = $('#classBar');
   bar.hidden = ui.tab === 'settings';
   bar.innerHTML = activeClasses().map((c) => {
@@ -394,20 +474,13 @@ function tickClock() {
   $('#clock').textContent = `${d.getHours()}:${String(d.getMinutes()).padStart(2, '0')}`;
 }
 
-function pickRecorder() {
-  const items = st.boot.staff.filter((s) => s.active).map((s) =>
-    `<button class="btn ${s.id === st.recorderId ? 'primary' : ''}" data-act="pick" data-id="${s.id}">${esc(s.name)}</button>`).join('');
-  openDialog(`
-    <h3>記録者を選んでください</h3>
-    <p>この端末でのチェックに、この名前が残ります。交代したら切り替えてください。</p>
-    <div class="choice-list">${items}</div>
-    <button class="btn ghost" data-act="cancel">閉じる</button>`, (act, data) => {
-    if (act === 'pick') {
-      st.recorderId = data.id;
-      persist();
-      render();
-    }
-  });
+function switchInputter() {
+  const d = dutyOf(ui.classId);
+  if (d.ids.length < 2) return editDuty();
+  d.active = d.active ? 0 : 1;
+  ui.duty[ui.classId] = d;
+  saveUi();
+  render();
 }
 
 // ---------- チェック画面 ----------
@@ -441,27 +514,54 @@ function cardHtml(child, s) {
   </div>`;
 }
 
+function dutyBarHtml(cls) {
+  const d = dutyOf(cls.id);
+  if (!d.ids.length) {
+    return '<div class="duty"><button class="btn primary big" data-act="dutyEdit">午睡担当（2名）を選ぶ</button></div>';
+  }
+  const slots = d.ids.map((id, i) =>
+    `<button class="duty-btn ${i === d.active ? 'active' : ''}" data-act="dutyPick" data-slot="${i}">
+      ${'①②'[i]} ${esc(staffName(id))}<small>${i === d.active ? '入力中' : 'タップで交代'}</small></button>`).join('');
+  return `<div class="duty">${slots}<button class="btn ghost duty-edit" data-act="dutyEdit">担当を変える</button></div>`;
+}
+
+function roomPanelHtml(cls, rooms) {
+  const mine = rooms.filter((r) => r.classId === cls.id);
+  const last = mine[mine.length - 1];
+  const text = last
+    ? `<b>${fmtRoom(last)}</b><small>${fmtTime(last.t)} ${esc(staffName(last.recorderId))}</small>`
+    : '<b class="muted">今日はまだ記録していません</b>';
+  return `<div class="room-panel">
+    <span class="room-label">室温・湿度</span>
+    <span class="room-value">${text}</span>
+    <button class="btn" data-act="room">記録する</button>
+  </div>`;
+}
+
 function renderCheck() {
   const cls = currentClass();
   if (!cls) {
-    view.innerHTML = `<p class="empty-note">${isAdmin() ? '設定タブでクラスを登録してください。' : 'クラスが登録されていません。管理者に登録を依頼してください。'}</p>`;
+    view.innerHTML = '<p class="empty-note">クラスが登録されていません。管理者モードで登録してください。</p>';
     return;
   }
-  const byChild = sessionsByChild(todayNaps());
+  const data = todayData();
+  const byChild = sessionsByChild(data.naps);
   const kids = childrenOf(cls.id);
   const beforeCount = kids.filter((ch) => statusOf(ch, byChild).state === 'before').length;
   view.innerHTML = `
+    ${dutyBarHtml(cls)}
+    ${roomPanelHtml(cls, data.rooms)}
     <div class="summary" id="summary"></div>
     <div class="bulk">
+      <span class="meta">確認：${cls.intervalMin}分ごと</span>
       <button class="btn" data-act="startAll" ${beforeCount ? '' : 'disabled'}>まだ寝ていない${beforeCount}名をまとめて午睡開始</button>
     </div>
-    <p class="meta">確認間隔：${cls.intervalMin}分ごと</p>
     <div class="grid">${kids.map((ch) => cardHtml(ch, statusOf(ch, byChild))).join('') || '<p class="empty-note">このクラスには子どもが登録されていません。</p>'}</div>`;
   updateLive(byChild);
 }
 
 // 1秒ごとの更新は文字と色だけ書き換える
-function updateLive(byChild = sessionsByChild(todayNaps())) {
+function updateLive(byChild = sessionsByChild(todayData().naps)) {
   if (ui.tab !== 'check') return;
   const cls = currentClass();
   if (!cls) return;
@@ -490,11 +590,61 @@ function updateLive(byChild = sessionsByChild(todayNaps())) {
   }
 }
 
+// 室温・湿度の入力（タップだけ。前回の値から始める）
+function openRoomDialog() {
+  const cls = currentClass();
+  const mine = todayData().rooms.filter((r) => r.classId === cls.id);
+  const last = mine[mine.length - 1];
+  let temp = last ? last.tempC10 : 240;
+  let hum = last ? last.humidity : 50;
+  const draw = () => {
+    dialogBody.innerHTML = `
+      <h3>${esc(cls.name)}の室温・湿度</h3>
+      <p>記録者：${esc(staffName(inputterId()))}</p>
+      <div class="stepper big-stepper"><span>室温</span><span class="ctrl">
+        <button class="btn" data-act="t" data-d="-10">−1</button>
+        <button class="btn" data-act="t" data-d="-5">−0.5</button>
+        <b>${(temp / 10).toFixed(1)}℃</b>
+        <button class="btn" data-act="t" data-d="5">＋0.5</button>
+        <button class="btn" data-act="t" data-d="10">＋1</button></span></div>
+      <div class="stepper big-stepper"><span>湿度</span><span class="ctrl">
+        <button class="btn" data-act="h" data-d="-5">−5</button>
+        <button class="btn" data-act="h" data-d="-1">−1</button>
+        <b>${hum}%</b>
+        <button class="btn" data-act="h" data-d="1">＋1</button>
+        <button class="btn" data-act="h" data-d="5">＋5</button></span></div>
+      <button class="btn primary big" data-act="save">この値で記録</button>
+      ${last ? `<button class="btn ghost" data-act="undoLast">直前の記録（${fmtTime(last.t)} ${fmtRoom(last)}）を取り消す</button>` : ''}
+      <button class="btn ghost" data-act="cancel">キャンセル</button>`;
+  };
+  openDialog('', (act, data) => {
+    if (act === 't') { temp = Math.min(450, Math.max(50, temp + Number(data.d))); draw(); return true; }
+    if (act === 'h') { hum = Math.min(100, Math.max(0, hum + Number(data.d))); draw(); return true; }
+    if (act === 'save') {
+      dispatch({ type: 'room', id: newId(), classId: cls.id, t: Date.now(), tempC10: temp, humidity: hum, recorderId: inputterId() });
+      toast(`室温 ${(temp / 10).toFixed(1)}℃・湿度 ${hum}% を記録しました`);
+    }
+    if (act === 'undoLast') dispatch({ type: 'undoRoom', roomId: last.id });
+    return false;
+  });
+  draw();
+}
+
 function onCheckClick(e) {
   const b = e.target.closest('button[data-act]');
   if (!b) return;
   const act = b.dataset.act;
-  const byChild = sessionsByChild(todayNaps());
+  const byChild = sessionsByChild(todayData().naps);
+
+  if (act === 'dutyEdit') return editDuty();
+  if (act === 'dutyPick') {
+    const d = dutyOf(ui.classId);
+    d.active = Number(b.dataset.slot);
+    ui.duty[ui.classId] = d;
+    saveUi();
+    return render();
+  }
+  if (act === 'room') return withInputter(openRoomDialog);
 
   if (act === 'startAll') {
     const now = Date.now();
@@ -513,18 +663,20 @@ function onCheckClick(e) {
     dispatch({ type: 'startNap', id: newId(), childId: child.id, t: Date.now() });
   } else if (act === 'check') {
     const posture = b.dataset.posture;
-    const record = (fixed) => dispatch({
-      type: 'check', id: newId(), napId: s.session.id, t: Date.now(), posture, recorderId: st.recorderId, ...(fixed ? { fixed: true } : {}),
+    withInputter((recorderId) => {
+      const record = (fixed) => dispatch({
+        type: 'check', id: newId(), napId: s.session.id, t: Date.now(), posture, recorderId, ...(fixed ? { fixed: true } : {}),
+      });
+      if (posture === 'prone') {
+        openDialog(`
+          <h3>${esc(child.name)}：うつぶせ</h3>
+          <p>仰向けに直してから「直した」を押してください。記録には「${FIXED_SHORT}（うつぶせを仰向けに直した）」と残ります。</p>
+          <button class="btn primary big" data-act="fixed">仰向けに直した</button>
+          <button class="btn ghost" data-act="cancel">キャンセル</button>`, (a) => { if (a === 'fixed') record(true); });
+      } else {
+        record(false);
+      }
     });
-    if (posture === 'prone') {
-      openDialog(`
-        <h3>${esc(child.name)}：うつぶせ</h3>
-        <p>仰向けに直してから「直した」を押してください。記録には「${FIXED_SHORT}（うつぶせを仰向けに直した）」と残ります。</p>
-        <button class="btn primary big" data-act="fixed">仰向けに直した</button>
-        <button class="btn ghost" data-act="cancel">キャンセル</button>`, (a) => { if (a === 'fixed') record(true); });
-    } else {
-      record(false);
-    }
   } else if (act === 'undo') {
     const last = s.session.checks[s.session.checks.length - 1];
     if (last) dispatch({ type: 'undoCheck', checkId: last.id });
@@ -567,8 +719,7 @@ function checkAlerts(byChild) {
       alerted.delete(ch.id);
     }
   }
-  if (fresh && load(UI_KEY)?.sound !== false) beep();
-  return fresh;
+  if (fresh && ui.sound) beep();
 }
 
 // ---------- 記録画面 ----------
@@ -578,8 +729,8 @@ const recordCache = new Map();
 async function loadRecordDay(day) {
   if (st.mode !== 'server') return;
   try {
-    const r = await api('GET', `/api/naps?day=${day}`);
-    recordCache.set(day, r.naps);
+    const r = await api('GET', `/api/day?day=${day}`);
+    recordCache.set(day, { naps: r.naps, rooms: r.rooms });
     if (ui.tab === 'record' && ui.recordDay === day) render();
   } catch (e) {
     handleApiError(e);
@@ -600,11 +751,11 @@ function renderRecord() {
   const today = dateKey(Date.now());
   const day = ui.recordDay || today;
   const isToday = day === today;
-  let naps;
-  if (isToday) naps = todayNaps();
-  else if (recordCache.has(day)) naps = recordCache.get(day);
+  let data;
+  if (isToday) data = todayData();
+  else if (recordCache.has(day)) data = recordCache.get(day);
   else {
-    naps = null;
+    data = null;
     loadRecordDay(day);
   }
 
@@ -616,7 +767,7 @@ function renderRecord() {
       <button class="btn" data-act="nextDay" ${isToday ? 'disabled' : ''}>次の日</button>
     </div>`;
 
-  if (naps === null) {
+  if (data === null) {
     view.innerHTML = `${nav}<p class="empty-note">読み込んでいます…</p>`;
     return;
   }
@@ -624,19 +775,36 @@ function renderRecord() {
   // その日にこのクラスで寝た子（その後にクラス替え・停止した子も含む）と、今このクラスにいる子
   const childById = (id) => st.boot.children.find((c) => c.id === id);
   const napClass = (n) => n.classId || childById(n.childId)?.classId;
-  const classNaps = naps.filter((n) => napClass(n) === cls.id);
+  const classNaps = data.naps.filter((n) => napClass(n) === cls.id);
+  const rooms = data.rooms.filter((r) => r.classId === cls.id);
   const ids = new Set([...childrenOf(cls.id).map((c) => c.id), ...classNaps.map((n) => n.childId)]);
   const kids = st.boot.children.filter((c) => ids.has(c.id));
   // 確認間隔は、その日に午睡を始めた時点の値を使う（あとで設定を変えても過去の表は変わらない）
   const interval = classNaps.find((n) => n.intervalMin)?.intervalMin || cls.intervalMin;
-  const { slots, rows } = buildRecordTable(kids, sessionsByChild(classNaps), interval, isToday ? Date.now() : null);
+  const { slots, rows } = buildRecordTable(kids, sessionsByChild(classNaps), interval, isToday ? Date.now() : null,
+    rooms.map((r) => r.t));
   const title = `${y}年${m}月${d}日 ${cls.name} 午睡チェック表（${interval}分ごと）`;
   if (!slots.length) {
     view.innerHTML = `${nav}<p class="empty-note">${esc(cls.name)}のこの日の記録はありません。</p>`;
     return;
   }
 
+  // 記録者に ①② の印（その日に初めて記録した順）
+  const marks = recorderMarks([...classNaps.flatMap((n) => n.checks), ...rooms]);
+  const markOf = (id) => marks.get(id) || '';
+  const recorders = [...marks].map(([id, mark]) => `${mark} ${esc(staffName(id))}`).join('　');
+
   const head = slots.map((t) => `<th>${fmtTime(t)}〜</th>`).join('');
+  const roomCells = slots.map(() => []);
+  for (const r of rooms) {
+    const i = slotIndex(slots, interval, r.t);
+    if (i >= 0) roomCells[i].push(r);
+  }
+  const roomRow = rooms.length
+    ? `<tr class="room-row"><td class="sticky">室温・湿度</td><td></td>${roomCells.map((list) => `<td class="cell">${list.map((r) =>
+      `<div class="chk"><b class="room-v">${(r.tempC10 / 10).toFixed(1)}℃<br>${r.humidity}%</b><small>${fmtTime(r.t)} ${markOf(r.recorderId)}</small></div>`).join('')}</td>`).join('')}</tr>`
+    : '';
+
   const body = rows.map(({ child, naps: sessions, cells, unclosed }) => {
     const napText = sessions.map((s) => `${fmtTime(s.start)}〜${s.end != null ? fmtTime(s.end) : ''}`).join('<br>') || '—';
     const warn = unclosed && !isToday ? '<br><span class="warn">起床の記録なし</span>' : '';
@@ -646,9 +814,8 @@ function renderRecord() {
       }
       const items = cell.checks.map((c) => {
         const p = POSTURES[c.posture];
-        const who = staffName(c.recorderId);
-        return `<div class="chk ${c.posture === 'prone' ? 'prone' : ''} ${c.late ? 'late' : ''}" title="${esc(p.label)} ${fmtTime(c.t)} ${esc(who)}">
-          <b>${c.fixed ? FIXED_SHORT : p.short}</b><small>${fmtTime(c.t)} ${esc(initial(who))}</small></div>`;
+        return `<div class="chk ${c.posture === 'prone' ? 'prone' : ''} ${c.late ? 'late' : ''}" title="${esc(p.label)} ${fmtTime(c.t)} ${esc(staffName(c.recorderId))}">
+          <b>${c.fixed ? FIXED_SHORT : p.short}</b><small>${fmtTime(c.t)} ${markOf(c.recorderId)}</small></div>`;
       }).join('');
       return `<td class="cell">${items}</td>`;
     }).join('');
@@ -662,19 +829,15 @@ function renderRecord() {
       <button class="btn primary" data-act="print">印刷</button>
     </div>
     <h2 class="print-title">${esc(st.boot.facility.name)}　${esc(title)}</h2>
+    <p class="recorders">記録者：${recorders || '—'}</p>
     <p class="legend">↑：仰向け　→：右向き　←：左向き　↓：うつぶせ　${FIXED_SHORT}：うつぶせを仰向けに直した
       小さい文字：確認した時刻と記録者　赤枠：前の確認から${interval}分を超えて確認した　未：確認が遅れていた時間枠</p>
     <div class="table-wrap">
       <table class="record">
         <thead><tr><th class="sticky">名前</th><th>入眠〜起床</th>${head}</tr></thead>
-        <tbody>${body}</tbody>
+        <tbody>${roomRow}${body}</tbody>
       </table>
     </div>`;
-}
-
-function initial(name) {
-  const trimmed = name.replace(/サンプル|先生/g, '').trim() || name;
-  return trimmed.slice(0, 3);
 }
 
 function onRecordClick(e) {
@@ -692,9 +855,9 @@ function onRecordClick(e) {
 
 // ---------- 設定画面 ----------
 
+let devices = null;
+
 function renderSettings() {
-  const me = st.boot.me;
-  const sound = load(UI_KEY)?.sound !== false;
   const sync = st.mode === 'server'
     ? `<p class="help">最後にサーバーと同期：${st.lastSync ? fmtTime(st.lastSync) : '—'}　送信待ち：${st.outbox.length}件</p>`
     : '';
@@ -702,35 +865,39 @@ function renderSettings() {
   let html = `
     <div class="section">
       <h2>この端末</h2>
-      <p class="help">${esc(st.boot.facility.name)}　ログイン中：${esc(me.name)}${me.role === 'admin' ? '（管理者）' : ''}</p>
+      <p class="help">${esc(st.boot.facility.name)}　端末の名前：${esc(st.boot.device.name)}</p>
       ${sync}
       <div class="toggle"><span>確認が遅れたら音と振動で知らせる</span>
-        <button class="btn ${sound ? 'primary' : ''}" data-act="sound">${sound ? 'オン' : 'オフ'}</button></div>
-      <div class="row gap-top">
-        ${st.mode === 'server' ? '<button class="btn" data-act="myPassword">パスワード変更</button>' : ''}
-        <button class="btn danger" data-act="logout">${st.mode === 'demo' ? 'デモを終わる' : 'ログアウト'}</button>
-      </div>
+        <button class="btn ${ui.sound ? 'primary' : ''}" data-act="sound">${ui.sound ? 'オン' : 'オフ'}</button></div>
+      <p class="help gap-top">確認の間隔：0歳児クラスは5分ごと、それ以外は10分ごと</p>
     </div>`;
 
   if (st.mode === 'demo') {
-    html += '<div class="section"><p class="help">デモでは、クラス・子ども・職員の登録や変更はできません。</p></div>';
+    html += `<div class="section"><p class="help">デモでは、クラス・子ども・職員の登録や変更はできません。</p>
+      <button class="btn danger" data-act="unregister">デモを終わる</button></div>`;
   } else if (isAdmin()) {
     html += adminSettingsHtml();
   } else {
-    html += '<div class="section"><p class="help">クラス・子ども・職員の登録や変更は、管理者が行います。</p></div>';
+    html += `
+      <div class="section">
+        <h2>管理者モード</h2>
+        <p class="help">クラス・子ども・職員・端末の登録や変更は、管理者のパスワードを入れてから行います。10分たつと自動で戻ります。</p>
+        <button class="btn primary" data-act="unlock">管理者モードにする</button>
+      </div>`;
   }
   view.innerHTML = html;
 }
 
 function adminSettingsHtml() {
   const { classes, children, staff } = st.boot;
+  const left = Math.max(0, Math.ceil((st.boot.admin.until - Date.now()) / 60000));
+
   const classRows = classes.map((c) => `
-    <div class="stepper ${c.active ? '' : 'inactive'}">
-      <span>${esc(c.name)}${c.active ? '' : '（停止中）'}</span>
-      <span class="ctrl">
-        <button class="btn" data-act="int" data-id="${c.id}" data-delta="-1" aria-label="短くする">−</button>
-        <b>${c.intervalMin}分</b>
-        <button class="btn" data-act="int" data-id="${c.id}" data-delta="1" aria-label="長くする">＋</button>
+    <div class="list-item ${c.active ? '' : 'inactive'}">
+      <span>${esc(c.name)}<small class="sub">${c.age}歳・${c.intervalMin}分ごと${c.active ? '' : '・停止中'}</small></span>
+      <span class="item-actions">
+        <button class="btn" data-act="renameClass" data-id="${c.id}">名前</button>
+        <button class="btn ${c.active ? 'danger' : ''}" data-act="toggleClass" data-id="${c.id}">${c.active ? '停止' : '再開'}</button>
       </span>
     </div>`).join('');
 
@@ -752,18 +919,43 @@ function adminSettingsHtml() {
 
   const staffRows = staff.map((s) => `
     <div class="list-item ${s.active ? '' : 'inactive'}">
-      <span>${esc(s.name)}<small class="sub">${esc(s.loginId)}${s.role === 'admin' ? '・管理者' : ''}${s.active ? '' : '・停止中'}</small></span>
+      <span>${esc(s.name)}<small class="sub">${s.role === 'admin' ? `管理者・${esc(s.loginId)}` : '職員'}${s.active ? '' : '・停止中'}</small></span>
       <span class="item-actions">
-        <button class="btn" data-act="resetPassword" data-id="${s.id}">パスワード</button>
-        ${s.id === st.boot.me.id ? '' : `<button class="btn ${s.active ? 'danger' : ''}" data-act="toggleUser" data-id="${s.id}">${s.active ? '停止' : '再開'}</button>`}
+        <button class="btn" data-act="renameUser" data-id="${s.id}">名前</button>
+        ${s.role === 'admin' ? `<button class="btn" data-act="resetPassword" data-id="${s.id}">パスワード</button>` : ''}
+        <button class="btn ${s.active ? 'danger' : ''}" data-act="toggleUser" data-id="${s.id}">${s.active ? '停止' : '再開'}</button>
       </span>
     </div>`).join('');
 
+  if (devices === null) loadDevices();
+  const deviceRows = (devices || []).map((d) => `
+    <div class="list-item">
+      <span>${esc(d.name || '（名前なし）')}${d.current ? '（この端末）' : ''}<small class="sub">登録：${esc(d.registeredBy)}・${new Date(d.createdAt).toLocaleDateString('ja-JP')}</small></span>
+      ${d.current ? '' : `<button class="btn danger" data-act="revokeDevice" data-id="${d.id}">登録解除</button>`}
+    </div>`).join('');
+
   return `
+    <div class="section admin-head">
+      <div class="toggle"><span><b>管理者モード中</b>（${esc(st.boot.admin.name)}・あと${left}分）</span>
+        <button class="btn" data-act="lock">管理者モードを終わる</button></div>
+    </div>
     <div class="section">
-      <h2>確認間隔（クラスごと）</h2>
-      <p class="help">園のマニュアルや自治体の指針に合わせて設定してください。</p>
-      ${classRows}
+      <h2>職員</h2>
+      <p class="help">職員は名前を登録するだけです。端末で名前を選んで記録します。退職した人は「停止」にします（過去の記録の名前は残ります）。</p>
+      ${staffRows}
+      <form class="add-row" data-form="addStaff">
+        <input name="name" placeholder="職員の名前" autocomplete="off" required maxlength="40">
+        <button class="btn primary">追加</button>
+      </form>
+      <details class="gap-top">
+        <summary>管理者を追加する（端末の登録・管理者モードに使うIDとパスワードを持つ人）</summary>
+        <form class="add-row" data-form="addAdmin">
+          <input name="name" placeholder="名前" autocomplete="off" required maxlength="40">
+          <input name="loginId" placeholder="ログインID（半角英数字）" autocomplete="off" autocapitalize="none" required>
+          <input name="password" placeholder="パスワード（8文字以上）" autocomplete="new-password" required minlength="8">
+          <button class="btn primary">追加</button>
+        </form>
+      </details>
     </div>
     <div class="section">
       <h2>子ども</h2>
@@ -776,22 +968,35 @@ function adminSettingsHtml() {
       </form>
     </div>
     <div class="section">
-      <h2>職員</h2>
-      <p class="help">職員ごとにログインIDを発行します。退職した人は「停止」にすると、その人の端末のログインも切れます。</p>
-      ${staffRows}
-      <form class="add-row" data-form="addUser">
-        <input name="name" placeholder="名前" autocomplete="off" required maxlength="40">
-        <input name="loginId" placeholder="ログインID（半角英数字）" autocomplete="off" autocapitalize="none" required>
-        <input name="password" placeholder="初期パスワード（8文字以上）" autocomplete="new-password" required minlength="8">
-        <select name="role"><option value="staff">職員</option><option value="admin">管理者</option></select>
+      <h2>クラス</h2>
+      <p class="help">確認の間隔は年齢で決まります（0歳は5分、それ以外は10分）。</p>
+      ${classRows}
+      <form class="add-row" data-form="addClass">
+        <input name="name" placeholder="クラスの名前" autocomplete="off" required maxlength="40">
+        <select name="age">${[0, 1, 2, 3, 4, 5].map((a) => `<option value="${a}">${a}歳</option>`).join('')}</select>
         <button class="btn primary">追加</button>
       </form>
     </div>
     <div class="section">
-      <h2>端末の紛失・盗難のとき</h2>
-      <p class="help">この端末以外のすべての端末をログアウトさせます。</p>
-      <button class="btn danger" data-act="revokeAll">全端末をログアウト</button>
+      <h2>登録している端末</h2>
+      <p class="help">なくした端末や使わなくなった端末は、ここで登録を解除してください。</p>
+      ${devices == null ? '<p class="help">読み込んでいます…</p>' : deviceRows}
+      <div class="row gap-top">
+        <button class="btn danger" data-act="revokeAll">この端末以外をすべて解除</button>
+        <button class="btn danger" data-act="unregister">この端末の登録を解除</button>
+      </div>
     </div>`;
+}
+
+async function loadDevices() {
+  devices = undefined;
+  try {
+    devices = (await api('GET', '/api/admin/devices')).devices;
+  } catch (e) {
+    devices = [];
+    handleApiError(e);
+  }
+  if (ui.tab === 'settings') render();
 }
 
 async function adminCall(method, path, data, okMsg) {
@@ -812,37 +1017,38 @@ function onSettingsClick(e) {
   if (!b) return;
   const act = b.dataset.act;
   const idOf = b.dataset.id;
+  const findChild = () => st.boot.children.find((x) => x.id === idOf);
+  const findUser = () => staffById(idOf);
+  const findClass = () => classById(idOf);
 
   if (act === 'sound') {
-    const cur = load(UI_KEY) || {};
-    const next = cur.sound === false;
-    save(UI_KEY, { ...cur, tab: ui.tab, classId: ui.classId, sound: next });
-    if (next) beep();
+    ui.sound = !ui.sound;
+    saveUi();
+    if (ui.sound) beep();
     render();
-  } else if (act === 'logout') {
-    logout();
-  } else if (act === 'myPassword') {
+  } else if (act === 'unregister') {
+    unregister();
+  } else if (act === 'unlock') {
     openDialog(`
-      <h3>パスワード変更</h3>
-      <input id="pwCurrent" class="field" type="password" placeholder="今のパスワード" autocomplete="current-password">
-      <input id="pwNext" class="field" type="password" placeholder="新しいパスワード（8文字以上）" autocomplete="new-password">
-      <button class="btn primary big" data-act="ok">変更</button>
+      <h3>管理者モード</h3>
+      <p>管理者のログインIDとパスワードを入れてください。10分たつと自動で戻ります。</p>
+      <input id="adId" class="field" placeholder="ログインID" autocomplete="username" autocapitalize="none">
+      <input id="adPw" class="field" type="password" placeholder="パスワード" autocomplete="current-password">
+      <button class="btn primary big" data-act="ok">管理者モードにする</button>
       <button class="btn ghost" data-act="cancel">キャンセル</button>`, (a) => {
       if (a !== 'ok') return false;
-      api('POST', '/api/me/password', { current: $('#pwCurrent').value, next: $('#pwNext').value })
-        .then(() => toast('パスワードを変更しました。他の端末ではもう一度ログインが必要です'))
+      api('POST', '/api/admin/unlock', { loginId: $('#adId').value.trim(), password: $('#adPw').value })
+        .then(() => { dialog.close(); devices = null; refreshBoot(); })
         .catch((ex) => toast(messageOf(ex)));
-      return false;
+      return true;
     });
-  } else if (act === 'int') {
-    const c = classById(idOf);
-    const next = Math.min(30, Math.max(1, c.intervalMin + Number(b.dataset.delta)));
-    if (next !== c.intervalMin) adminCall('PATCH', `/api/admin/classes/${c.id}`, { intervalMin: next });
+  } else if (act === 'lock') {
+    adminCall('POST', '/api/admin/lock', {});
   } else if (act === 'renameChild') {
-    const ch = st.boot.children.find((x) => x.id === idOf);
+    const ch = findChild();
     inputDialog('名前の変更', '', { value: ch.name }, (v) => adminCall('PATCH', `/api/admin/children/${ch.id}`, { name: v }));
   } else if (act === 'moveChild') {
-    const ch = st.boot.children.find((x) => x.id === idOf);
+    const ch = findChild();
     const items = activeClasses().map((c) =>
       `<button class="btn ${c.id === ch.classId ? 'primary' : ''}" data-act="pick" data-id="${c.id}">${esc(c.name)}</button>`).join('');
     openDialog(`<h3>${esc(ch.name)}のクラス</h3><div class="choice-list">${items}</div>
@@ -850,28 +1056,53 @@ function onSettingsClick(e) {
       if (a === 'pick' && data.id !== ch.classId) adminCall('PATCH', `/api/admin/children/${ch.id}`, { classId: data.id });
     });
   } else if (act === 'toggleChild') {
-    const ch = st.boot.children.find((x) => x.id === idOf);
+    const ch = findChild();
     if (ch.active) {
       confirmDialog(`${ch.name}を停止しますか？`, 'チェック画面に出なくなります。過去の記録は残ります。', '停止', () =>
         adminCall('PATCH', `/api/admin/children/${ch.id}`, { active: false }), true);
     } else {
       adminCall('PATCH', `/api/admin/children/${ch.id}`, { active: true });
     }
+  } else if (act === 'renameUser') {
+    const u = findUser();
+    inputDialog('名前の変更', '', { value: u.name }, (v) => adminCall('PATCH', `/api/admin/users/${u.id}`, { name: v }));
   } else if (act === 'toggleUser') {
-    const u = st.boot.staff.find((x) => x.id === idOf);
+    const u = findUser();
     if (u.active) {
-      confirmDialog(`${u.name}を停止しますか？`, 'ログインできなくなり、使っている端末のログインも切れます。過去の記録の名前は残ります。', '停止', () =>
+      const note = u.role === 'admin'
+        ? 'この人が登録した端末も使えなくなります（登録し直しが必要です）。過去の記録の名前は残ります。'
+        : '担当の選択肢に出なくなります。過去の記録の名前は残ります。';
+      confirmDialog(`${u.name}を停止しますか？`, note, '停止', () =>
         adminCall('PATCH', `/api/admin/users/${u.id}`, { active: false }), true);
     } else {
       adminCall('PATCH', `/api/admin/users/${u.id}`, { active: true });
     }
   } else if (act === 'resetPassword') {
-    const u = st.boot.staff.find((x) => x.id === idOf);
-    inputDialog(`${u.name}のパスワードを再発行`, '新しいパスワードを本人に伝えてください。その人の端末のログインは切れます。',
-      { okLabel: '再発行' }, (v) => adminCall('PATCH', `/api/admin/users/${u.id}`, { password: v }, 'パスワードを再発行しました'));
+    const u = findUser();
+    inputDialog(`${u.name}のパスワードを変更`, '8文字以上。この人が登録した端末は、登録し直しが必要になります。',
+      { okLabel: '変更' }, (v) => adminCall('PATCH', `/api/admin/users/${u.id}`, { password: v }, 'パスワードを変更しました'));
+  } else if (act === 'renameClass') {
+    const c = findClass();
+    inputDialog('クラスの名前', '', { value: c.name }, (v) => adminCall('PATCH', `/api/admin/classes/${c.id}`, { name: v }));
+  } else if (act === 'toggleClass') {
+    const c = findClass();
+    if (c.active) {
+      confirmDialog(`${c.name}を停止しますか？`, 'チェック画面に出なくなります。過去の記録は残ります。', '停止', () =>
+        adminCall('PATCH', `/api/admin/classes/${c.id}`, { active: false }), true);
+    } else {
+      adminCall('PATCH', `/api/admin/classes/${c.id}`, { active: true });
+    }
+  } else if (act === 'revokeDevice') {
+    const d = devices.find((x) => x.id === idOf);
+    confirmDialog(`「${d.name}」の登録を解除しますか？`, 'その端末では記録できなくなります。', '解除', async () => {
+      await adminCall('POST', `/api/admin/devices/${d.id}`, {}, '登録を解除しました');
+      loadDevices();
+    }, true);
   } else if (act === 'revokeAll') {
-    confirmDialog('全端末をログアウトしますか？', 'この端末以外は、もう一度ログインが必要になります。', 'ログアウトさせる', () =>
-      adminCall('POST', '/api/admin/sessions/revoke-all', {}, '他の端末をすべてログアウトしました'), true);
+    confirmDialog('この端末以外をすべて解除しますか？', 'ほかの端末は、管理者が登録し直すまで使えなくなります。', '解除', async () => {
+      await adminCall('POST', '/api/admin/devices/revoke-all', {}, 'ほかの端末をすべて解除しました');
+      loadDevices();
+    }, true);
   }
 }
 
@@ -883,9 +1114,13 @@ async function onSettingsSubmit(e) {
   let ok = false;
   if (form.dataset.form === 'addChild') {
     ok = await adminCall('POST', '/api/admin/children', { name: f.name, classId: f.classId }, '追加しました');
-  } else if (form.dataset.form === 'addUser') {
+  } else if (form.dataset.form === 'addStaff') {
+    ok = await adminCall('POST', '/api/admin/users', { name: f.name }, '追加しました');
+  } else if (form.dataset.form === 'addAdmin') {
     ok = await adminCall('POST', '/api/admin/users',
-      { name: f.name, loginId: f.loginId, password: f.password, role: f.role }, '追加しました');
+      { name: f.name, loginId: f.loginId, password: f.password, role: 'admin' }, '管理者を追加しました');
+  } else if (form.dataset.form === 'addClass') {
+    ok = await adminCall('POST', '/api/admin/classes', { name: f.name, age: Number(f.age) }, '追加しました');
   }
   if (ok) form.reset();
 }
@@ -905,6 +1140,7 @@ document.querySelector('.tabs').addEventListener('click', (e) => {
   if (!t) return;
   ui.tab = t.dataset.tab;
   if (ui.tab !== 'record') ui.recordDay = null;
+  if (ui.tab === 'settings') devices = null;
   saveUi();
   render();
 });
@@ -917,7 +1153,7 @@ $('#classBar').addEventListener('click', (e) => {
   render();
 });
 
-$('#staffBtn').addEventListener('click', pickRecorder);
+$('#staffBtn').addEventListener('click', switchInputter);
 
 view.addEventListener('click', (e) => {
   if (ui.tab === 'check') onCheckClick(e);
@@ -945,17 +1181,21 @@ window.addEventListener('online', () => { online = true; flush(); poll(); });
 window.addEventListener('offline', () => { online = false; renderBanner(); });
 
 let lastOverdue = -1;
+let wasAdmin = false;
 setInterval(() => {
   tickClock();
   if (!st.boot || $('#appView').hidden) return;
   const today = dateKey(Date.now());
   if (st.mode === 'demo' && st.day !== today) {
     st.day = today;
-    st.naps = [];
+    st.data = EMPTY_DAY();
     persist();
     render();
   }
-  const byChild = sessionsByChild(todayNaps());
+  // 管理者モードの時間が過ぎたら、画面も戻す
+  if (wasAdmin && !isAdmin()) render();
+  wasAdmin = isAdmin();
+  const byChild = sessionsByChild(todayData().naps);
   checkAlerts(byChild);
   updateLive(byChild);
   // クラスの超過人数は、人数が変わった時だけ描き直す
@@ -970,16 +1210,16 @@ setInterval(poll, POLL_MS);
 
 async function start() {
   tickClock();
-  const cached = load(CACHE_KEY);
   const savedUi = load(UI_KEY);
-  if (savedUi) Object.assign(ui, { tab: savedUi.tab || 'check', classId: savedUi.classId || null });
+  if (savedUi) Object.assign(ui, { ...savedUi, recordDay: null, duty: savedUi.duty || {} });
+  const cached = load(CACHE_KEY);
 
   if (cached?.boot && (cached.mode === 'server' || cached.mode === 'demo')) {
     // 前回の情報ですぐ表示し、裏でサーバーの最新を取りに行く（オフラインでも開ける）
     st = { ...st, ...cached };
     if (st.mode === 'demo' && st.day !== dateKey(Date.now())) {
       st.day = dateKey(Date.now());
-      st.naps = [];
+      st.data = EMPTY_DAY();
     }
     setBoot(st.boot);
     showApp();
@@ -994,7 +1234,6 @@ async function start() {
   try {
     const boot = await api('GET', '/api/bootstrap');
     st.mode = 'server';
-    st.recorderId = boot.me.id;
     setBoot(boot);
     persist();
     showApp();
