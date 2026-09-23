@@ -18,12 +18,30 @@ const UPGRADES := {
 	"contract": {"name": "UPG_CONTRACT", "desc": "UPG_CONTRACT_DESC", "base_cost": 80, "growth": 1.75, "max": 5},
 }
 
+## 注文の種類。day 日目から出てくる。
+##   steps: 工程（L=縦に切り込み, C=横に刻む, M=トントン細かく）
+##   gap:   切れ目の間隔の上限（メートル）
+##   size:  みじん切りの目標サイズ（メートル）
+##   pay:   報酬の倍率
+const ORDER_IDS := ["hamburg", "curry", "soup", "dressing"]
+const ORDERS := {
+	"hamburg": {"name": "ORDER_HAMBURG", "style": "STYLE_MINCE", "day": 1, "pay": 1.0,
+			"steps": ["L", "C", "M"], "gap": 0.024, "size": 0.006},
+	"curry": {"name": "ORDER_CURRY", "style": "STYLE_COARSE", "day": 2, "pay": 0.8,
+			"steps": ["L", "C", "M"], "gap": 0.03, "size": 0.011},
+	"soup": {"name": "ORDER_SOUP", "style": "STYLE_SLICE", "day": 3, "pay": 1.1,
+			"steps": ["C"], "gap": 0.009},
+	"dressing": {"name": "ORDER_DRESSING", "style": "STYLE_FINE", "day": 4, "pay": 1.6,
+			"steps": ["L", "C", "M"], "gap": 0.02, "size": 0.0045},
+}
+
 var day := 1
 var money := 0
 var total_grams := 0
 var levels := {}
 var locale := ""
 var muted := false
+var music_on := true
 
 
 func _ready() -> void:
@@ -61,8 +79,18 @@ func price_per_100g() -> int:
 	return 15 + levels["contract"] * 6
 
 
-func pay_for(grams: int) -> int:
-	return int(round(grams * price_per_100g() / 100.0))
+func pay_for(grams: int, multiplier: float = 1.0) -> int:
+	return int(round(grams * price_per_100g() / 100.0 * multiplier))
+
+
+## 今日までに解禁された注文
+func orders_for_day(d: int = day) -> Array:
+	return ORDER_IDS.filter(func(id): return ORDERS[id]["day"] <= d)
+
+
+## 今日はじめて出てくる注文（なければ空）
+func new_orders_today() -> Array:
+	return ORDER_IDS.filter(func(id): return ORDERS[id]["day"] == day)
 
 
 func quota_bonus() -> int:
@@ -113,6 +141,11 @@ func set_muted(value: bool) -> void:
 	save_game()
 
 
+func set_music_on(value: bool) -> void:
+	music_on = value
+	save_game()
+
+
 func set_locale(value: String) -> void:
 	locale = value
 	TranslationServer.set_locale(locale)
@@ -134,6 +167,7 @@ func save_game() -> void:
 		"levels": levels,
 		"locale": locale,
 		"muted": muted,
+		"music_on": music_on,
 	}, "\t"))
 
 
@@ -149,6 +183,7 @@ func load_game() -> void:
 	total_grams = int(data.get("total_grams", 0))
 	locale = str(data.get("locale", ""))
 	muted = bool(data.get("muted", false))
+	music_on = bool(data.get("music_on", true))
 	var saved_levels: Dictionary = data.get("levels", {})
 	for id in UPGRADE_IDS:
 		levels[id] = clampi(int(saved_levels.get(id, 0)), 0, UPGRADES[id]["max"])

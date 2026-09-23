@@ -36,6 +36,9 @@ var processor_blade: Node3D
 var bowl_fill: MeshInstance3D
 var gap_markers: Array[MeshInstance3D] = []
 var tear_overlay: ColorRect
+## これから来る注文（先頭が次の玉ねぎ）
+var order_queue: Array[String] = []
+var ticket_number := 0
 
 var _knife_x := 0.0
 var _chop_t := 1.0
@@ -64,6 +67,7 @@ func _ready() -> void:
 	ui.end_shift_pressed.connect(_end_day)
 	ui.upgrade_bought.connect(_on_upgrade_bought)
 
+	_refill_orders()
 	_spawn_onion(false)
 	_set_state(State.TITLE)
 
@@ -77,6 +81,9 @@ func _ready() -> void:
 func _set_state(s: State) -> void:
 	state = s
 	_holding = false
+	Sfx.set_music_muffled(s != State.PLAYING)
+	if s != State.PLAYING:
+		Sfx.set_music_tempo(1.0)
 	match s:
 		State.TITLE:
 			ui.refresh_texts()
@@ -101,6 +108,7 @@ func _start_day() -> void:
 	if onion == null:
 		_spawn_onion(true)
 	Sfx.play("bell", -8.0, 0.0, 1.2)
+	_prepare_orders()
 	_set_state(State.PLAYING)
 
 
@@ -127,6 +135,7 @@ func _process(delta: float) -> void:
 		time_left -= delta
 		_update_tears(delta)
 		_update_processor(delta)
+		Sfx.set_music_tempo(1.08 if time_left < 20.0 else 1.0)
 		Sfx.set_loop("processor", processor.visible, -16.0)
 		_update_chopping(delta)
 		_update_gap_markers()
@@ -167,16 +176,15 @@ func _unhandled_input(event: InputEvent) -> void:
 # ================================================================ 包丁
 
 func _step_text() -> String:
-	if onion == null:
+	if onion == null or onion.phase == Onion.Phase.DONE:
 		return tr("STEP_DONE")
+	var key := "STEP_LENGTHWISE"
 	match onion.phase:
-		Onion.Phase.LENGTHWISE:
-			return tr("STEP_LENGTHWISE")
 		Onion.Phase.CROSSWISE:
-			return tr("STEP_CROSSWISE")
+			key = "STEP_SLICE" if onion.steps.size() == 1 else "STEP_CROSSWISE"
 		Onion.Phase.MINCE:
-			return tr("STEP_MINCE")
-	return tr("STEP_DONE")
+			key = "STEP_MINCE"
+	return "%d/%d %s" % [onion.steps.find(onion.phase) + 1, onion.steps.size(), tr(key)]
 
 
 func _update_chopping(delta: float) -> void:
@@ -247,8 +255,13 @@ func _update_knife_pose(delta: float) -> void:
 # ================================================================ 玉ねぎ
 
 func _spawn_onion(animated: bool) -> void:
+	var id: String = order_queue.pop_front()
+	_refill_orders()
+	ticket_number += 1
 	onion = Onion.new()
 	onion.randomize_shape(rng)
+	onion.configure(id, GameState.ORDERS[id])
+	ui.update_ticket(id, order_queue.slice(0, 2), ticket_number)
 	add_child(onion)
 	onion.phase_changed.connect(_on_onion_phase)
 	if animated:
@@ -270,7 +283,7 @@ func _on_onion_phase(p: int) -> void:
 	Sfx.play_later(0.65, "plop", -2.0)
 	var done := onion
 	onion = null
-	var pay := GameState.pay_for(done.grams)
+	var pay := GameState.pay_for(done.grams, GameState.ORDERS[done.order_id]["pay"])
 	_award(done.grams, pay)
 	ui.popup(tr("POP_ONION") % [done.grams, pay], camera.unproject_position(done.global_position + Vector3(0, 0.05, 0)))
 	# まな板からボウルへ移す
@@ -283,6 +296,29 @@ func _on_onion_phase(p: int) -> void:
 	get_tree().create_timer(0.45).timeout.connect(func():
 		if state == State.PLAYING and onion == null:
 			_spawn_onion(true))
+
+
+# ================================================================ 注文
+
+func _refill_orders() -> void:
+	var available := GameState.orders_for_day()
+	while order_queue.size() < 3:
+		order_queue.append(available[rng.randi() % available.size()])
+
+
+## 仕込み開始時：今日の注文を並べ直し、新しい注文があれば先頭に入れて知らせる
+func _prepare_orders() -> void:
+	order_queue.clear()
+	var fresh := GameState.new_orders_today()
+	for id in fresh:
+		order_queue.append(id)
+	_refill_orders()
+	if onion:
+		ui.update_ticket(onion.order_id, order_queue.slice(0, 2), ticket_number)
+	for i in fresh.size():
+		var text := tr("POP_NEW_ORDER") % tr(GameState.ORDERS[fresh[i]]["name"])
+		get_tree().create_timer(0.6 + i * 1.2).timeout.connect(func():
+			ui.popup(text, get_viewport().get_visible_rect().size * Vector2(0.5, 0.35), GameUI.COL_ACCENT))
 
 
 func _award(grams: int, pay: int) -> void:
@@ -383,6 +419,12 @@ func _on_continue() -> void:
 func _on_new_game() -> void:
 	GameState.delete_save()
 	GameState.save_game()
+	# タイトル画面に置いていた玉ねぎは前のセーブの注文なので入れ替える
+	if onion:
+		onion.queue_free()
+		onion = null
+	order_queue.clear()
+	_refill_orders()
 	_start_day()
 
 

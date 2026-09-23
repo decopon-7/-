@@ -7,6 +7,9 @@
 #
 # 1・2 の見た目は「半楕円体を切れ目で区切ったブロック」を毎回メッシュとして組み立てる。
 # 3 は小さな立方体（MultiMesh）の集まりで、包丁が当たったかけらを2つに割っていく。
+#
+# どの工程をどれだけ細かくやるかは「注文」（GameState.ORDERS）で変わる。
+# 例：薄切りは 2 の工程だけを細かい間隔で、粗みじんは 3 の目標サイズが大きい。
 class_name Onion
 extends Node3D
 
@@ -15,10 +18,6 @@ signal phase_changed(phase: int)
 enum Phase { LENGTHWISE, CROSSWISE, MINCE, DONE }
 
 const SHADER := preload("res://shaders/onion.gdshader")
-## この幅より広い切れ目の間隔があると次の工程に進めない
-const GAP_MAX := 0.024
-## みじん切りの完成とみなすかけらの大きさ
-const TARGET_SIZE := 0.006
 ## 目標サイズ以下のかけらがこの割合になったら完成
 const FINENESS_DONE := 0.9
 const MAX_CHUNKS := 3000
@@ -27,6 +26,13 @@ const SPREAD := 0.0018
 
 var phase := Phase.LENGTHWISE
 var grams := 100
+## 注文の ID と中身（configure で設定）
+var order_id := "hamburg"
+var steps: Array[Phase] = [Phase.LENGTHWISE, Phase.CROSSWISE, Phase.MINCE]
+## この幅より広い切れ目の間隔があると次の工程に進めない
+var gap_max := 0.024
+## みじん切りの完成とみなすかけらの大きさ
+var target_size := 0.006
 var rx := 0.08   # 幅の半分
 var rz := 0.072  # 根元〜先端の半分
 var h := 0.07    # 高さ
@@ -65,9 +71,23 @@ func randomize_shape(rng: RandomNumberGenerator) -> void:
 	grams = int(round(100.0 * s * s * s))
 
 
+## 注文に合わせて工程と細かさを決める。add_child の前に呼ぶ。
+func configure(id: String, order: Dictionary) -> void:
+	order_id = id
+	gap_max = order["gap"]
+	target_size = order.get("size", 0.0)
+	steps.clear()
+	for step in order["steps"]:
+		steps.append({"L": Phase.LENGTHWISE, "C": Phase.CROSSWISE, "M": Phase.MINCE}[step])
+	phase = steps[0]
+
+
 func _ready() -> void:
 	_body = Node3D.new()
 	add_child(_body)
+	if phase == Phase.CROSSWISE:
+		# 横の工程から始まる注文（薄切り）は、最初から90°回しておく
+		_body.rotation.y = -PI / 2
 	_material = ShaderMaterial.new()
 	_material.shader = SHADER
 	_material.set_shader_parameter("radii", Vector3(rx, h, rz))
@@ -133,16 +153,16 @@ func chop(world_x: float, reach: float) -> bool:
 			if not _insert_cut(cuts_x, lx, rx):
 				return false
 			_rebuild_mesh()
-			if _max_gap(cuts_x, rx) <= GAP_MAX:
-				_to_crosswise()
+			if _max_gap(cuts_x, rx) <= gap_max:
+				_advance()
 			return true
 		Phase.CROSSWISE:
 			var lz := _world_x_to_body(world_x).z
 			if not _insert_cut(cuts_z, lz, rz):
 				return false
 			_rebuild_mesh()
-			if _max_gap(cuts_z, rz) <= GAP_MAX:
-				_to_mince()
+			if _max_gap(cuts_z, rz) <= gap_max:
+				_advance()
 			return true
 		Phase.MINCE:
 			var hit := _chop_pile(world_x - global_position.x, reach)
@@ -159,7 +179,7 @@ func get_fineness() -> float:
 	for s in _chunk_size:
 		var v := s * s * s
 		total += v
-		if s <= TARGET_SIZE:
+		if s <= target_size:
 			fine += v
 	return fine / total if total > 0.0 else 0.0
 
@@ -173,16 +193,11 @@ func get_wide_gaps_world() -> Array:
 	var r := rx if phase == Phase.LENGTHWISE else rz
 	var pts := _points(cuts, r)
 	for i in pts.size() - 1:
-		if pts[i + 1] - pts[i] > GAP_MAX:
+		if pts[i + 1] - pts[i] > gap_max:
 			var a := _body_axis_to_world_x(pts[i])
 			var b := _body_axis_to_world_x(pts[i + 1])
 			result.append([minf(a, b), maxf(a, b)])
 	return result
-
-
-## 盛り付け先へ移すための見た目上の大きさ（手前方向の半径）
-func front_extent() -> float:
-	return rz if phase == Phase.LENGTHWISE else rx
 
 
 # ================================================================ 工程の切り替え
@@ -190,6 +205,19 @@ func front_extent() -> float:
 func _set_phase(p: Phase) -> void:
 	phase = p
 	phase_changed.emit(p)
+
+
+## 注文の工程表に従って次へ進む
+func _advance() -> void:
+	var i := steps.find(phase)
+	var next: Phase = steps[i + 1] if i + 1 < steps.size() else Phase.DONE
+	match next:
+		Phase.CROSSWISE:
+			_to_crosswise()
+		Phase.MINCE:
+			_to_mince()
+		_:
+			_set_phase(Phase.DONE)
 
 
 func _to_crosswise() -> void:
@@ -250,7 +278,7 @@ func _chop_pile(local_x: float, reach: float) -> bool:
 	for i in n:
 		var s := _chunk_size[i]
 		var p := _chunk_target[i]
-		if absf(p.x - local_x) > s * 0.5 + reach or s <= TARGET_SIZE * 0.6:
+		if absf(p.x - local_x) > s * 0.5 + reach or s <= target_size * 0.6:
 			continue
 		hit = true
 		var ns := s * 0.79
@@ -320,8 +348,8 @@ func _gap_progress(cuts: Array[float], r: float) -> float:
 	var pts := _points(cuts, r)
 	var excess := 0.0
 	for i in pts.size() - 1:
-		excess += maxf(0.0, pts[i + 1] - pts[i] - GAP_MAX)
-	return clampf(1.0 - excess / (2.0 * r - GAP_MAX), 0.0, 1.0)
+		excess += maxf(0.0, pts[i + 1] - pts[i] - gap_max)
+	return clampf(1.0 - excess / (2.0 * r - gap_max), 0.0, 1.0)
 
 
 # ================================================================ メッシュ生成

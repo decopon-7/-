@@ -18,9 +18,9 @@ const STRINGS := {
 	"HUD_QUOTA": {"ja": "ノルマ %d / %d g", "en": "Quota %d / %d g"},
 	"HUD_MONEY": {"ja": "所持金 %d 円", "en": "Funds $%d"},
 	"HUD_TEARS": {"ja": "涙", "en": "Tears"},
-	"STEP_LENGTHWISE": {"ja": "1/3 縦に切り込みを入れる", "en": "1/3 Slice lengthwise"},
-	"STEP_CROSSWISE": {"ja": "2/3 横に刻む", "en": "2/3 Cut crosswise"},
-	"STEP_MINCE": {"ja": "3/3 トントン細かく", "en": "3/3 Mince it fine"},
+	"STEP_LENGTHWISE": {"ja": "縦に切り込みを入れる", "en": "Slice lengthwise"},
+	"STEP_CROSSWISE": {"ja": "横に刻む", "en": "Cut crosswise"},
+	"STEP_MINCE": {"ja": "トントン細かく", "en": "Mince it fine"},
 	"STEP_DONE": {"ja": "できあがり！", "en": "Done!"},
 	"HUD_HINT": {
 		"ja": "マウス左右: 包丁の位置　左クリック / スペース（長押しOK）: 切る　Esc: メニュー",
@@ -31,6 +31,20 @@ const STRINGS := {
 	"POP_ONION": {"ja": "+%d g　+%d 円", "en": "+%d g  +$%d"},
 	"POP_PROCESSOR": {"ja": "プロセッサー +%d g", "en": "Processor +%d g"},
 	"POP_TEARS": {"ja": "目が、目がぁ…！", "en": "My eyes...!"},
+
+	"TICKET_TITLE": {"ja": "注文票 No.%d", "en": "Order No.%d"},
+	"TICKET_NEXT": {"ja": "次: %s", "en": "Next: %s"},
+	"TICKET_PAY": {"ja": "報酬 ×%.1f", "en": "Pay ×%.1f"},
+	"POP_NEW_ORDER": {"ja": "新しい注文: %s", "en": "New order: %s"},
+	"ORDER_HAMBURG": {"ja": "ハンバーグ", "en": "Hamburg Steak"},
+	"ORDER_CURRY": {"ja": "カレー", "en": "Curry"},
+	"ORDER_SOUP": {"ja": "オニオンスープ", "en": "Onion Soup"},
+	"ORDER_DRESSING": {"ja": "ドレッシング", "en": "Dressing"},
+	"STYLE_MINCE": {"ja": "みじん切り", "en": "Minced"},
+	"STYLE_COARSE": {"ja": "粗みじん（大きめでOK）", "en": "Coarse chop (bigger is OK)"},
+	"STYLE_SLICE": {"ja": "薄切り（横に細かく刻むだけ）", "en": "Thin slices (crosswise only)"},
+	"STYLE_FINE": {"ja": "極みじん（とても細かく）", "en": "Extra-fine mince"},
+	"STEP_SLICE": {"ja": "薄く切る", "en": "Slice thinly"},
 
 	"END_OK": {"ja": "ノルマ達成！", "en": "Quota met!"},
 	"END_FAIL": {"ja": "ノルマ未達…", "en": "Quota missed..."},
@@ -62,6 +76,8 @@ const STRINGS := {
 	"BTN_RESUME": {"ja": "再開", "en": "Resume"},
 	"BTN_SOUND_ON": {"ja": "音: オン", "en": "Sound: On"},
 	"BTN_SOUND_OFF": {"ja": "音: オフ", "en": "Sound: Off"},
+	"BTN_MUSIC_ON": {"ja": "BGM: オン", "en": "Music: On"},
+	"BTN_MUSIC_OFF": {"ja": "BGM: オフ", "en": "Music: Off"},
 	"BTN_TO_TITLE": {"ja": "タイトルへ（自動保存）", "en": "Back to title (autosave)"},
 }
 

@@ -1,6 +1,6 @@
 # 開発用：コマンドラインから画面写真を撮って終了する。
 #   godot --path . -- --shot=mince --out=/tmp/mince.png --lang=ja
-# shot の種類: title / cut / mince / shop
+# shot の種類: title / cut / mince / shop　（--order=soup などで注文を指定できる）
 extends Node
 
 var _args := {}
@@ -34,6 +34,12 @@ func _process(_delta: float) -> void:
 	if _frame == 5 and shot != "title":
 		main._start_day()
 		GameState.money = 480
+		if _args.has("order"):
+			# 指定した注文の玉ねぎに入れ替える
+			main.onion.queue_free()
+			main.onion = null
+			main.order_queue.push_front(_args["order"])
+			main._spawn_onion(false)
 	if shot in ["cut", "mince"]:
 		var o: Onion = main.onion
 		if _frame == 30:

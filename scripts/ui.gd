@@ -35,6 +35,11 @@ var _tears_bar: ProgressBar
 var _tears_label: Label
 var _hint_label: Label
 var _end_shift_button: Button
+var _ticket_title: Label
+var _ticket_dish: Label
+var _ticket_style: Label
+var _ticket_pay: Label
+var _ticket_next: Label
 
 var _title_name: Label
 var _title_sub: Label
@@ -52,6 +57,7 @@ var _start_day_button: Button
 var _pause_title: Label
 var _resume_button: Button
 var _sound_button: Button
+var _music_button: Button
 var _to_title_button: Button
 
 
@@ -99,6 +105,7 @@ func refresh_texts() -> void:
 	_resume_button.text = tr("BTN_RESUME")
 	_to_title_button.text = tr("BTN_TO_TITLE")
 	_sound_button.text = tr("BTN_SOUND_OFF") if GameState.muted else tr("BTN_SOUND_ON")
+	_music_button.text = tr("BTN_MUSIC_ON") if GameState.music_on else tr("BTN_MUSIC_OFF")
 	refresh_shop()
 
 
@@ -236,16 +243,69 @@ func _build_hud() -> Control:
 	_hint_label.offset_top = -40
 	c.add_child(_hint_label)
 
+	# 右上：注文票と「早めに切り上げる」ボタン
+	var right := VBoxContainer.new()
+	right.set_anchors_preset(Control.PRESET_TOP_RIGHT)
+	right.offset_left = -340
+	right.offset_right = -24
+	right.offset_top = 24
+	right.add_theme_constant_override("separation", 12)
+	right.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	c.add_child(right)
+	right.add_child(_build_ticket())
 	_end_shift_button = Button.new()
-	_end_shift_button.set_anchors_preset(Control.PRESET_TOP_RIGHT)
-	_end_shift_button.offset_left = -260
-	_end_shift_button.offset_right = -24
-	_end_shift_button.offset_top = 24
-	_end_shift_button.offset_bottom = 80
+	_end_shift_button.custom_minimum_size.y = 52
 	_end_shift_button.pressed.connect(end_shift_pressed.emit)
 	_end_shift_button.pressed.connect(_click)
-	c.add_child(_end_shift_button)
+	right.add_child(_end_shift_button)
 	return c
+
+
+## 厨房の伝票のような紙の見た目
+func _build_ticket() -> Control:
+	var ticket := PanelContainer.new()
+	ticket.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var paper := _style(Color(0.96, 0.93, 0.84), 3, 16)
+	paper.border_color = Color(0.75, 0.3, 0.25)
+	paper.border_width_top = 6
+	paper.shadow_color = Color(0, 0, 0, 0.5)
+	paper.shadow_size = 6
+	paper.shadow_offset = Vector2(3, 4)
+	ticket.add_theme_stylebox_override("panel", paper)
+	var box := VBoxContainer.new()
+	box.add_theme_constant_override("separation", 2)
+	ticket.add_child(box)
+	var ink := Color(0.18, 0.15, 0.12)
+	_ticket_title = _ticket_label(16, Color(0.55, 0.25, 0.2))
+	_ticket_dish = _ticket_label(32, ink)
+	_ticket_style = _ticket_label(20, ink)
+	_ticket_style.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_ticket_pay = _ticket_label(18, Color(0.35, 0.3, 0.25))
+	_ticket_next = _ticket_label(16, Color(0.45, 0.4, 0.35))
+	for l in [_ticket_title, _ticket_dish, _ticket_style, _ticket_pay]:
+		box.add_child(l)
+	var line := HSeparator.new()
+	line.add_theme_color_override("separator", Color(0.7, 0.65, 0.55))
+	box.add_child(line)
+	box.add_child(_ticket_next)
+	return ticket
+
+
+func _ticket_label(size: int, color: Color) -> Label:
+	var l := _label(size, color)
+	# 紙の上の文字なので黒い縁取りは消す
+	l.add_theme_constant_override("outline_size", 0)
+	return l
+
+
+func update_ticket(order_id: String, next_ids: Array, number: int) -> void:
+	var o: Dictionary = GameState.ORDERS[order_id]
+	_ticket_title.text = tr("TICKET_TITLE") % number
+	_ticket_dish.text = tr(o["name"])
+	_ticket_style.text = tr(o["style"])
+	_ticket_pay.text = tr("TICKET_PAY") % o["pay"]
+	var names := next_ids.map(func(id): return tr(GameState.ORDERS[id]["name"]))
+	_ticket_next.text = tr("TICKET_NEXT") % " / ".join(names)
 
 
 func _build_title() -> Control:
@@ -323,6 +383,10 @@ func _build_pause() -> Control:
 	_resume_button = _button(box, resume_pressed.emit)
 	_sound_button = _button(box, func():
 		GameState.set_muted(not GameState.muted)
+		refresh_texts())
+	_music_button = _button(box, func():
+		GameState.set_music_on(not GameState.music_on)
+		Sfx.set_music_enabled(GameState.music_on)
 		refresh_texts())
 	_to_title_button = _button(box, to_title_pressed.emit)
 	return c

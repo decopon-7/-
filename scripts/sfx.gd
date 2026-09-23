@@ -1,13 +1,18 @@
-# 効果音。素材ファイルを使わず、起動時にプログラムで波形を合成して作る。
+# 効果音とBGM。
+# 効果音は素材ファイルを使わず、起動時にプログラムで波形を合成して作る。
 # （ライセンスの心配がなく、音の調整もこのファイルの数値だけで完結する）
+# BGM は tools/make_bgm.py で合成した audio/bgm_bistro.wav をループ再生する。
 # project.godot の [autoload] で "Sfx" として登録している。
 #
 #   Sfx.play("cut")                 … 鳴らす
 #   Sfx.play("mince", -3.0, 0.15)   … 音量(dB)と、ピッチのばらつき
+#   Sfx.set_music_muffled(true)     … メニュー中はBGMをこもらせる
 extends Node
 
 const RATE := 22050
 const POOL_SIZE := 10
+const MUSIC_PATH := "res://audio/bgm_bistro.wav"
+const MUSIC_VOLUME_DB := -9.0
 
 var _streams := {}
 var _pool: Array[AudioStreamPlayer] = []
@@ -15,6 +20,9 @@ var _next := 0
 var _loops := {}
 var _rng := RandomNumberGenerator.new()
 var _lp_state := [0.0, 0.0, 0.0, 0.0]
+var _music: AudioStreamPlayer
+var _music_lowpass: AudioEffectLowPassFilter
+var _music_pitch := 1.0
 
 
 func _ready() -> void:
@@ -36,6 +44,64 @@ func _ready() -> void:
 		add_child(p)
 		_pool.append(p)
 	set_loop("ambience", true, -20.0)
+	_setup_music()
+
+
+func _process(delta: float) -> void:
+	# テンポの変化はなめらかに
+	_music.pitch_scale = move_toward(_music.pitch_scale, _music_pitch, delta * 0.05)
+
+
+# ================================================================ BGM
+
+func _setup_music() -> void:
+	# BGM 専用のバスを作り、こもらせる用のローパスフィルタを挿しておく
+	var bus := AudioServer.bus_count
+	AudioServer.add_bus(bus)
+	AudioServer.set_bus_name(bus, "Music")
+	AudioServer.set_bus_send(bus, "Master")
+	_music_lowpass = AudioEffectLowPassFilter.new()
+	_music_lowpass.cutoff_hz = 700.0
+	AudioServer.add_bus_effect(bus, _music_lowpass)
+	AudioServer.set_bus_effect_enabled(bus, 0, false)
+
+	_music = AudioStreamPlayer.new()
+	_music.stream = load(MUSIC_PATH)
+	_music.bus = "Music"
+	_music.volume_db = MUSIC_VOLUME_DB
+	add_child(_music)
+	set_music_enabled(GameState.music_on)
+
+
+func _exit_tree() -> void:
+	# 終了時に再生を止めてバスのエフェクトを外す（残っているとリソースが残ったと警告が出る）
+	_music.stop()
+	_music.stream = null
+	for p in _loops.values():
+		p.stop()
+		p.stream = null
+	var bus := AudioServer.get_bus_index("Music")
+	if bus >= 0:
+		AudioServer.remove_bus_effect(bus, 0)
+
+
+func set_music_enabled(on: bool) -> void:
+	if on and not _music.playing:
+		_music.play()
+	elif not on:
+		_music.stop()
+
+
+## メニューを開いている間は、壁の向こうで鳴っているようにこもらせる
+func set_music_muffled(muffled: bool) -> void:
+	var bus := AudioServer.get_bus_index("Music")
+	AudioServer.set_bus_effect_enabled(bus, 0, muffled)
+	_music.volume_db = MUSIC_VOLUME_DB - (3.0 if muffled else 0.0)
+
+
+## 1.0 が通常。開店間際は少し速くして焦らせる
+func set_music_tempo(pitch: float) -> void:
+	_music_pitch = pitch
 
 
 func play(sound: String, volume_db: float = 0.0, pitch_jitter: float = 0.05, pitch: float = 1.0) -> void:
