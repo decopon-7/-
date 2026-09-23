@@ -609,7 +609,6 @@ function renderRecord() {
   }
 
   const [y, m, d] = day.split('-').map(Number);
-  const title = `${y}年${m}月${d}日 ${cls.name} 午睡チェック表（${cls.intervalMin}分ごと）`;
   const nav = `
     <div class="day-nav no-print">
       <button class="btn" data-act="prevDay" ${st.mode === 'demo' ? 'disabled' : ''}>前の日</button>
@@ -622,29 +621,38 @@ function renderRecord() {
     return;
   }
 
-  const kids = childrenOf(cls.id);
-  const { slots, rows } = buildRecordTable(kids, sessionsByChild(naps), cls.intervalMin, Date.now());
+  // その日にこのクラスで寝た子（その後にクラス替え・停止した子も含む）と、今このクラスにいる子
+  const childById = (id) => st.boot.children.find((c) => c.id === id);
+  const napClass = (n) => n.classId || childById(n.childId)?.classId;
+  const classNaps = naps.filter((n) => napClass(n) === cls.id);
+  const ids = new Set([...childrenOf(cls.id).map((c) => c.id), ...classNaps.map((n) => n.childId)]);
+  const kids = st.boot.children.filter((c) => ids.has(c.id));
+  // 確認間隔は、その日に午睡を始めた時点の値を使う（あとで設定を変えても過去の表は変わらない）
+  const interval = classNaps.find((n) => n.intervalMin)?.intervalMin || cls.intervalMin;
+  const { slots, rows } = buildRecordTable(kids, sessionsByChild(classNaps), interval, isToday ? Date.now() : null);
+  const title = `${y}年${m}月${d}日 ${cls.name} 午睡チェック表（${interval}分ごと）`;
   if (!slots.length) {
     view.innerHTML = `${nav}<p class="empty-note">${esc(cls.name)}のこの日の記録はありません。</p>`;
     return;
   }
 
-  const step = cls.intervalMin * 60 * 1000;
-  const head = slots.map((t) => `<th>${fmtTime(t)}</th>`).join('');
-  const body = rows.map(({ child, naps: sessions, cells }) => {
+  const head = slots.map((t) => `<th>${fmtTime(t)}〜</th>`).join('');
+  const body = rows.map(({ child, naps: sessions, cells, unclosed }) => {
     const napText = sessions.map((s) => `${fmtTime(s.start)}〜${s.end != null ? fmtTime(s.end) : ''}`).join('<br>') || '—';
-    const tds = cells.map((c, i) => {
-      if (c) {
-        const p = POSTURES[c.posture];
-        const txt = c.fixed ? FIXED_SHORT : p.short;
-        const who = staffName(c.recorderId);
-        return `<td class="cell ${c.posture === 'prone' ? 'prone' : ''}" title="${esc(p.label)} ${fmtTime(c.t)} ${esc(who)}"><b>${txt}</b><small>${esc(initial(who))}</small></td>`;
+    const warn = unclosed && !isToday ? '<br><span class="warn">起床の記録なし</span>' : '';
+    const tds = cells.map((cell) => {
+      if (!cell.checks.length) {
+        return `<td class="cell ${cell.missing ? 'missing' : ''}">${cell.missing ? '<small>未</small>' : ''}</td>`;
       }
-      const slotEnd = slots[i] + step;
-      const asleep = sessions.some((s) => s.start < slotEnd - 60 * 1000 && (s.end == null ? Date.now() : s.end) > slotEnd);
-      return `<td class="cell ${asleep ? 'missing' : ''}">${asleep ? '<small>未</small>' : ''}</td>`;
+      const items = cell.checks.map((c) => {
+        const p = POSTURES[c.posture];
+        const who = staffName(c.recorderId);
+        return `<div class="chk ${c.posture === 'prone' ? 'prone' : ''} ${c.late ? 'late' : ''}" title="${esc(p.label)} ${fmtTime(c.t)} ${esc(who)}">
+          <b>${c.fixed ? FIXED_SHORT : p.short}</b><small>${fmtTime(c.t)} ${esc(initial(who))}</small></div>`;
+      }).join('');
+      return `<td class="cell">${items}</td>`;
     }).join('');
-    return `<tr><td class="sticky">${esc(child.name)}</td><td>${napText}</td>${tds}</tr>`;
+    return `<tr><td class="sticky">${esc(child.name)}</td><td>${napText}${warn}</td>${tds}</tr>`;
   }).join('');
 
   view.innerHTML = `
@@ -654,7 +662,8 @@ function renderRecord() {
       <button class="btn primary" data-act="print">印刷</button>
     </div>
     <h2 class="print-title">${esc(st.boot.facility.name)}　${esc(title)}</h2>
-    <p class="legend">↑：仰向け　→：右向き　←：左向き　↓：うつぶせ　${FIXED_SHORT}：うつぶせを仰向けに直した　未：その時間枠に確認の記録がない　小さい文字：記録者</p>
+    <p class="legend">↑：仰向け　→：右向き　←：左向き　↓：うつぶせ　${FIXED_SHORT}：うつぶせを仰向けに直した
+      小さい文字：確認した時刻と記録者　赤枠：前の確認から${interval}分を超えて確認した　未：確認が遅れていた時間枠</p>
     <div class="table-wrap">
       <table class="record">
         <thead><tr><th class="sticky">名前</th><th>入眠〜起床</th>${head}</tr></thead>

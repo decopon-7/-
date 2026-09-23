@@ -75,7 +75,7 @@ test('集計', () => {
   assert.deepEqual(c, { sleeping: 3, soon: 1, overdue: 1, awake: 1, before: 1 });
 });
 
-test('記録表：確認間隔ごとの枠に入る', () => {
+test('記録表：確認間隔ごとの枠に、実際の時刻つきで入る', () => {
   const kids = [{ id: 'a' }, { id: 'b' }];
   const byChild = sessionsByChild(applyOps([], [
     start('n1', 'a', T0 + MIN), check('c1', 'n1', T0 + 5 * MIN), check('c2', 'n1', T0 + 11 * MIN, 'right'),
@@ -84,14 +84,89 @@ test('記録表：確認間隔ごとの枠に入る', () => {
   const { slots, rows } = buildRecordTable(kids, byChild, 5, T0 + 60 * MIN);
   assert.equal(slots[0], T0);
   assert.equal(slots.length, 3);
-  assert.equal(rows[0].cells[0], null);
-  assert.equal(rows[0].cells[1].posture, 'supine');
-  assert.equal(rows[0].cells[2].posture, 'right');
-  assert.deepEqual(rows[1].cells, [null, null, null]);
-  assert.deepEqual(buildRecordTable(kids, {}, 5), { slots: [], rows: [] });
+  assert.deepEqual(rows[0].cells.map((c) => c.checks.map((x) => x.posture)), [[], ['supine'], ['right']]);
+  assert.equal(rows[0].cells[2].checks[0].t, T0 + 11 * MIN);
+  assert.deepEqual(rows[1].cells.map((c) => c.checks.length), [0, 0, 0]);
+  assert.deepEqual(buildRecordTable(kids, {}, 5, T0), { slots: [], rows: [] });
+});
+
+test('記録表：同じ枠に2回確認したら両方残る', () => {
+  const byChild = sessionsByChild(applyOps([], [
+    start('n1', 'a', T0), check('c1', 'n1', T0 + MIN), check('c2', 'n1', T0 + 3 * MIN, 'left'),
+  ]));
+  const { rows } = buildRecordTable([{ id: 'a' }], byChild, 5, T0 + 4 * MIN);
+  assert.deepEqual(rows[0].cells[0].checks.map((c) => c.posture), ['supine', 'left']);
+});
+
+test('記録表：前の確認から間隔を超えた確認に印がつき、確認のない枠は「未」', () => {
+  const byChild = sessionsByChild(applyOps([], [
+    start('n1', 'a', T0), check('c1', 'n1', T0 + 4 * MIN), check('c2', 'n1', T0 + 13 * MIN),
+    { type: 'endNap', napId: 'n1', t: T0 + 14 * MIN },
+  ]));
+  const { rows } = buildRecordTable([{ id: 'a' }], byChild, 5, T0 + 60 * MIN);
+  const cells = rows[0].cells;
+  assert.equal(cells[0].checks[0].late, false);
+  assert.equal(cells[1].missing, true);
+  assert.equal(cells[2].checks[0].late, true);
 });
 
 test('記録表：寝ている子がいれば現在時刻の枠まで伸びる', () => {
-  const { slots } = buildRecordTable([{ id: 'a' }], sessionsByChild([applyOp([], start('n1', 'a', T0))[0]]), 5, T0 + 21 * MIN);
+  const byChild = sessionsByChild(applyOps([], [start('n1', 'a', T0)]));
+  const { slots } = buildRecordTable([{ id: 'a' }], byChild, 5, T0 + 21 * MIN);
   assert.equal(slots.length, 5);
+});
+
+test('記録表：過去の日で起床を押し忘れた午睡は、最後の確認までで表が止まる', () => {
+  const byChild = sessionsByChild(applyOps([], [start('n1', 'a', T0), check('c1', 'n1', T0 + 4 * MIN), check('c2', 'n1', T0 + 9 * MIN)]));
+  const { slots, rows } = buildRecordTable([{ id: 'a' }], byChild, 5, null);
+  assert.equal(slots.length, 2);
+  assert.equal(rows[0].unclosed, true);
+  assert.equal(rows[0].cells.some((c) => c.missing), false);
+});
+
+test('前の日に起床を押し忘れた午睡は、今日の起床で閉じない', () => {
+  const yesterday = T0 - 24 * 60 * MIN;
+  const naps = applyOps([], [
+    start('old', 'a', yesterday), start('new', 'a', T0), { type: 'endNap', napId: 'new', t: T0 + 90 * MIN },
+  ]);
+  assert.deepEqual(naps.map((n) => n.end), [null, T0 + 90 * MIN]);
+});
+
+test('記録表：半端な間隔でも、時間枠はその日の0時からそろう', () => {
+  const byChild = sessionsByChild(applyOps([], [start('n1', 'a', T0 + 3 * MIN)]));
+  const { slots } = buildRecordTable([{ id: 'a' }], byChild, 7, T0 + 20 * MIN);
+  // 入眠 12:03 は0時から 723分。7分×103 = 721分 なので、最初の枠は 12:01
+  assert.equal(new Date(slots[0]).getMinutes(), 1);
+  assert.ok(slots.every((t) => ((t - new Date(t).setHours(0, 0, 0, 0)) / MIN) % 7 === 0));
+});
+
+test('記録表：遅れの印は表示の「分」で判断する', () => {
+  const byChild = sessionsByChild(applyOps([], [
+    start('n1', 'a', T0), check('c1', 'n1', T0 + 5 * MIN + 30 * 1000), check('c2', 'n1', T0 + 11 * MIN + 10 * 1000),
+  ]));
+  const { rows } = buildRecordTable([{ id: 'a' }], byChild, 5, T0 + 12 * MIN);
+  const checks = rows[0].cells.flatMap((c) => c.checks);
+  // 12:00 → 12:05（5分）は遅れなし、12:05 → 12:11（6分）は遅れ
+  assert.deepEqual(checks.map((c) => c.late), [false, true]);
+});
+
+test('記録表：「未」は確認が本当に遅れていた枠だけ（枠の区切りのずれでは付かない）', () => {
+  const on = sessionsByChild(applyOps([], [
+    start('n1', 'a', T0), check('c1', 'n1', T0 + 5 * MIN), check('c2', 'n1', T0 + 10 * MIN),
+    { type: 'endNap', napId: 'n1', t: T0 + 12 * MIN },
+  ]));
+  const a = buildRecordTable([{ id: 'a' }], on, 5, T0 + 60 * MIN);
+  assert.deepEqual(a.rows[0].cells.map((c) => c.missing), [false, false, false]);
+
+  // 起床の直前まで確認していなかった場合は、遅れていた枠に「未」
+  const off = sessionsByChild(applyOps([], [
+    start('n1', 'a', T0), check('c1', 'n1', T0 + 4 * MIN), { type: 'endNap', napId: 'n1', t: T0 + 17 * MIN },
+  ]));
+  const b = buildRecordTable([{ id: 'a' }], off, 5, T0 + 60 * MIN);
+  assert.deepEqual(b.rows[0].cells.map((c) => c.missing), [false, true, true, true]);
+
+  // 今日の寝ている子は、現在時刻まで確認していなければ「未」
+  const now = sessionsByChild(applyOps([], [start('n1', 'a', T0)]));
+  const c = buildRecordTable([{ id: 'a' }], now, 5, T0 + 12 * MIN);
+  assert.deepEqual(c.rows[0].cells.map((x) => x.missing), [false, true, true]);
 });

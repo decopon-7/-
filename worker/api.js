@@ -171,7 +171,8 @@ export function createApi({ db, now = () => Date.now() }) {
 
   async function napsOf(me, day) {
     const naps = await all(
-      `SELECT id, child_id AS childId, start_at AS start, end_at AS end FROM naps
+      `SELECT id, child_id AS childId, class_id AS classId, interval_min AS intervalMin,
+              start_at AS start, end_at AS end FROM naps
         WHERE facility_id = ? AND day = ? ORDER BY start_at`, me.facility_id, day);
     const checks = await all(
       `SELECT c.id, c.nap_id AS napId, c.t, c.posture, c.fixed, c.recorder_id AS recorderId
@@ -209,12 +210,15 @@ export function createApi({ db, now = () => Date.now() }) {
     switch (op?.type) {
       case 'startNap': {
         const t = opTime(op.t);
-        const child = await one('SELECT id FROM children WHERE id = ? AND facility_id = ? AND active = 1',
+        const child = await one(
+          `SELECT k.id, k.class_id, c.interval_min FROM children k JOIN classes c ON c.id = k.class_id
+            WHERE k.id = ? AND k.facility_id = ? AND k.active = 1`,
           id(op.childId), me.facility_id);
         if (!child) fail(404, 'child_not_found');
-        await run(`INSERT INTO naps (id, facility_id, child_id, day, start_at, started_by)
-                   VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT(id) DO NOTHING`,
-          id(op.id), me.facility_id, child.id, dayOf(t), t, me.id);
+        // その時点のクラスと確認間隔を残す（あとで変更しても過去の記録表が変わらないように）
+        await run(`INSERT INTO naps (id, facility_id, child_id, class_id, interval_min, day, start_at, started_by)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(id) DO NOTHING`,
+          id(op.id), me.facility_id, child.id, child.class_id, child.interval_min, dayOf(t), t, me.id);
         return;
       }
       case 'check': {
@@ -239,10 +243,11 @@ export function createApi({ db, now = () => Date.now() }) {
       case 'endNap': {
         const t = opTime(op.t);
         const nap = await napOfFacility(me, op.napId);
-        // 2台で同時に午睡開始された場合に備え、その子の開いている午睡をすべて閉じる
+        // 2台で同時に午睡開始された場合に備え、その子の同じ日の開いている午睡をすべて閉じる
+        // （前の日に起床を押し忘れた午睡は閉じない。閉じると何十時間もの午睡になってしまうため）
         await run(`UPDATE naps SET end_at = ?, ended_by = ?
-                    WHERE facility_id = ? AND child_id = ? AND end_at IS NULL AND start_at <= ?`,
-          t, me.id, me.facility_id, nap.child_id, t);
+                    WHERE facility_id = ? AND child_id = ? AND day = ? AND end_at IS NULL AND start_at <= ?`,
+          t, me.id, me.facility_id, nap.child_id, nap.day, t);
         return;
       }
       default:

@@ -152,6 +152,28 @@ test('起床は、その子の開いている午睡をすべて閉じる', async
   assert.deepEqual(late.body.results, [{ ok: false, error: 'nap_already_ended' }]);
 });
 
+test('前の日に起床を押し忘れた午睡は、今日の起床で閉じない', async () => {
+  const c = await loggedIn('a-staff');
+  await c.post('/api/ops', { ops: [{ type: 'startNap', id: 'nap-yesterday', childId: 'kidA-0001', t: T0 }] });
+  clock = T0 + 24 * 60 * 60e3;
+  await c.post('/api/ops', { ops: [{ type: 'startNap', id: 'nap-today-001', childId: 'kidA-0001', t: clock }] });
+  clock += 90 * 60e3;
+  await c.post('/api/ops', { ops: [{ type: 'endNap', napId: 'nap-today-001', t: clock }] });
+  const rows = db.sqlite.prepare('SELECT id, end_at FROM naps ORDER BY start_at').all();
+  assert.deepEqual(rows.map((r) => [r.id, r.end_at]), [['nap-yesterday', null], ['nap-today-001', clock]]);
+});
+
+test('午睡には開始時点のクラスと確認間隔が残り、あとで変えても過去の記録は変わらない', async () => {
+  const admin = await loggedIn('a-admin');
+  await admin.post('/api/ops', { ops: [{ type: 'startNap', id: 'nap-00000001', childId: 'kidA-0001', t: T0 }] });
+  db.sqlite.prepare("INSERT INTO classes (id, facility_id, name, age, interval_min) VALUES ('clsA-0002', 'facA-0001', '1歳児', 1, 10)").run();
+  await admin.patch('/api/admin/classes/clsA-0001', { intervalMin: 7 });
+  await admin.patch('/api/admin/children/kidA-0001', { classId: 'clsA-0002' });
+  const [nap] = (await admin.get('/api/naps?day=2026-09-23')).body.naps;
+  assert.equal(nap.classId, 'clsA-0001');
+  assert.equal(nap.intervalMin, 5);
+});
+
 test('ありえない時刻・不明な操作は断る（他の操作は止めない）', async () => {
   const c = await loggedIn('a-staff');
   const r = await c.post('/api/ops', { ops: [

@@ -1,3 +1,5 @@
+import { dateKey } from './logic.js';
+
 // 端末側で操作を反映する（サーバーの処理と同じ結果になるようにしている）
 // naps: [{ id, childId, start, end, checks: [{ id, t, posture, fixed?, recorderId }] }]
 
@@ -20,7 +22,10 @@ export function applyOp(naps, op) {
     case 'endNap': {
       const target = naps.find((n) => n.id === op.napId);
       if (!target) return naps;
-      return naps.map((n) => (n.childId === target.childId && n.end == null && n.start <= op.t ? { ...n, end: op.t } : n));
+      // 同じ日の開いている午睡だけを閉じる（前の日の押し忘れは閉じない）
+      const day = dateKey(target.start);
+      return naps.map((n) => (n.childId === target.childId && n.end == null && n.start <= op.t && dateKey(n.start) === day
+        ? { ...n, end: op.t } : n));
     }
     default:
       return naps;

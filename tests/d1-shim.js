@@ -1,10 +1,13 @@
 // テスト用：Cloudflare D1 と同じ呼び方で Node の SQLite を使う
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 import { DatabaseSync } from 'node:sqlite';
 
 export function createTestDb() {
   const sqlite = new DatabaseSync(':memory:');
-  sqlite.exec(readFileSync(new URL('../migrations/0001_init.sql', import.meta.url), 'utf8'));
+  const dir = new URL('../migrations/', import.meta.url);
+  for (const f of readdirSync(dir).filter((n) => n.endsWith('.sql')).sort()) {
+    sqlite.exec(readFileSync(new URL(f, dir), 'utf8'));
+  }
   const norm = (args) => args.map((a) => (a === undefined ? null : typeof a === 'boolean' ? Number(a) : a));
   const db = {
     sqlite,
