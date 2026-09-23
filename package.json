@@ -1,0 +1,11 @@
+{
+  "name": "hoiku-tsunagu",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "ほいくつなぐ（保育ICTアプリ）保育士用・午睡チェックの試作",
+  "scripts": {
+    "test": "node --test tests/*.test.js",
+    "start": "npx --yes serve app -l 8080"
+  }
+}

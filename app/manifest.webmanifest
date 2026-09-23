@@ -1,0 +1,13 @@
+{
+  "name": "ほいくつなぐ 午睡チェック",
+  "short_name": "午睡チェック",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#f2f4f3",
+  "theme_color": "#1f5f4a",
+  "lang": "ja",
+  "icons": [
+    { "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }
+  ]
+}
