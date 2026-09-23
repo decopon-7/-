@@ -1,11 +1,18 @@
 {
   "name": "hoiku-tsunagu",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "type": "module",
-  "description": "ほいくつなぐ（保育ICTアプリ）保育士用・午睡チェックの試作",
+  "description": "ほいくつなぐ（保育ICTアプリ）保育士用・午睡チェック",
   "scripts": {
-    "test": "node --test tests/*.test.js",
-    "start": "npx --yes serve app -l 8080"
+    "test": "node --no-warnings --test tests/*.test.js",
+    "db:migrate:local": "wrangler d1 migrations apply hoiku-tsunagu --local",
+    "db:migrate:remote": "wrangler d1 migrations apply hoiku-tsunagu --remote",
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "demo": "npx --yes serve app -l 8080"
+  },
+  "devDependencies": {
+    "wrangler": "^4.136.3"
   }
 }

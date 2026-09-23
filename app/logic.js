@@ -7,16 +7,8 @@ export const POSTURES = {
   prone: { label: 'うつぶせ', short: 'う' },
 };
 
-// 確認間隔の初期値（分）。園のマニュアル・自治体の指針に合わせて設定画面で変更する前提
-export const DEFAULT_INTERVALS = { 0: 5, 1: 10, 2: 10 };
-
 // 「まもなく確認」とみなす残り時間
 export const SOON_MS = 60 * 1000;
-
-export function intervalMinutes(age, intervals = DEFAULT_INTERVALS) {
-  const v = intervals[age] ?? intervals[String(age)];
-  return Number.isFinite(v) && v > 0 ? v : 5;
-}
 
 // 子ども1人の、最後の午睡セッションを返す
 export function lastSession(sessions) {
@@ -38,34 +30,6 @@ export function childStatus(sessions, now, intervalMin) {
   return { state, session: s, last, due, remain };
 }
 
-export function startNap(sessions, now) {
-  const s = lastSession(sessions);
-  if (s && s.end == null) return sessions;
-  return [...(sessions || []), { start: now, end: null, checks: [] }];
-}
-
-export function recordCheck(sessions, now, posture, staff, fixed = false) {
-  if (!POSTURES[posture]) throw new Error(`unknown posture: ${posture}`);
-  const s = lastSession(sessions);
-  if (!s || s.end != null) return sessions;
-  const check = { t: now, posture, staff: staff || '' };
-  if (fixed) check.fixed = true;
-  return [...sessions.slice(0, -1), { ...s, checks: [...s.checks, check] }];
-}
-
-export function endNap(sessions, now) {
-  const s = lastSession(sessions);
-  if (!s || s.end != null) return sessions;
-  return [...sessions.slice(0, -1), { ...s, end: now }];
-}
-
-// 直前の確認を取り消す（押し間違い用）
-export function undoLastCheck(sessions) {
-  const s = lastSession(sessions);
-  if (!s || s.end != null || !s.checks.length) return sessions;
-  return [...sessions.slice(0, -1), { ...s, checks: s.checks.slice(0, -1) }];
-}
-
 export function summarize(statuses) {
   const c = { sleeping: 0, soon: 0, overdue: 0, awake: 0, before: 0 };
   for (const st of statuses) {
@@ -79,7 +43,7 @@ export function summarize(statuses) {
 }
 
 // 記録表用：確認間隔ごとの時間枠に区切った表を作る
-// rows: [{ child, cells: [{ posture, fixed, staff } | null, ...] }]
+// rows: [{ child, naps, cells: [{ t, posture, fixed, recorderId } | null, ...] }]
 // まだ寝ている子がいる間は、現在時刻の枠まで表を伸ばす
 export function buildRecordTable(children, napsByChild, intervalMin, now = Date.now()) {
   const all = [];

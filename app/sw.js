@@ -1,6 +1,6 @@
 // オフラインでも開けるように、画面のファイルを端末に保存しておく
-const CACHE = 'hoiku-nap-v1';
-const FILES = ['./', 'index.html', 'style.css', 'app.js', 'logic.js', 'manifest.webmanifest', 'icon.svg'];
+const CACHE = 'hoiku-nap-v2';
+const FILES = ['./', 'index.html', 'style.css', 'app.js', 'logic.js', 'ops.js', 'manifest.webmanifest', 'icon.svg'];
 
 self.addEventListener('install', (e) => {
   e.waitUntil(caches.open(CACHE).then((c) => c.addAll(FILES)).then(() => self.skipWaiting()));
@@ -15,8 +15,10 @@ self.addEventListener('activate', (e) => {
 });
 
 // 新しい版があればそれを使い、つながらない時だけ保存済みの版を使う
+// 園児の情報を含む /api/ の応答は端末に保存しない
 self.addEventListener('fetch', (e) => {
   if (e.request.method !== 'GET') return;
+  if (new URL(e.request.url).pathname.startsWith('/api/')) return;
   e.respondWith(
     fetch(e.request)
       .then((res) => {
