@@ -1,5 +1,5 @@
 import {
-  POSTURES, childStatus, summarize, buildRecordTable, fmtTime, fmtDuration, dateKey,
+  POSTURES, FIXED_SHORT, childStatus, summarize, buildRecordTable, fmtTime, fmtDuration, dateKey,
 } from './logic.js';
 import { applyOp, applyOps, sessionsByChild, newId } from './ops.js';
 
@@ -477,7 +477,7 @@ function updateLive(byChild = sessionsByChild(todayNaps())) {
     card.querySelector('[data-role="pill"]').textContent =
       s.state === 'overdue' ? `超過 ${fmtDuration(s.remain)}` : `あと ${fmtDuration(s.remain)}`;
     card.querySelector('[data-role="meta"]').textContent = s.last
-      ? `最終 ${fmtTime(s.last.t)} ${POSTURES[s.last.posture].label}${s.last.fixed ? '→仰向けに直した' : ''}（${staffName(s.last.recorderId)}）`
+      ? `最終 ${fmtTime(s.last.t)} ${POSTURES[s.last.posture].short}${POSTURES[s.last.posture].label}${s.last.fixed ? '（仰向けに直した）' : ''}（${staffName(s.last.recorderId)}）`
       : `${fmtTime(s.session.start)} 入眠・まだ確認していません`;
   }
   const c = summarize(statuses);
@@ -519,7 +519,7 @@ function onCheckClick(e) {
     if (posture === 'prone') {
       openDialog(`
         <h3>${esc(child.name)}：うつぶせ</h3>
-        <p>仰向けに直してから「直した」を押してください。記録には「うつぶせ→仰向けに直した」と残ります。</p>
+        <p>仰向けに直してから「直した」を押してください。記録には「${FIXED_SHORT}（うつぶせを仰向けに直した）」と残ります。</p>
         <button class="btn primary big" data-act="fixed">仰向けに直した</button>
         <button class="btn ghost" data-act="cancel">キャンセル</button>`, (a) => { if (a === 'fixed') record(true); });
     } else {
@@ -636,7 +636,7 @@ function renderRecord() {
     const tds = cells.map((c, i) => {
       if (c) {
         const p = POSTURES[c.posture];
-        const txt = c.fixed ? `${p.short}→仰` : p.short;
+        const txt = c.fixed ? FIXED_SHORT : p.short;
         const who = staffName(c.recorderId);
         return `<td class="cell ${c.posture === 'prone' ? 'prone' : ''}" title="${esc(p.label)} ${fmtTime(c.t)} ${esc(who)}"><b>${txt}</b><small>${esc(initial(who))}</small></td>`;
       }
@@ -654,7 +654,7 @@ function renderRecord() {
       <button class="btn primary" data-act="print">印刷</button>
     </div>
     <h2 class="print-title">${esc(st.boot.facility.name)}　${esc(title)}</h2>
-    <p class="legend">仰：仰向け　右：右向き　左：左向き　う：うつぶせ（う→仰：仰向けに直した）　未：その時間枠に確認の記録がない　小さい文字：記録者</p>
+    <p class="legend">↑：仰向け　→：右向き　←：左向き　↓：うつぶせ　${FIXED_SHORT}：うつぶせを仰向けに直した　未：その時間枠に確認の記録がない　小さい文字：記録者</p>
     <div class="table-wrap">
       <table class="record">
         <thead><tr><th class="sticky">名前</th><th>入眠〜起床</th>${head}</tr></thead>

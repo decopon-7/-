@@ -1,11 +1,15 @@
 // 午睡チェックの判定ロジック（画面から切り離してテストできるようにしている）
 
+// 体位は紙の午睡チェック表と同じく矢印で表す
 export const POSTURES = {
-  supine: { label: '仰向け', short: '仰' },
-  right: { label: '右向き', short: '右' },
-  left: { label: '左向き', short: '左' },
-  prone: { label: 'うつぶせ', short: 'う' },
+  supine: { label: '仰向け', short: '↑' },
+  right: { label: '右向き', short: '→' },
+  left: { label: '左向き', short: '←' },
+  prone: { label: 'うつぶせ', short: '↓' },
 };
+
+// うつぶせを仰向けに直した記録の表記（「→」は右向きと紛らわしいので使わない）
+export const FIXED_SHORT = '↓⇒↑';
 
 // 「まもなく確認」とみなす残り時間
 export const SOON_MS = 60 * 1000;

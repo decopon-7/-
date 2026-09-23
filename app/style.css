@@ -229,8 +229,9 @@ main { padding: 8px 16px calc(32px + env(safe-area-inset-bottom)); }
   border: 1px solid var(--line);
   background: #fff;
   border-radius: 10px;
-  padding: 12px 0 10px;
-  font-size: 15px;
+  padding: 8px 0 8px;
+  font-size: 24px;
+  line-height: 1.1;
   font-weight: 700;
   display: flex;
   flex-direction: column;
@@ -274,7 +275,7 @@ table.record { border-collapse: collapse; font-size: 13px; min-width: 100%; }
 .record th.sticky, .record td.sticky { position: sticky; left: 0; background: #fff; text-align: left; z-index: 1; }
 .record th.sticky { background: var(--green-soft); }
 .record td.cell { min-width: 40px; }
-.record td.cell b { display: block; }
+.record td.cell b { display: block; font-size: 16px; }
 .record td.cell small { color: var(--muted); font-size: 10px; }
 .record td.prone { background: var(--alert-soft); color: var(--alert); }
 .record td.missing { background: #fff5f5; }
