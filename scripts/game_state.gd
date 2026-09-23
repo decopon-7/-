@@ -5,22 +5,22 @@ extends Node
 const I18nTable := preload("res://scripts/i18n.gd")
 const SAVE_PATH := "user://save.json"
 
-## 1日の勤務時間（秒）
+## 1日の仕込み時間（秒）
 const DAY_LENGTH := 150.0
-## むき終わりとみなす割合
-const PEEL_DONE_RATIO := 0.93
+## 包丁を振り下ろせる間隔（秒）
+const CHOP_COOLDOWN := 0.11
 
-const UPGRADE_IDS := ["peeler", "turntable", "machine", "contract"]
+const UPGRADE_IDS := ["knife", "goggles", "processor", "contract"]
 const UPGRADES := {
-	"peeler": {"name": "UPG_PEELER", "desc": "UPG_PEELER_DESC", "base_cost": 40, "growth": 1.7, "max": 5},
-	"turntable": {"name": "UPG_TURNTABLE", "desc": "UPG_TURNTABLE_DESC", "base_cost": 120, "growth": 2.0, "max": 3},
-	"machine": {"name": "UPG_MACHINE", "desc": "UPG_MACHINE_DESC", "base_cost": 250, "growth": 1.8, "max": 5},
+	"knife": {"name": "UPG_KNIFE", "desc": "UPG_KNIFE_DESC", "base_cost": 50, "growth": 1.7, "max": 5},
+	"goggles": {"name": "UPG_GOGGLES", "desc": "UPG_GOGGLES_DESC", "base_cost": 60, "growth": 1.8, "max": 4},
+	"processor": {"name": "UPG_PROCESSOR", "desc": "UPG_PROCESSOR_DESC", "base_cost": 250, "growth": 1.8, "max": 5},
 	"contract": {"name": "UPG_CONTRACT", "desc": "UPG_CONTRACT_DESC", "base_cost": 80, "growth": 1.75, "max": 5},
 }
 
 var day := 1
 var money := 0
-var total_peeled := 0
+var total_grams := 0
 var levels := {}
 var locale := ""
 
@@ -37,7 +37,7 @@ func _ready() -> void:
 func reset() -> void:
 	day = 1
 	money = 0
-	total_peeled = 0
+	total_grams = 0
 	levels = {}
 	for id in UPGRADE_IDS:
 		levels[id] = 0
@@ -49,32 +49,38 @@ func has_save() -> bool:
 
 # ---- バランス調整用の数式はここに集約 ----
 
+## その日のノルマ（グラム）
 func quota_for_day(d: int = day) -> int:
-	return 3 + d * 2
+	return 200 + d * 100
 
 
-func price_per_potato() -> int:
-	return 10 + levels["contract"] * 5
+## 100gあたりの報酬
+func price_per_100g() -> int:
+	return 15 + levels["contract"] * 6
+
+
+func pay_for(grams: int) -> int:
+	return int(round(grams * price_per_100g() / 100.0))
 
 
 func quota_bonus() -> int:
-	return quota_for_day() * 5
+	return int(quota_for_day() / 10.0)
 
 
-## ピーラーの刃の幅（単位球上の角度・ラジアン）
-func peel_radius() -> float:
-	return 0.16 + levels["peeler"] * 0.035
+## みじん切り工程で包丁が届く幅（片側・メートル）
+func chop_reach() -> float:
+	return 0.004 + levels["knife"] * 0.0025
 
 
-## 自動回転台の速度（ラジアン/秒）
-func turntable_speed() -> float:
-	return levels["turntable"] * 0.9
+## 涙のたまりやすさ（1 が素の状態）
+func tear_multiplier() -> float:
+	return 1.0 - levels["goggles"] * 0.2
 
 
-## 皮むき機が1個むくのにかかる秒数。0 なら未所持。
-func machine_interval() -> float:
-	var lv: int = levels["machine"]
-	return 0.0 if lv == 0 else 18.0 / lv
+## フードプロセッサーが100g刻むのにかかる秒数。0 なら未所持。
+func processor_interval() -> float:
+	var lv: int = levels["processor"]
+	return 0.0 if lv == 0 else 20.0 / lv
 
 
 func upgrade_cost(id: String) -> int:
@@ -113,10 +119,10 @@ func save_game() -> void:
 		push_warning("セーブに失敗しました: %s" % FileAccess.get_open_error())
 		return
 	f.store_string(JSON.stringify({
-		"version": 1,
+		"version": 2,
 		"day": day,
 		"money": money,
-		"total_peeled": total_peeled,
+		"total_grams": total_grams,
 		"levels": levels,
 		"locale": locale,
 	}, "\t"))
@@ -131,7 +137,7 @@ func load_game() -> void:
 		return
 	day = int(data.get("day", 1))
 	money = int(data.get("money", 0))
-	total_peeled = int(data.get("total_peeled", 0))
+	total_grams = int(data.get("total_grams", 0))
 	locale = str(data.get("locale", ""))
 	var saved_levels: Dictionary = data.get("levels", {})
 	for id in UPGRADE_IDS:

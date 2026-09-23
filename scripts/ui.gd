@@ -28,8 +28,11 @@ var _time_label: Label
 var _quota_label: Label
 var _quota_bar: ProgressBar
 var _money_label: Label
-var _peel_label: Label
-var _peel_bar: ProgressBar
+var _step_label: Label
+var _step_bar: ProgressBar
+var _gap_hint: Label
+var _tears_bar: ProgressBar
+var _tears_label: Label
 var _hint_label: Label
 var _end_shift_button: Button
 
@@ -86,6 +89,8 @@ func refresh_texts() -> void:
 	_language_button.text = tr("BTN_LANGUAGE")
 	_quit_button.text = tr("BTN_QUIT")
 	_hint_label.text = tr("HUD_HINT")
+	_gap_hint.text = tr("HUD_GAP_HINT")
+	_tears_label.text = tr("HUD_TEARS")
 	_end_shift_button.text = tr("HUD_END_SHIFT")
 	_shop_title.text = tr("SHOP_TITLE")
 	_start_day_button.text = tr("BTN_START_DAY")
@@ -95,26 +100,30 @@ func refresh_texts() -> void:
 	refresh_shop()
 
 
-func update_hud(time_left: float, peeled_today: int, peel_ratio: float) -> void:
+func update_hud(time_left: float, grams_today: int, step_text: String, step_progress: float,
+		tears: float, wide_gaps: bool) -> void:
 	var quota := GameState.quota_for_day()
 	var secs := int(ceil(maxf(time_left, 0.0)))
 	_day_label.text = tr("HUD_DAY") % GameState.day
 	_time_label.text = tr("HUD_TIME") % [secs / 60, secs % 60]
 	_time_label.modulate = COL_BAD if time_left < 20.0 else COL_TEXT
-	_quota_label.text = tr("HUD_QUOTA") % [peeled_today, quota]
+	_quota_label.text = tr("HUD_QUOTA") % [grams_today, quota]
 	_quota_bar.max_value = quota
-	_quota_bar.value = peeled_today
-	_quota_bar.modulate = COL_GOOD if peeled_today >= quota else Color.WHITE
+	_quota_bar.value = grams_today
+	_quota_bar.modulate = COL_GOOD if grams_today >= quota else Color.WHITE
 	_money_label.text = tr("HUD_MONEY") % GameState.money
-	_peel_label.text = tr("HUD_PEEL") % int(peel_ratio * 100.0)
-	_peel_bar.value = peel_ratio / GameState.PEEL_DONE_RATIO * 100.0
-	_end_shift_button.visible = peeled_today >= quota
+	_step_label.text = step_text
+	_step_bar.value = step_progress * 100.0
+	_gap_hint.visible = wide_gaps
+	_tears_bar.value = tears * 100.0
+	_tears_bar.modulate = COL_BAD if tears > 0.8 else Color.WHITE
+	_end_shift_button.visible = grams_today >= quota
 
 
-func show_day_end(success: bool, peeled: int, quota: int, earned: int, bonus: int) -> void:
+func show_day_end(success: bool, grams: int, quota: int, earned: int, bonus: int) -> void:
 	_end_title.text = tr("END_OK") if success else tr("END_FAIL")
 	_end_title.modulate = COL_GOOD if success else COL_BAD
-	var body := tr("END_BODY") % [peeled, quota, earned]
+	var body := tr("END_BODY") % [grams, quota, earned]
 	if success:
 		body += "\n" + tr("END_BONUS") % bonus
 	else:
@@ -142,7 +151,7 @@ func refresh_shop() -> void:
 		_money_label.text = tr("HUD_MONEY") % GameState.money
 
 
-## 画面上の位置に「+10円」などを浮かび上がらせる
+## 画面上の位置に「+100 g」などを浮かび上がらせる
 func popup(text: String, screen_pos: Vector2, color: Color = COL_ACCENT) -> void:
 	var label := Label.new()
 	label.text = text
@@ -181,20 +190,43 @@ func _build_hud() -> Control:
 	for n in [_day_label, _time_label, _quota_label, _quota_bar, _money_label]:
 		box.add_child(n)
 
-	var peel_box := VBoxContainer.new()
-	peel_box.set_anchors_preset(Control.PRESET_CENTER_BOTTOM)
-	peel_box.offset_left = -220
-	peel_box.offset_right = 220
-	peel_box.offset_top = -110
-	peel_box.offset_bottom = -40
-	peel_box.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	c.add_child(peel_box)
-	_peel_label = _label(22)
-	_peel_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	_peel_bar = _bar()
-	_peel_bar.custom_minimum_size.y = 18
-	peel_box.add_child(_peel_label)
-	peel_box.add_child(_peel_bar)
+	var step_box := VBoxContainer.new()
+	step_box.set_anchors_preset(Control.PRESET_CENTER_BOTTOM)
+	step_box.offset_left = -260
+	step_box.offset_right = 260
+	step_box.offset_top = -140
+	step_box.offset_bottom = -40
+	step_box.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	c.add_child(step_box)
+	_gap_hint = _label(18, COL_BAD)
+	_step_label = _label(24)
+	_step_bar = _bar()
+	_step_bar.custom_minimum_size.y = 18
+	for l in [_gap_hint, _step_label]:
+		l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		step_box.add_child(l)
+	step_box.add_child(_step_bar)
+
+	# 涙ゲージ（右下）
+	var tears_box := HBoxContainer.new()
+	tears_box.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT)
+	tears_box.offset_left = -300
+	tears_box.offset_right = -24
+	tears_box.offset_top = -64
+	tears_box.offset_bottom = -34
+	tears_box.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	tears_box.add_theme_constant_override("separation", 10)
+	c.add_child(tears_box)
+	_tears_label = _label(22, Color(0.6, 0.8, 1.0))
+	_tears_bar = _bar()
+	_tears_bar.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_tears_bar.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	var fill := StyleBoxFlat.new()
+	fill.bg_color = Color(0.45, 0.7, 1.0)
+	fill.set_corner_radius_all(4)
+	_tears_bar.add_theme_stylebox_override("fill", fill)
+	tears_box.add_child(_tears_label)
+	tears_box.add_child(_tears_bar)
 
 	_hint_label = _label(18, COL_DIM)
 	_hint_label.set_anchors_preset(Control.PRESET_BOTTOM_LEFT)

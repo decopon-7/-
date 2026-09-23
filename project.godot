@@ -5,8 +5,8 @@ config_version=5
 
 [application]
 
-config/name="Spud Duty"
-config/description="軍の食事のため、ひたすらジャガイモの皮をむく3Dシミュレーション。"
+config/name="Onion Tears"
+config/description="洋食屋の仕込み場で、涙をこらえて玉ねぎをみじん切りにする3Dシミュレーション。"
 run/main_scene="res://scenes/main.tscn"
 config/features=PackedStringArray("4.4", "Forward Plus")
 config/icon="res://icon.svg"

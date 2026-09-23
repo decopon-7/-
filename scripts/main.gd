@@ -1,46 +1,60 @@
-# ゲーム本体。調理場の3D空間を組み立て、1日の勤務ループを回す。
+# ゲーム本体。洋食屋の仕込み場の3D空間を組み立て、1日の仕込みループを回す。
 extends Node3D
 
 enum State { TITLE, PLAYING, DAY_END, PAUSED }
 
-const POTATO_SCALE := 0.1
-const WORK_POS := Vector3(0.0, 1.04, 0.05)
-const BIN_POS := Vector3(0.72, 1.0, 0.02)
-const POT_POS := Vector3(-0.72, 0.94, 0.02)
-const MACHINE_POS := Vector3(-0.5, 0.94, -0.34)
-const MAX_POT_PILE := 36
+const BOARD_TOP := 0.965
+const WORK_POS := Vector3(0.0, BOARD_TOP, 0.04)
+const CRATE_POS := Vector3(0.6, 1.0, -0.12)
+const BOWL_POS := Vector3(-0.56, 0.94, -0.16)
+const PROCESSOR_POS := Vector3(-0.3, 0.94, -0.38)
+const KNIFE_LIFT := 0.09
+const KNIFE_X_LIMIT := 0.26
+
+## 涙：1回切るごとに増える量（工程1・2 / 工程3）と、1秒あたりに引く量
+const TEARS_PER_CUT := 0.05
+const TEARS_PER_CHOP := 0.012
+const TEARS_DECAY := 0.045
+const TEARS_STUN_TIME := 2.2
 
 var state := State.TITLE
 var time_left := 0.0
-var peeled_today := 0
+var grams_today := 0
 var earned_today := 0
-var machine_timer := 0.0
+var processor_timer := 0.0
+var tears := 0.0
+var stun := 0.0
 
 var rng := RandomNumberGenerator.new()
 var camera: Camera3D
 var ui: GameUI
-var potato: Potato
-var peeler: Node3D
+var onion: Onion
+var knife: Node3D
 var chips: CPUParticles3D
-var machine: Node3D
-var machine_drum: Node3D
-var machine_lamp: StandardMaterial3D
-var pot_pile: Array[Node3D] = []
+var processor: Node3D
+var processor_blade: Node3D
+var bowl_fill: MeshInstance3D
+var gap_markers: Array[MeshInstance3D] = []
+var tear_overlay: ColorRect
 
-var _peeling := false
-var _rotating := false
-var _last_dir = null  # Vector3 または null
-var _peeler_rest: Transform3D
+var _knife_x := 0.0
+var _chop_t := 1.0
+var _cooldown := 0.0
+var _holding := false
+var _chips_time := 0.0
+var _gap_mat: StandardMaterial3D
 
 
 func _ready() -> void:
 	rng.randomize()
 	_build_environment()
 	_build_kitchen()
-	_build_peeler()
-	_build_machine()
+	_build_knife()
+	_build_processor()
+	_build_tear_overlay()
 
 	ui = GameUI.new()
+	ui.layer = 2
 	add_child(ui)
 	ui.continue_pressed.connect(_on_continue)
 	ui.new_game_pressed.connect(_on_new_game)
@@ -50,7 +64,7 @@ func _ready() -> void:
 	ui.end_shift_pressed.connect(_end_day)
 	ui.upgrade_bought.connect(_on_upgrade_bought)
 
-	_spawn_potato(false)
+	_spawn_onion(false)
 	_set_state(State.TITLE)
 
 	var dev := preload("res://scripts/dev_screenshot.gd")
@@ -58,12 +72,11 @@ func _ready() -> void:
 		add_child(dev.new())
 
 
-# ================================================================ 勤務ループ
+# ================================================================ 仕込みループ
 
 func _set_state(s: State) -> void:
 	state = s
-	_peeling = false
-	_rotating = false
+	_holding = false
 	match s:
 		State.TITLE:
 			ui.refresh_texts()
@@ -78,12 +91,15 @@ func _set_state(s: State) -> void:
 
 func _start_day() -> void:
 	time_left = GameState.DAY_LENGTH
-	peeled_today = 0
+	grams_today = 0
 	earned_today = 0
-	machine_timer = 0.0
-	_update_machine_visibility()
-	if potato == null:
-		_spawn_potato(true)
+	processor_timer = 0.0
+	tears = 0.0
+	stun = 0.0
+	_update_bowl()
+	processor.visible = GameState.processor_interval() > 0.0
+	if onion == null:
+		_spawn_onion(true)
 	_set_state(State.PLAYING)
 
 
@@ -91,12 +107,12 @@ func _end_day() -> void:
 	if state != State.PLAYING:
 		return
 	var quota := GameState.quota_for_day()
-	var success := peeled_today >= quota
+	var success := grams_today >= quota
 	var bonus := 0
 	if success:
 		bonus = GameState.quota_bonus()
 		GameState.money += bonus
-	ui.show_day_end(success, peeled_today, quota, earned_today, bonus)
+	ui.show_day_end(success, grams_today, quota, earned_today, bonus)
 	if success:
 		GameState.day += 1
 	GameState.save_game()
@@ -106,17 +122,21 @@ func _end_day() -> void:
 func _process(delta: float) -> void:
 	if state == State.PLAYING:
 		time_left -= delta
-		_rotate_potato_by_keys(delta)
-		if potato and GameState.turntable_speed() > 0.0:
-			potato.rotate_object_local(Vector3.RIGHT, GameState.turntable_speed() * delta)
-		_update_machine(delta)
-		_update_peeling()
-		ui.update_hud(time_left, peeled_today, potato.get_peel_ratio() if potato else 0.0)
+		_update_tears(delta)
+		_update_processor(delta)
+		_update_chopping(delta)
+		_update_gap_markers()
+		ui.update_hud(time_left, grams_today, _step_text(), onion.get_progress() if onion else 1.0,
+				tears, not gap_markers.is_empty() and gap_markers[0].visible)
 		if time_left <= 0.0:
 			_end_day()
-	elif state == State.TITLE and potato:
-		potato.rotate_y(delta * 0.3)  # タイトル画面ではゆっくり回して飾る
-	_update_peeler_pose(delta)
+	else:
+		for m in gap_markers:
+			m.visible = false
+	_update_knife_pose(delta)
+	_update_tear_overlay(delta)
+	_chips_time -= delta
+	chips.emitting = _chips_time > 0.0
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -128,135 +148,210 @@ func _unhandled_input(event: InputEvent) -> void:
 		return
 	if state != State.PLAYING:
 		return
-	if event is InputEventMouseButton:
-		if event.button_index == MOUSE_BUTTON_LEFT:
-			_peeling = event.pressed
-			_last_dir = null
-		elif event.button_index == MOUSE_BUTTON_RIGHT:
-			_rotating = event.pressed
-	elif event is InputEventMouseMotion and _rotating and potato:
-		_rotate_potato(event.relative * 0.008)
+	var pressed := false
+	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT:
+		_holding = event.pressed
+		pressed = event.pressed
+	elif event is InputEventKey and event.keycode == KEY_SPACE and not event.echo:
+		_holding = event.pressed
+		pressed = event.pressed
+	if pressed and _cooldown <= 0.0:
+		_chop()
 
 
-# ================================================================ 皮むき
+# ================================================================ 包丁
 
-func _mouse_hit() -> Dictionary:
-	if potato == null:
-		return {}
+func _step_text() -> String:
+	if onion == null:
+		return tr("STEP_DONE")
+	match onion.phase:
+		Onion.Phase.LENGTHWISE:
+			return tr("STEP_LENGTHWISE")
+		Onion.Phase.CROSSWISE:
+			return tr("STEP_CROSSWISE")
+		Onion.Phase.MINCE:
+			return tr("STEP_MINCE")
+	return tr("STEP_DONE")
+
+
+func _update_chopping(delta: float) -> void:
+	_cooldown -= delta
+	_knife_x = _mouse_board_x()
+	# みじん切り工程だけは押しっぱなしでトントン連打できる
+	var repeat := onion != null and onion.phase == Onion.Phase.MINCE
+	if _holding and repeat and _cooldown <= 0.0:
+		_chop()
+
+
+func _chop() -> void:
+	if stun > 0.0:
+		return
+	_cooldown = GameState.CHOP_COOLDOWN
+	_chop_t = 0.0
+	chop_at(_knife_x)
+
+
+## ワールド座標 x の位置で包丁を下ろす（テスト・デモからも呼ぶ）
+func chop_at(x: float) -> void:
+	if onion == null:
+		return
+	var mincing := onion.phase == Onion.Phase.MINCE
+	if not onion.chop(x, GameState.chop_reach()):
+		return
+	tears += (TEARS_PER_CHOP if mincing else TEARS_PER_CUT) * GameState.tear_multiplier()
+	chips.global_position = Vector3(x, BOARD_TOP + 0.03, WORK_POS.z)
+	_chips_time = 0.06
+
+
+func _mouse_board_x() -> float:
 	var mouse := get_viewport().get_mouse_position()
-	return potato.intersect_ray(camera.project_ray_origin(mouse), camera.project_ray_normal(mouse))
+	var o := camera.project_ray_origin(mouse)
+	var d := camera.project_ray_normal(mouse)
+	if absf(d.y) < 0.0001:
+		return _knife_x
+	var t := (BOARD_TOP + 0.04 - o.y) / d.y
+	return clampf(o.x + d.x * t, -KNIFE_X_LIMIT, KNIFE_X_LIMIT)
 
 
-func _update_peeling() -> void:
-	chips.emitting = false
-	if not _peeling or potato == null:
+func _update_knife_pose(delta: float) -> void:
+	_chop_t = minf(1.0, _chop_t + delta / 0.12)
+	var target: Vector3
+	# 刃の面がカメラから見えるよう少し傾ける
+	var rot := Basis(Vector3.BACK, 0.35)
+	if state == State.PLAYING:
+		var lift := KNIFE_LIFT * (1.0 - sin(_chop_t * PI) * 0.97)
+		target = Vector3(_knife_x, BOARD_TOP + lift, WORK_POS.z)
+		if stun > 0.0:
+			target.y += 0.05
+			rot = Basis(Vector3.BACK, 0.35 + sin(Time.get_ticks_msec() * 0.02) * 0.15)
+	else:
+		# 待機中はまな板の手前に寝かせておく
+		target = Vector3(0.3, BOARD_TOP + 0.004, 0.14)
+		rot = Basis(Vector3.BACK, PI / 2).rotated(Vector3.UP, 0.3)
+	var k := 1.0 if _chop_t < 1.0 and state == State.PLAYING else minf(1.0, delta * 18.0)
+	knife.global_transform = knife.global_transform.interpolate_with(Transform3D(rot, target), k)
+
+
+# ================================================================ 玉ねぎ
+
+func _spawn_onion(animated: bool) -> void:
+	onion = Onion.new()
+	onion.randomize_shape(rng)
+	add_child(onion)
+	onion.phase_changed.connect(_on_onion_phase)
+	if animated:
+		onion.position = CRATE_POS + Vector3(0, 0.06, 0)
+		var tw := onion.create_tween()
+		tw.tween_property(onion, "position", WORK_POS, 0.3).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+	else:
+		onion.position = WORK_POS
+
+
+func _on_onion_phase(p: int) -> void:
+	if p != Onion.Phase.DONE:
 		return
-	var hit := _mouse_hit()
-	if hit.is_empty():
-		_last_dir = null
-		return
-	var from: Vector3 = hit["dir"] if _last_dir == null else _last_dir
-	var gained := potato.peel_stroke(from, hit["dir"], GameState.peel_radius())
-	_last_dir = hit["dir"]
-	if gained > 0.0:
-		chips.global_position = hit["position"]
-		chips.emitting = true
-	if potato.get_peel_ratio() >= GameState.PEEL_DONE_RATIO:
-		_complete_potato()
+	var done := onion
+	onion = null
+	var pay := GameState.pay_for(done.grams)
+	_award(done.grams, pay)
+	ui.popup(tr("POP_ONION") % [done.grams, pay], camera.unproject_position(done.global_position + Vector3(0, 0.05, 0)))
+	# まな板からボウルへ移す
+	var tw := done.create_tween()
+	tw.tween_interval(0.25)
+	tw.tween_property(done, "position", BOWL_POS + Vector3(0, 0.2, 0), 0.25).set_ease(Tween.EASE_OUT)
+	tw.parallel().tween_property(done, "scale", Vector3.ONE * 0.6, 0.4)
+	tw.tween_property(done, "position", BOWL_POS + Vector3(0, 0.08, 0), 0.15).set_ease(Tween.EASE_IN)
+	tw.tween_callback(done.queue_free)
+	get_tree().create_timer(0.45).timeout.connect(func():
+		if state == State.PLAYING and onion == null:
+			_spawn_onion(true))
 
 
-func _complete_potato() -> void:
-	var done := potato
-	potato = null
-	_last_dir = null
-	done.peel_all()
-	var pay := GameState.price_per_potato()
-	_award(pay)
-	ui.popup(tr("POP_POTATO") % pay, camera.unproject_position(done.global_position))
-	_send_to_pot(done)
-	_spawn_potato(true)
-
-
-func _award(pay: int) -> void:
-	peeled_today += 1
+func _award(grams: int, pay: int) -> void:
+	grams_today += grams
 	earned_today += pay
 	GameState.money += pay
-	GameState.total_peeled += 1
+	GameState.total_grams += grams
+	_update_bowl()
 
 
-func _spawn_potato(animated: bool) -> void:
-	potato = Potato.new()
-	potato.randomize_shape(rng)
-	add_child(potato)
-	potato.scale = Vector3.ONE * POTATO_SCALE
-	potato.rotation = Vector3(rng.randf_range(-0.3, 0.3), rng.randf_range(-PI, PI), 0.0)
-	if animated:
-		potato.position = BIN_POS + Vector3(0, 0.05, 0)
-		var tw := potato.create_tween()
-		tw.tween_property(potato, "position", WORK_POS, 0.3).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
-	else:
-		potato.position = WORK_POS
+func _update_bowl() -> void:
+	var level := clampf(float(grams_today) / 1500.0, 0.0, 1.0)
+	bowl_fill.visible = level > 0.0
+	bowl_fill.scale = Vector3(1.0, maxf(level, 0.01), 1.0)
+	bowl_fill.position = BOWL_POS + Vector3(0, 0.01 + 0.15 * level * 0.5, 0)
 
 
-## むけた芋を鍋へ放り込む
-func _send_to_pot(p: Node3D) -> void:
-	var slot := pot_pile.size()
-	var ring := rng.randf_range(0.0, 0.12)
-	var ang := rng.randf_range(0.0, TAU)
-	var target := POT_POS + Vector3(cos(ang) * ring, 0.05 + minf(slot, MAX_POT_PILE) * 0.004, sin(ang) * ring)
-	var mid := (p.position + target) * 0.5 + Vector3(0, 0.25, 0)
-	var tw := p.create_tween()
-	tw.tween_property(p, "position", mid, 0.2).set_ease(Tween.EASE_OUT)
-	tw.parallel().tween_property(p, "scale", Vector3.ONE * POTATO_SCALE * 0.8, 0.4)
-	tw.parallel().tween_property(p, "rotation", p.rotation + Vector3(rng.randf_range(2, 5), 0, rng.randf_range(1, 3)), 0.4)
-	tw.tween_property(p, "position", target, 0.2).set_ease(Tween.EASE_IN)
-	pot_pile.append(p)
-	if pot_pile.size() > MAX_POT_PILE:
-		pot_pile.pop_front().queue_free()
+func _update_gap_markers() -> void:
+	var gaps := onion.get_wide_gaps_world() if onion else []
+	while gap_markers.size() < gaps.size():
+		var m := MeshInstance3D.new()
+		m.mesh = BoxMesh.new()
+		m.material_override = _gap_mat
+		add_child(m)
+		gap_markers.append(m)
+	for i in gap_markers.size():
+		var m := gap_markers[i]
+		m.visible = i < gaps.size()
+		if m.visible:
+			var a: float = gaps[i][0]
+			var b: float = gaps[i][1]
+			(m.mesh as BoxMesh).size = Vector3(maxf(0.002, b - a - 0.004), 0.002, 0.012)
+			m.position = Vector3((a + b) * 0.5, BOARD_TOP + 0.001, WORK_POS.z + 0.11)
 
 
-# ================================================================ 回転
+# ================================================================ 涙
 
-func _rotate_potato(amount: Vector2) -> void:
-	potato.rotate(camera.global_basis.y, amount.x)
-	potato.rotate(camera.global_basis.x, amount.y)
-
-
-func _rotate_potato_by_keys(delta: float) -> void:
-	if potato == null:
+func _update_tears(delta: float) -> void:
+	if stun > 0.0:
+		stun -= delta
 		return
-	var v := Vector2(
-		float(Input.is_key_pressed(KEY_D)) - float(Input.is_key_pressed(KEY_A)),
-		float(Input.is_key_pressed(KEY_S)) - float(Input.is_key_pressed(KEY_W)))
-	if v != Vector2.ZERO:
-		_rotate_potato(v * 2.5 * delta)
+	tears = maxf(0.0, tears - TEARS_DECAY * delta)
+	if tears >= 1.0:
+		stun = TEARS_STUN_TIME
+		tears = 0.75
+		_holding = false
+		ui.popup(tr("POP_TEARS"), get_viewport().get_visible_rect().size * 0.5, Color(0.6, 0.8, 1.0))
 
 
-# ================================================================ 皮むき機（自動化）
+func _update_tear_overlay(delta: float) -> void:
+	var goal := 0.0
+	if state == State.PLAYING or state == State.PAUSED:
+		goal = 1.0 if stun > 0.0 else smoothstep(0.3, 1.0, tears) * 0.8
+	var mat := tear_overlay.material as ShaderMaterial
+	var amount: float = lerpf(mat.get_shader_parameter("amount"), goal, minf(1.0, delta * 4.0))
+	mat.set_shader_parameter("amount", amount)
+	tear_overlay.visible = amount > 0.01
 
-func _update_machine_visibility() -> void:
-	machine.visible = GameState.machine_interval() > 0.0
+
+func _build_tear_overlay() -> void:
+	var layer := CanvasLayer.new()
+	layer.layer = 1
+	add_child(layer)
+	tear_overlay = ColorRect.new()
+	tear_overlay.set_anchors_preset(Control.PRESET_FULL_RECT)
+	tear_overlay.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var mat := ShaderMaterial.new()
+	mat.shader = preload("res://shaders/tears.gdshader")
+	mat.set_shader_parameter("amount", 0.0)
+	tear_overlay.material = mat
+	tear_overlay.visible = false
+	layer.add_child(tear_overlay)
 
 
-func _update_machine(delta: float) -> void:
-	var interval := GameState.machine_interval()
+# ================================================================ フードプロセッサー（自動化）
+
+func _update_processor(delta: float) -> void:
+	var interval := GameState.processor_interval()
 	if interval <= 0.0:
 		return
-	machine_drum.rotate_z(delta * 6.0)
-	machine_timer += delta
-	machine_lamp.emission_energy_multiplier = 0.4 + 2.5 * pow(machine_timer / interval, 4.0)
-	if machine_timer < interval:
+	processor_blade.rotate_y(delta * 25.0)
+	processor_timer += delta
+	if processor_timer < interval:
 		return
-	machine_timer -= interval
-	_award(GameState.price_per_potato())
-	var p := Potato.new()
-	p.randomize_shape(rng)
-	add_child(p)
-	p.peel_all()
-	p.scale = Vector3.ONE * POTATO_SCALE * 0.8
-	p.position = MACHINE_POS + Vector3(0, 0.4, 0)
-	_send_to_pot(p)
-	ui.popup(tr("POP_MACHINE"), camera.unproject_position(MACHINE_POS + Vector3(0, 0.45, 0)), GameUI.COL_GOOD)
+	processor_timer -= interval
+	_award(100, GameState.pay_for(100))
+	ui.popup(tr("POP_PROCESSOR") % 100, camera.unproject_position(PROCESSOR_POS + Vector3(0, 0.3, 0)), GameUI.COL_GOOD)
 
 
 # ================================================================ UIイベント
@@ -268,9 +363,6 @@ func _on_continue() -> void:
 func _on_new_game() -> void:
 	GameState.delete_save()
 	GameState.save_game()
-	for p in pot_pile:
-		p.queue_free()
-	pot_pile.clear()
 	_start_day()
 
 
@@ -282,68 +374,66 @@ func _on_to_title() -> void:
 func _on_upgrade_bought(id: String) -> void:
 	if GameState.buy(id):
 		ui.refresh_shop()
-		_update_machine_visibility()
 
 
-# ================================================================ ピーラー
+# ================================================================ 包丁・機械の組み立て
 
-func _update_peeler_pose(delta: float) -> void:
-	var target := _peeler_rest
-	if state == State.PLAYING:
-		var hit := _mouse_hit()
-		if not hit.is_empty():
-			var n: Vector3 = hit["normal"]
-			var cb := camera.global_basis
-			var y := (n * 0.6 + cb.y * 0.7 + cb.z * 0.4 + cb.x * 0.3).normalized()
-			var x := (cb.x - y * y.dot(cb.x)).normalized()
-			var b := Basis(x, y, x.cross(y))
-			if _peeling:
-				b = b.rotated(n, sin(Time.get_ticks_msec() * 0.03) * 0.08)
-			target = Transform3D(b, hit["position"] + n * 0.004)
-	peeler.global_transform = peeler.global_transform.interpolate_with(target, minf(1.0, delta * 20.0))
-
-
-func _build_peeler() -> void:
-	var metal := _mat(Color(0.72, 0.72, 0.74), 0.35, 0.9)
-	var wood := _mat(Color(0.42, 0.26, 0.14), 0.7)
-	peeler = Node3D.new()
-	add_child(peeler)
-	_box(peeler, Vector3(0.075, 0.004, 0.014), Vector3.ZERO, metal)  # 刃
-	for side in [-1.0, 1.0]:
-		var arm := _box(peeler, Vector3(0.005, 0.05, 0.005), Vector3(side * 0.036, 0.025, 0), metal)
-		arm.rotation.z = side * 0.35
-	_box(peeler, Vector3(0.04, 0.006, 0.008), Vector3(0, 0.05, 0), metal)
-	var handle := MeshInstance3D.new()
-	var cyl := CylinderMesh.new()
-	cyl.top_radius = 0.011
-	cyl.bottom_radius = 0.013
-	cyl.height = 0.11
-	handle.mesh = cyl
-	handle.material_override = wood
-	handle.position = Vector3(0, 0.108, 0)
-	peeler.add_child(handle)
-
-	_peeler_rest = Transform3D(Basis.from_euler(Vector3(-PI / 2, 0.4, 0)), Vector3(0.26, 0.975, 0.2))
-	peeler.global_transform = _peeler_rest
+func _build_knife() -> void:
+	var steel := _mat(Color(0.8, 0.81, 0.83), 0.2, 0.95)
+	var wood := _mat(Color(0.2, 0.13, 0.08), 0.6)
+	knife = Node3D.new()
+	add_child(knife)
+	# 刃は Z 方向（奥〜手前）に伸びる。原点が刃先の線。
+	_box(knife, Vector3(0.003, 0.05, 0.22), Vector3(0, 0.025, -0.04), steel)
+	_box(knife, Vector3(0.008, 0.03, 0.015), Vector3(0, 0.035, 0.075), steel)
+	_box(knife, Vector3(0.018, 0.024, 0.12), Vector3(0, 0.037, 0.14), wood)
 
 	chips = CPUParticles3D.new()
 	var chip_mesh := BoxMesh.new()
-	chip_mesh.size = Vector3(0.012, 0.0015, 0.02)
-	chip_mesh.material = _mat(Color(0.5, 0.34, 0.17), 0.9)
+	chip_mesh.size = Vector3(0.004, 0.004, 0.004)
+	chip_mesh.material = _mat(Color(0.95, 0.94, 0.85), 0.3)
 	chips.mesh = chip_mesh
-	chips.amount = 80
-	chips.lifetime = 0.8
+	chips.amount = 40
+	chips.lifetime = 0.5
 	chips.local_coords = false
 	chips.emitting = false
 	chips.direction = Vector3(0, 1, 0)
-	chips.spread = 70.0
-	chips.initial_velocity_min = 0.25
-	chips.initial_velocity_max = 0.6
-	chips.gravity = Vector3(0, -3.5, 0)
-	chips.angular_velocity_min = -720.0
-	chips.angular_velocity_max = 720.0
-	chips.particle_flag_rotate_y = true
+	chips.spread = 80.0
+	chips.initial_velocity_min = 0.2
+	chips.initial_velocity_max = 0.45
+	chips.gravity = Vector3(0, -4.0, 0)
 	add_child(chips)
+
+	_gap_mat = StandardMaterial3D.new()
+	_gap_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	_gap_mat.albedo_color = Color(1.0, 0.3, 0.25)
+
+
+func _build_processor() -> void:
+	var body_mat := _mat(Color(0.85, 0.83, 0.78), 0.4)
+	var glass := _mat(Color(0.8, 0.9, 0.95, 0.25), 0.05)
+	glass.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	glass.cull_mode = BaseMaterial3D.CULL_DISABLED
+	processor = Node3D.new()
+	processor.position = PROCESSOR_POS
+	add_child(processor)
+	_box(processor, Vector3(0.2, 0.1, 0.2), Vector3(0, 0.05, 0), body_mat)
+	var jar := MeshInstance3D.new()
+	var jar_mesh := CylinderMesh.new()
+	jar_mesh.top_radius = 0.08
+	jar_mesh.bottom_radius = 0.075
+	jar_mesh.height = 0.16
+	jar.mesh = jar_mesh
+	jar.material_override = glass
+	jar.position = Vector3(0, 0.18, 0)
+	processor.add_child(jar)
+	processor_blade = Node3D.new()
+	processor_blade.position = Vector3(0, 0.125, 0)
+	processor.add_child(processor_blade)
+	_box(processor_blade, Vector3(0.12, 0.004, 0.015), Vector3.ZERO, _mat(Color(0.7, 0.7, 0.72), 0.2, 0.9))
+	var lid := _box(processor, Vector3(0.17, 0.015, 0.17), Vector3(0, 0.265, 0), body_mat)
+	lid.rotation.y = PI / 4
+	processor.visible = false
 
 
 # ================================================================ 空間の組み立て
@@ -370,7 +460,7 @@ func _build_environment() -> void:
 	camera = Camera3D.new()
 	camera.fov = 50.0
 	add_child(camera)
-	camera.look_at_from_position(Vector3(0, 1.52, 0.78), Vector3(0, 0.98, -0.04))
+	camera.look_at_from_position(Vector3(0, 1.5, 0.52), Vector3(0, 0.965, -0.01))
 
 	# 吊り下げランプ
 	var lamp_root := Node3D.new()
@@ -420,127 +510,103 @@ func _build_environment() -> void:
 
 
 func _build_kitchen() -> void:
-	var concrete := _mat(Color(0.2, 0.2, 0.19), 0.95)
-	var wall := _mat(Color(0.23, 0.25, 0.21), 0.9)
-	var steel := _mat(Color(0.28, 0.29, 0.29), 0.45, 0.7)
-	var dark_steel := _mat(Color(0.16, 0.17, 0.17), 0.5, 0.6)
-	var board := _mat(Color(0.4, 0.27, 0.16), 0.75)
-	var pipe := _mat(Color(0.3, 0.2, 0.14), 0.5, 0.8)
+	var concrete := _mat(Color(0.22, 0.2, 0.18), 0.95)
+	var wall := _mat(Color(0.78, 0.76, 0.7), 0.9)
+	var tile := _mat(Color(0.55, 0.6, 0.58), 0.4)
+	var steel := _mat(Color(0.32, 0.33, 0.33), 0.45, 0.7)
+	var dark_steel := _mat(Color(0.18, 0.19, 0.19), 0.5, 0.6)
+	var board := _mat(Color(0.52, 0.42, 0.3), 0.8)
 
-	# 床と壁
+	# 床と壁（壁の下半分はタイル）
 	_box(self, Vector3(8, 0.1, 8), Vector3(0, -0.05, 0), concrete)
 	_box(self, Vector3(8, 3.2, 0.1), Vector3(0, 1.6, -2.4), wall)
 	_box(self, Vector3(0.1, 3.2, 8), Vector3(-3.2, 1.6, 0), wall)
 	_box(self, Vector3(0.1, 3.2, 8), Vector3(3.2, 1.6, 0), wall)
-	# 壁の腰板
-	_box(self, Vector3(8, 1.1, 0.02), Vector3(0, 0.55, -2.34), _mat(Color(0.17, 0.19, 0.16), 0.8))
+	_box(self, Vector3(8, 1.5, 0.02), Vector3(0, 0.75, -2.34), tile)
 
-	# 作業台
+	# 作業台とまな板
 	_box(self, Vector3(2.2, 0.88, 0.9), Vector3(0, 0.44, 0), dark_steel)
 	_box(self, Vector3(2.3, 0.05, 1.0), Vector3(0, 0.915, 0), steel)
-	_box(self, Vector3(0.44, 0.025, 0.34), Vector3(0, 0.9525, 0.05), board)
+	_box(self, Vector3(0.6, 0.025, 0.36), Vector3(0, BOARD_TOP - 0.0125, 0.05), board)
 
-	# 未処理の芋ケース（右）
-	_crate(BIN_POS + Vector3(0, -0.06, 0), Vector3(0.5, 0.14, 0.46), steel)
-	for i in 22:
-		var p := Potato.new()
-		p.randomize_shape(rng)
-		add_child(p)
-		p.scale = Vector3.ONE * rng.randf_range(0.075, 0.09)
-		p.position = BIN_POS + Vector3(rng.randf_range(-0.19, 0.19), rng.randf_range(-0.04, 0.02), rng.randf_range(-0.17, 0.17))
-		p.rotation = Vector3(rng.randf_range(-0.4, 0.4), rng.randf_range(-PI, PI), rng.randf_range(-0.4, 0.4))
+	# 玉ねぎのケース（右）
+	_crate(CRATE_POS + Vector3(0, -0.06, 0), Vector3(0.42, 0.14, 0.4), _mat(Color(0.45, 0.3, 0.18), 0.8))
+	var onion_skin := _mat(Color(0.55, 0.33, 0.15), 0.6)
+	for i in 16:
+		var o := MeshInstance3D.new()
+		var sphere := SphereMesh.new()
+		sphere.radius = 0.045
+		sphere.height = 0.08
+		o.mesh = sphere
+		o.material_override = onion_skin
+		o.position = CRATE_POS + Vector3(rng.randf_range(-0.15, 0.15), rng.randf_range(-0.03, 0.02), rng.randf_range(-0.14, 0.14))
+		o.rotation = Vector3(rng.randf_range(-0.6, 0.6), rng.randf_range(-PI, PI), rng.randf_range(-0.6, 0.6))
+		o.scale = Vector3.ONE * rng.randf_range(0.85, 1.1)
+		add_child(o)
+		var tip := MeshInstance3D.new()
+		var cone := CylinderMesh.new()
+		cone.top_radius = 0.001
+		cone.bottom_radius = 0.012
+		cone.height = 0.025
+		tip.mesh = cone
+		tip.material_override = onion_skin
+		tip.position = Vector3(0, 0.045, 0)
+		o.add_child(tip)
 
-	# むいた芋の鍋（左）
-	var pot := MeshInstance3D.new()
-	var pot_mesh := CylinderMesh.new()
-	pot_mesh.top_radius = 0.2
-	pot_mesh.bottom_radius = 0.19
-	pot_mesh.height = 0.2
-	pot_mesh.cap_top = false
-	pot.mesh = pot_mesh
-	var pot_mat := _mat(Color(0.55, 0.56, 0.57), 0.3, 0.9)
-	pot_mat.cull_mode = BaseMaterial3D.CULL_DISABLED
-	pot.material_override = pot_mat
-	pot.position = POT_POS + Vector3(0, 0.1, 0)
-	add_child(pot)
-	var water := MeshInstance3D.new()
-	var water_mesh := CylinderMesh.new()
-	water_mesh.top_radius = 0.185
-	water_mesh.bottom_radius = 0.185
-	water_mesh.height = 0.01
-	water.mesh = water_mesh
-	water.material_override = _mat(Color(0.25, 0.3, 0.3), 0.05, 0.2)
-	water.position = POT_POS + Vector3(0, 0.12, 0)
-	add_child(water)
+	# みじん切りをためるボウル（左）
+	var bowl := MeshInstance3D.new()
+	var bowl_mesh := CylinderMesh.new()
+	bowl_mesh.top_radius = 0.19
+	bowl_mesh.bottom_radius = 0.11
+	bowl_mesh.height = 0.15
+	bowl_mesh.cap_top = false
+	bowl.mesh = bowl_mesh
+	var bowl_mat := _mat(Color(0.75, 0.76, 0.78), 0.35, 0.3)
+	bowl_mat.cull_mode = BaseMaterial3D.CULL_DISABLED
+	bowl.material_override = bowl_mat
+	bowl.position = BOWL_POS + Vector3(0, 0.075, 0)
+	add_child(bowl)
+	bowl_fill = MeshInstance3D.new()
+	var fill_mesh := CylinderMesh.new()
+	fill_mesh.top_radius = 0.17
+	fill_mesh.bottom_radius = 0.11
+	fill_mesh.height = 0.15
+	bowl_fill.mesh = fill_mesh
+	bowl_fill.material_override = _mat(Color(0.93, 0.91, 0.8), 0.3)
+	add_child(bowl_fill)
 
-	# 奥のシンク台と棚
+	# 奥のシンク台・棚・鍋
 	_box(self, Vector3(3.6, 0.9, 0.6), Vector3(0, 0.45, -2.05), dark_steel)
 	for x in [-1.1, 0.0, 1.1]:
 		_crate(Vector3(x, 0.84, -2.05), Vector3(0.9, 0.12, 0.45), steel)
 		_box(self, Vector3(0.03, 0.3, 0.03), Vector3(x, 1.05, -2.3), steel)
 		_box(self, Vector3(0.03, 0.03, 0.2), Vector3(x, 1.2, -2.2), steel)
 	_box(self, Vector3(3.0, 0.04, 0.35), Vector3(0, 1.75, -2.2), steel)
-	for i in 7:
-		var jar := MeshInstance3D.new()
-		var jar_mesh := CylinderMesh.new()
-		jar_mesh.top_radius = 0.07
-		jar_mesh.bottom_radius = 0.08
-		jar_mesh.height = rng.randf_range(0.12, 0.25)
-		jar.mesh = jar_mesh
-		jar.material_override = _mat(Color(0.3, 0.3, 0.26).lerp(Color(0.5, 0.35, 0.2), rng.randf()), 0.6, 0.4)
-		jar.position = Vector3(-1.3 + i * 0.42, 1.77 + jar_mesh.height / 2, -2.2)
-		add_child(jar)
-
-	# 配管
-	for h in [2.3, 2.45]:
-		var p := MeshInstance3D.new()
-		var p_mesh := CylinderMesh.new()
-		p_mesh.top_radius = 0.035
-		p_mesh.bottom_radius = 0.035
-		p_mesh.height = 6.4
-		p.mesh = p_mesh
-		p.material_override = pipe
-		p.rotation.z = PI / 2
-		p.position = Vector3(0, h, -2.3)
-		add_child(p)
-	var valve := MeshInstance3D.new()
-	var valve_mesh := TorusMesh.new()
-	valve_mesh.inner_radius = 0.1
-	valve_mesh.outer_radius = 0.13
-	valve.mesh = valve_mesh
-	valve.material_override = _mat(Color(0.5, 0.1, 0.08), 0.5, 0.5)
-	valve.rotation.x = PI / 2
-	valve.position = Vector3(1.6, 1.4, -2.3)
-	add_child(valve)
-
-
-func _build_machine() -> void:
-	var green := _mat(Color(0.24, 0.29, 0.18), 0.6, 0.4)
-	var steel := _mat(Color(0.5, 0.5, 0.5), 0.35, 0.9)
-	machine = Node3D.new()
-	machine.position = MACHINE_POS
-	add_child(machine)
-	_box(machine, Vector3(0.34, 0.26, 0.26), Vector3(0, 0.13, 0), green)
-	_box(machine, Vector3(0.02, 0.12, 0.2), Vector3(-0.16, 0.34, 0), steel)
-	_box(machine, Vector3(0.02, 0.12, 0.2), Vector3(0.16, 0.34, 0), steel)
-	machine_drum = Node3D.new()
-	machine_drum.position = Vector3(0, 0.36, 0)
-	machine.add_child(machine_drum)
-	var drum := MeshInstance3D.new()
-	var drum_mesh := CylinderMesh.new()
-	drum_mesh.top_radius = 0.09
-	drum_mesh.bottom_radius = 0.09
-	drum_mesh.height = 0.28
-	drum_mesh.radial_segments = 10
-	drum.mesh = drum_mesh
-	drum.material_override = steel
-	drum.rotation.z = PI / 2
-	machine_drum.add_child(drum)
-	machine_lamp = _mat(Color(0.8, 0.15, 0.1), 0.4)
-	machine_lamp.emission_enabled = true
-	machine_lamp.emission = Color(1.0, 0.2, 0.1)
-	_box(machine, Vector3(0.04, 0.04, 0.02), Vector3(0.11, 0.2, 0.135), machine_lamp)
-	machine.visible = false
+	for i in 6:
+		var pot := MeshInstance3D.new()
+		var pot_mesh := CylinderMesh.new()
+		pot_mesh.top_radius = rng.randf_range(0.08, 0.13)
+		pot_mesh.bottom_radius = pot_mesh.top_radius
+		pot_mesh.height = rng.randf_range(0.1, 0.2)
+		pot.mesh = pot_mesh
+		pot.material_override = _mat(Color(0.6, 0.6, 0.62).lerp(Color(0.55, 0.35, 0.22), rng.randf() * 0.5), 0.3, 0.8)
+		pot.position = Vector3(-1.25 + i * 0.5, 1.77 + pot_mesh.height / 2, -2.2)
+		add_child(pot)
+	# 吊るしたおたまやフライパン
+	_box(self, Vector3(2.4, 0.02, 0.02), Vector3(0, 2.1, -2.3), steel)
+	for i in 5:
+		var hx := -0.9 + i * 0.45
+		_box(self, Vector3(0.012, 0.3, 0.012), Vector3(hx, 1.93, -2.28), steel)
+		var pan := MeshInstance3D.new()
+		var pan_mesh := CylinderMesh.new()
+		pan_mesh.top_radius = 0.1
+		pan_mesh.bottom_radius = 0.09
+		pan_mesh.height = 0.02
+		pan.mesh = pan_mesh
+		pan.material_override = dark_steel
+		pan.rotation.x = PI / 2
+		pan.position = Vector3(hx, 1.72, -2.27)
+		add_child(pan)
 
 
 # ================================================================ ヘルパー
