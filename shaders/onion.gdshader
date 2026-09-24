@@ -2,6 +2,10 @@
 // UV / UV2 に「切る前の位置」が入っていて、そこから層（同心円の輪）を描く。
 // 外側は薄皮の表面、切り口には年輪のような層が見える。
 shader_type spatial;
+// 手作りメッシュ（onion.gd）の三角形は向き（表裏）の判定を自前で行っており、
+// 実機のGPU（Vulkan等）では逆向きの三角形が裏面としてカリングされ、
+// 一部が欠けて見えることがあったため、両面とも常に描画する。
+render_mode cull_disabled;
 
 uniform vec3 radii = vec3(0.08, 0.07, 0.072);
 uniform vec3 flesh_color : source_color = vec3(0.96, 0.95, 0.86);
