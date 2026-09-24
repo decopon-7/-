@@ -35,6 +35,7 @@ func _ready() -> void:
 	_streams["coin"] = _make(0.55, _coin)          # チャリン（報酬）
 	_streams["bell"] = _make(1.8, _bell)           # チーン（開店・仕込み終了）
 	_streams["sniff"] = _make(0.75, _sniff)        # ずびっ（涙で目が開かない）
+	_streams["voice"] = _make(1.1, _voice)         # うぅ…（涙が限界のときの声。倍音を母音の形に重ねて合成）
 	_streams["click"] = _make(0.04, _click)        # UIのクリック
 	_streams["processor"] = _make(1.0, _processor, true)  # フードプロセッサーの回転音（ループ）
 	_streams["ambience"] = _make(3.0, _ambience, true)    # 厨房の環境音（ループ）
@@ -261,6 +262,29 @@ func _sniff(t: float, _d: float) -> float:
 			var n := _noise()
 			v += (_lp(0, n, cutoff) - _lp(1, n, 500.0)) * sin(PI * x) * 1.3
 	return v
+
+
+func _voice(t: float, d: float) -> float:
+	# ため息のような「うぅ…」。実際の声は使わず、倍音を母音のフォルマント（周波数の山）
+	# の形に重ねて合成する。ピッチを下げながら「う」寄りから少し開いた響きへ変化させ、
+	# ため息らしい脱力感を出す。
+	var f0 := lerpf(185.0, 118.0, clampf(t / 0.7, 0.0, 1.0))
+	var vowel := clampf(t / d, 0.0, 1.0)
+	var f1 := lerpf(320.0, 550.0, vowel)
+	var f2 := lerpf(900.0, 1100.0, vowel)
+	var v := 0.0
+	var h := 1
+	while f0 * h < 3800.0:
+		var freq := f0 * h
+		var w := exp(-0.5 * pow((freq - f1) / 90.0, 2.0))
+		w += exp(-0.5 * pow((freq - f2) / 150.0, 2.0)) * 0.55
+		w += exp(-0.5 * pow((freq - 2500.0) / 220.0, 2.0)) * 0.2
+		v += w / h * sin(TAU * freq * t)
+		h += 1
+	var breath := _lp(2, _noise(), 1700.0) * 0.16
+	var attack := minf(1.0, t / 0.06)
+	var release := 1.0 if t < d - 0.35 else maxf(0.0, (d - t) / 0.35)
+	return (v * 0.55 + breath) * attack * release * 0.85
 
 
 func _click(t: float, _d: float) -> float:

@@ -351,6 +351,7 @@ func _update_tears(delta: float) -> void:
 	if tears >= 1.0:
 		stun = TEARS_STUN_TIME
 		Sfx.play("sniff", 0.0, 0.05)
+		Sfx.play_later(0.2, "voice", -6.0)
 		tears = 0.75
 		_holding = false
 		ui.popup(tr("POP_TEARS"), get_viewport().get_visible_rect().size * 0.5, Color(0.6, 0.8, 1.0))
