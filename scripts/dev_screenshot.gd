@@ -1,6 +1,7 @@
 # 開発用：コマンドラインから画面写真を撮って終了する。
 #   godot --path . -- --shot=mince --out=/tmp/mince.png --lang=ja
-# shot の種類: title / cut / mince / shop　（--order=soup などで注文を指定できる）
+# shot の種類: title / cut / mince / shop / fresh　（--order=soup などで注文を指定できる）
+#   fresh: 1回も切っていない、まっさらな玉ねぎ（回転・スケールが落ち着いた状態）
 extends Node
 
 var _args := {}
@@ -61,6 +62,11 @@ func _process(_delta: float) -> void:
 			main.tears = 0.85
 		if _frame == 150 and shot == "cut":
 			main._knife_x = o.global_position.x + 0.012
+	if _frame == 90 and shot == "fresh":
+		var img := get_viewport().get_texture().get_image()
+		img.save_png(_args.get("out", "user://shot.png"))
+		print("saved fresh screenshot")
+		get_tree().quit()
 	if _frame == 12 and shot == "shop":
 		main.grams_today = 300
 		main.earned_today = 45

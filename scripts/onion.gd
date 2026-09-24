@@ -411,8 +411,15 @@ func _add_cell(x0: float, x1: float, z0: float, z1: float) -> void:
 			var p11: Vector3 = grid[a + 1][b + 1]
 			if p00.y + p10.y + p01.y + p11.y < 0.0005:
 				continue
-			_tri(p00, p10, p11, _surface_normal(p00), _surface_normal(p10), _surface_normal(p11), Vector3.UP)
-			_tri(p00, p11, p01, _surface_normal(p00), _surface_normal(p11), _surface_normal(p01), Vector3.UP)
+			# 曲面なので「上向き」固定ではなく、その三角形の実際の法線を向きの基準にする
+			# （表裏の最終的な保険は onion.gdshader の cull_disabled 側だが、
+			#   向き判定自体もできるだけ正確にしておく）
+			var n00 := _surface_normal(p00)
+			var n10 := _surface_normal(p10)
+			var n01 := _surface_normal(p01)
+			var n11 := _surface_normal(p11)
+			_tri(p00, p10, p11, n00, n10, n11, (n00 + n10 + n11).normalized())
+			_tri(p00, p11, p01, n00, n11, n01, (n00 + n11 + n01).normalized())
 
 	# 切り口（4辺）
 	var left := []
