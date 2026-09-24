@@ -7,15 +7,14 @@ const LOCALES := ["ja", "en"]
 
 const STRINGS := {
 	"TITLE_NAME": {"ja": "涙のみじん切り", "en": "Onion Tears"},
-	"TITLE_SUB": {"ja": "泣いても刻め。開店まであと少し。", "en": "Chop through the tears. The diner opens soon."},
+	"TITLE_SUB": {"ja": "涙をふきながら、今日も玉ねぎと向き合う。", "en": "Wipe your tears, and face the onions again today."},
 	"BTN_CONTINUE": {"ja": "つづきから（%d日目）", "en": "Continue (Day %d)"},
 	"BTN_NEW_GAME": {"ja": "はじめから", "en": "New Game"},
 	"BTN_LANGUAGE": {"ja": "Language: 日本語", "en": "言語: English"},
 	"BTN_QUIT": {"ja": "終了", "en": "Quit"},
 
 	"HUD_DAY": {"ja": "%d日目の仕込み", "en": "Day %d prep"},
-	"HUD_TIME": {"ja": "開店まで %d:%02d", "en": "Opening in %d:%02d"},
-	"HUD_QUOTA": {"ja": "ノルマ %d / %d g", "en": "Quota %d / %d g"},
+	"HUD_TODAY": {"ja": "本日 %d g", "en": "%d g today"},
 	"HUD_MONEY": {"ja": "所持金 %d 円", "en": "Funds $%d"},
 	"HUD_TEARS": {"ja": "涙", "en": "Tears"},
 	"STEP_LENGTHWISE": {"ja": "縦に切り込みを入れる", "en": "Slice lengthwise"},
@@ -27,7 +26,7 @@ const STRINGS := {
 		"en": "Move mouse: knife position   LMB / Space (hold OK): chop   Esc: menu",
 	},
 	"HUD_GAP_HINT": {"ja": "赤い印のところの間隔が広すぎます", "en": "Cuts too far apart at the red marks"},
-	"HUD_END_SHIFT": {"ja": "早めに切り上げる", "en": "Finish early"},
+	"HUD_END_SHIFT": {"ja": "今日はここまで", "en": "Finish for today"},
 	"POP_ONION": {"ja": "+%d g　+%d 円", "en": "+%d g  +$%d"},
 	"POP_PROCESSOR": {"ja": "プロセッサー +%d g", "en": "Processor +%d g"},
 	"POP_TEARS": {"ja": "目が、目がぁ…！", "en": "My eyes...!"},
@@ -46,16 +45,10 @@ const STRINGS := {
 	"STYLE_FINE": {"ja": "極みじん（とても細かく）", "en": "Extra-fine mince"},
 	"STEP_SLICE": {"ja": "薄く切る", "en": "Slice thinly"},
 
-	"END_OK": {"ja": "ノルマ達成！", "en": "Quota met!"},
-	"END_FAIL": {"ja": "ノルマ未達…", "en": "Quota missed..."},
+	"END_TITLE": {"ja": "本日の仕込み、お疲れさまでした", "en": "That's a wrap for today"},
 	"END_BODY": {
-		"ja": "刻んだ量: %d g（ノルマ %d g）\n今日の稼ぎ: %d 円",
-		"en": "Minced: %d g (quota %d g)\nEarned today: $%d",
-	},
-	"END_BONUS": {"ja": "達成ボーナス: +%d 円", "en": "Quota bonus: +$%d"},
-	"END_RETRY_NOTE": {
-		"ja": "明日は同じノルマに再挑戦です。",
-		"en": "You will retry the same quota tomorrow.",
+		"ja": "刻んだ量: %d g\n今日の稼ぎ: %d 円",
+		"en": "Minced: %d g\nEarned today: $%d",
 	},
 
 	"SHOP_TITLE": {"ja": "厨房道具屋", "en": "Kitchen Supply"},

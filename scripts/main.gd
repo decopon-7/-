@@ -18,7 +18,6 @@ const TEARS_DECAY := 0.045
 const TEARS_STUN_TIME := 2.2
 
 var state := State.TITLE
-var time_left := 0.0
 var grams_today := 0
 var earned_today := 0
 var processor_timer := 0.0
@@ -97,7 +96,6 @@ func _set_state(s: State) -> void:
 
 
 func _start_day() -> void:
-	time_left = GameState.DAY_LENGTH
 	grams_today = 0
 	earned_today = 0
 	processor_timer = 0.0
@@ -115,34 +113,23 @@ func _start_day() -> void:
 func _end_day() -> void:
 	if state != State.PLAYING:
 		return
-	var quota := GameState.quota_for_day()
-	var success := grams_today >= quota
-	var bonus := 0
-	if success:
-		bonus = GameState.quota_bonus()
-		GameState.money += bonus
-	ui.show_day_end(success, grams_today, quota, earned_today, bonus)
+	ui.show_day_end(grams_today, earned_today)
 	Sfx.play("bell", -2.0, 0.0)
 	Sfx.set_loop("processor", false)
-	if success:
-		GameState.day += 1
+	GameState.day += 1
 	GameState.save_game()
 	_set_state(State.DAY_END)
 
 
 func _process(delta: float) -> void:
 	if state == State.PLAYING:
-		time_left -= delta
 		_update_tears(delta)
 		_update_processor(delta)
-		Sfx.set_music_tempo(1.08 if time_left < 20.0 else 1.0)
 		Sfx.set_loop("processor", processor.visible, -16.0)
 		_update_chopping(delta)
 		_update_gap_markers()
-		ui.update_hud(time_left, grams_today, _step_text(), onion.get_progress() if onion else 1.0,
+		ui.update_hud(grams_today, _step_text(), onion.get_progress() if onion else 1.0,
 				tears, not gap_markers.is_empty() and gap_markers[0].visible)
-		if time_left <= 0.0:
-			_end_day()
 	else:
 		for m in gap_markers:
 			m.visible = false

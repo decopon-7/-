@@ -24,9 +24,7 @@ var day_end_screen: Control
 var pause_screen: Control
 
 var _day_label: Label
-var _time_label: Label
-var _quota_label: Label
-var _quota_bar: ProgressBar
+var _today_label: Label
 var _money_label: Label
 var _step_label: Label
 var _step_bar: ProgressBar
@@ -109,35 +107,22 @@ func refresh_texts() -> void:
 	refresh_shop()
 
 
-func update_hud(time_left: float, grams_today: int, step_text: String, step_progress: float,
+func update_hud(grams_today: int, step_text: String, step_progress: float,
 		tears: float, wide_gaps: bool) -> void:
-	var quota := GameState.quota_for_day()
-	var secs := int(ceil(maxf(time_left, 0.0)))
 	_day_label.text = tr("HUD_DAY") % GameState.day
-	_time_label.text = tr("HUD_TIME") % [secs / 60, secs % 60]
-	_time_label.modulate = COL_BAD if time_left < 20.0 else COL_TEXT
-	_quota_label.text = tr("HUD_QUOTA") % [grams_today, quota]
-	_quota_bar.max_value = quota
-	_quota_bar.value = grams_today
-	_quota_bar.modulate = COL_GOOD if grams_today >= quota else Color.WHITE
+	_today_label.text = tr("HUD_TODAY") % grams_today
 	_money_label.text = tr("HUD_MONEY") % GameState.money
 	_step_label.text = step_text
 	_step_bar.value = step_progress * 100.0
 	_gap_hint.visible = wide_gaps
 	_tears_bar.value = tears * 100.0
 	_tears_bar.modulate = COL_BAD if tears > 0.8 else Color.WHITE
-	_end_shift_button.visible = grams_today >= quota
 
 
-func show_day_end(success: bool, grams: int, quota: int, earned: int, bonus: int) -> void:
-	_end_title.text = tr("END_OK") if success else tr("END_FAIL")
-	_end_title.modulate = COL_GOOD if success else COL_BAD
-	var body := tr("END_BODY") % [grams, quota, earned]
-	if success:
-		body += "\n" + tr("END_BONUS") % bonus
-	else:
-		body += "\n" + tr("END_RETRY_NOTE")
-	_end_body.text = body
+func show_day_end(grams: int, earned: int) -> void:
+	_end_title.text = tr("END_TITLE")
+	_end_title.modulate = COL_ACCENT
+	_end_body.text = tr("END_BODY") % [grams, earned]
 	refresh_shop()
 	show_only(day_end_screen)
 
@@ -192,11 +177,9 @@ func _build_hud() -> Control:
 	box.add_theme_constant_override("separation", 6)
 	panel.add_child(box)
 	_day_label = _label(30, COL_ACCENT)
-	_time_label = _label(24)
-	_quota_label = _label(22)
-	_quota_bar = _bar()
+	_today_label = _label(24)
 	_money_label = _label(22)
-	for n in [_day_label, _time_label, _quota_label, _quota_bar, _money_label]:
+	for n in [_day_label, _today_label, _money_label]:
 		box.add_child(n)
 
 	var step_box := VBoxContainer.new()

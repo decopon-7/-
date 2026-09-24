@@ -5,8 +5,6 @@ extends Node
 const I18nTable := preload("res://scripts/i18n.gd")
 const SAVE_PATH := "user://save.json"
 
-## 1日の仕込み時間（秒）
-const DAY_LENGTH := 150.0
 ## 包丁を振り下ろせる間隔（秒）
 const CHOP_COOLDOWN := 0.11
 
@@ -69,11 +67,6 @@ func has_save() -> bool:
 
 # ---- バランス調整用の数式はここに集約 ----
 
-## その日のノルマ（グラム）
-func quota_for_day(d: int = day) -> int:
-	return 200 + d * 100
-
-
 ## 100gあたりの報酬
 func price_per_100g() -> int:
 	return 15 + levels["contract"] * 6
@@ -91,10 +84,6 @@ func orders_for_day(d: int = day) -> Array:
 ## 今日はじめて出てくる注文（なければ空）
 func new_orders_today() -> Array:
 	return ORDER_IDS.filter(func(id): return ORDERS[id]["day"] == day)
-
-
-func quota_bonus() -> int:
-	return int(quota_for_day() / 10.0)
 
 
 ## みじん切り工程で包丁が届く幅（片側・メートル）

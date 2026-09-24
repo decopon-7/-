@@ -61,7 +61,7 @@ func _process(_delta: float) -> void:
 		if _frame == 150 and shot == "cut":
 			main._knife_x = o.global_position.x + 0.012
 	if _frame == 12 and shot == "shop":
-		main.grams_today = GameState.quota_for_day()
+		main.grams_today = 300
 		main.earned_today = 45
 		main._end_day()
 	if _frame == 220:
