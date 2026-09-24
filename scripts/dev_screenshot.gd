@@ -50,7 +50,8 @@ func _process(_delta: float) -> void:
 		if _frame == 90:
 			# 工程2: 横に刻む（cut では途中まで）
 			var n := int(ceil(o.rz * 2.0 / 0.02))
-			var upto := n if shot == "mince" else n / 2
+			@warning_ignore("integer_division")
+			var upto := n if shot == "mince" else n / 2  # 整数同士の割り算でOK（半分の個数）
 			for i in range(1, upto):
 				main.chop_at(o.global_position.x - o.rz + i * o.rz * 2.0 / n)
 		if _frame == 150 and shot == "mince":
