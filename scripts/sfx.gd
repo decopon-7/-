@@ -12,7 +12,7 @@ extends Node
 const RATE := 22050
 const POOL_SIZE := 10
 const MUSIC_PATH := "res://audio/bgm_bistro.wav"
-const MUSIC_VOLUME_DB := -9.0
+const MUSIC_VOLUME_DB := -11.0
 
 var _streams := {}
 var _pool: Array[AudioStreamPlayer] = []
