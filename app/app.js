@@ -938,7 +938,7 @@ function renderMeal() {
     return;
   }
   if (!meals || meals.day !== dateKey(Date.now())) {
-    view.innerHTML = '<p class="empty-note">読み込んでいます…</p>';
+    view.innerHTML = '<div class="loading-note"><div class="spinner"></div><p>読み込んでいます…</p></div>';
     loadMeals();
     return;
   }
@@ -1055,7 +1055,7 @@ function renderRecord() {
     </div>`;
 
   if (data === null) {
-    view.innerHTML = `${nav}<p class="empty-note">読み込んでいます…</p>`;
+    view.innerHTML = `${nav}<div class="loading-note"><div class="spinner"></div><p>読み込んでいます…</p></div>`;
     return;
   }
 
