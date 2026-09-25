@@ -17,6 +17,15 @@ const TEARS_PER_CHOP := 0.012
 const TEARS_DECAY := 0.045
 const TEARS_STUN_TIME := 2.2
 
+## 手応え：カメラの揺れ量（trauma。0〜1で蓄積し、揺れ幅は trauma^2）
+const SHAKE_CHOP := 0.13
+const SHAKE_MINCE := 0.05
+const SHAKE_TEARS_MAX := 0.22
+const SHAKE_ORDER_DONE := 0.3
+## 1品完成した瞬間、ごく短く時間の流れを遅くする「間」
+const HIT_STOP_DURATION := 0.07
+const HIT_STOP_SCALE := 0.15
+
 var state := State.TITLE
 var grams_today := 0
 var earned_today := 0
@@ -45,6 +54,13 @@ var _cooldown := 0.0
 var _holding := false
 var _chips_time := 0.0
 var _gap_mat: StandardMaterial3D
+
+## 手応え（カメラの微振動・包丁のスクワッシュ・きらめき演出）
+var knife_visual: Node3D
+var sparkle: CPUParticles3D
+var camera_trauma := 0.0
+var _camera_base_transform: Transform3D
+var _hitstop_id := 0
 
 
 func _ready() -> void:
@@ -136,6 +152,7 @@ func _process(delta: float) -> void:
 		Sfx.set_loop("processor", false)
 	_update_knife_pose(delta)
 	_update_tear_overlay(delta)
+	_update_camera_shake(delta)
 	_chips_time -= delta
 	chips.emitting = _chips_time > 0.0
 
@@ -207,6 +224,8 @@ func chop_at(x: float) -> bool:
 	tears += (TEARS_PER_CHOP if mincing else TEARS_PER_CUT) * GameState.tear_multiplier()
 	chips.global_position = Vector3(x, BOARD_TOP + 0.03, WORK_POS.z)
 	_chips_time = 0.06
+	_shake(SHAKE_MINCE if mincing else SHAKE_CHOP)
+	_squash_knife()
 	return true
 
 
@@ -268,6 +287,12 @@ func _on_onion_phase(p: int) -> void:
 		return
 	Sfx.play("coin", -6.0, 0.0)
 	Sfx.play_later(0.65, "plop", -2.0)
+	_shake(SHAKE_ORDER_DONE)
+	_hit_stop(HIT_STOP_DURATION, HIT_STOP_SCALE)
+	if sparkle:
+		sparkle.global_position = onion.global_position + Vector3(0, 0.04, 0)
+		sparkle.restart()
+		sparkle.emitting = true
 	var done := onion
 	onion = null
 	var pay := GameState.pay_for(done.grams, GameState.ORDERS[done.order_id]["pay"])
@@ -354,6 +379,7 @@ func _update_tears(delta: float) -> void:
 		Sfx.play_later(0.2, "voice", -6.0)
 		tears = 0.75
 		_holding = false
+		_shake(SHAKE_TEARS_MAX)
 		ui.popup(tr("POP_TEARS"), get_viewport().get_visible_rect().size * 0.5, Color(0.6, 0.8, 1.0))
 
 
@@ -427,6 +453,50 @@ func _on_upgrade_bought(id: String) -> void:
 		ui.refresh_shop()
 
 
+# ================================================================ 手応え（カメラ・スクワッシュ・きらめき）
+
+## trauma（0〜1）をためる。1フレームで指数的に減衰し、揺れ幅は trauma^2 でなめらかに立ち上がる
+func _shake(amount: float) -> void:
+	camera_trauma = clampf(camera_trauma + amount, 0.0, 1.0)
+
+
+func _update_camera_shake(delta: float) -> void:
+	camera_trauma = maxf(0.0, camera_trauma - delta * 2.4)
+	var shake := camera_trauma * camera_trauma
+	if shake < 0.0004:
+		camera.global_transform = _camera_base_transform
+		return
+	var offset := Vector3(rng.randf_range(-1.0, 1.0), rng.randf_range(-1.0, 1.0), 0.0) * 0.012 * shake
+	var roll := rng.randf_range(-1.0, 1.0) * deg_to_rad(1.6) * shake
+	var t := _camera_base_transform.translated_local(offset)
+	t.basis = t.basis.rotated(t.basis.z.normalized(), roll)
+	camera.global_transform = t
+
+
+## 包丁が当たった瞬間、ぺしゃっと潰れてすぐ弾んで戻る（スクワッシュ＆ストレッチ）
+func _squash_knife() -> void:
+	if knife_visual == null:
+		return
+	knife_visual.scale = Vector3(1.15, 0.72, 1.1)
+	var tw := knife_visual.create_tween()
+	tw.tween_property(knife_visual, "scale", Vector3.ONE, 0.2).set_trans(Tween.TRANS_ELASTIC).set_ease(Tween.EASE_OUT)
+
+
+## ごく短く時間の流れを遅くして、決まった瞬間に一拍の「間」を作る
+func _hit_stop(duration: float, scale: float) -> void:
+	_hitstop_id += 1
+	var id := _hitstop_id
+	Engine.time_scale = scale
+	var timer := get_tree().create_timer(duration, true, false, true)  # ignore_time_scale
+	timer.timeout.connect(func():
+		if id == _hitstop_id:
+			Engine.time_scale = 1.0)
+
+
+func _exit_tree() -> void:
+	Engine.time_scale = 1.0
+
+
 # ================================================================ 包丁・機械の組み立て
 
 func _build_knife() -> void:
@@ -434,10 +504,14 @@ func _build_knife() -> void:
 	var wood := _mat(Color(0.2, 0.13, 0.08), 0.6)
 	knife = Node3D.new()
 	add_child(knife)
+	# 見た目だけを入れ子にしておき、当たった瞬間のスクワッシュはここだけを動かす
+	# （knife 自身の位置・傾きは _update_knife_pose が管理しているため）
+	knife_visual = Node3D.new()
+	knife.add_child(knife_visual)
 	# 刃は Z 方向（奥〜手前）に伸びる。原点が刃先の線。
-	_box(knife, Vector3(0.003, 0.05, 0.22), Vector3(0, 0.025, -0.04), steel)
-	_box(knife, Vector3(0.008, 0.03, 0.015), Vector3(0, 0.035, 0.075), steel)
-	_box(knife, Vector3(0.018, 0.024, 0.12), Vector3(0, 0.037, 0.14), wood)
+	_box(knife_visual, Vector3(0.003, 0.05, 0.22), Vector3(0, 0.025, -0.04), steel)
+	_box(knife_visual, Vector3(0.008, 0.03, 0.015), Vector3(0, 0.035, 0.075), steel)
+	_box(knife_visual, Vector3(0.018, 0.024, 0.12), Vector3(0, 0.037, 0.14), wood)
 
 	chips = CPUParticles3D.new()
 	var chip_mesh := BoxMesh.new()
@@ -454,6 +528,33 @@ func _build_knife() -> void:
 	chips.initial_velocity_max = 0.45
 	chips.gravity = Vector3(0, -4.0, 0)
 	add_child(chips)
+
+	# 1品完成したときの、ぱっと散るきらめき演出
+	sparkle = CPUParticles3D.new()
+	var sparkle_mesh := QuadMesh.new()
+	sparkle_mesh.size = Vector2(0.012, 0.012)
+	var sparkle_mat := StandardMaterial3D.new()
+	sparkle_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	sparkle_mat.albedo_color = Color(1.0, 0.92, 0.55)
+	sparkle_mat.billboard_mode = BaseMaterial3D.BILLBOARD_ENABLED
+	sparkle_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	sparkle_mesh.material = sparkle_mat
+	sparkle.mesh = sparkle_mesh
+	sparkle.amount = 22
+	sparkle.lifetime = 0.5
+	sparkle.one_shot = true
+	sparkle.explosiveness = 1.0
+	sparkle.local_coords = false
+	sparkle.emitting = false
+	sparkle.direction = Vector3(0, 1, 0)
+	sparkle.spread = 180.0
+	sparkle.initial_velocity_min = 0.3
+	sparkle.initial_velocity_max = 0.9
+	sparkle.gravity = Vector3(0, -1.6, 0)
+	sparkle.scale_amount_min = 0.5
+	sparkle.scale_amount_max = 1.4
+	sparkle.color_ramp = _fade_out_gradient()
+	add_child(sparkle)
 
 	_gap_mat = StandardMaterial3D.new()
 	_gap_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
@@ -512,6 +613,7 @@ func _build_environment() -> void:
 	camera.fov = 50.0
 	add_child(camera)
 	camera.look_at_from_position(Vector3(0, 1.5, 0.52), Vector3(0, 0.965, -0.01))
+	_camera_base_transform = camera.global_transform
 
 	# 吊り下げランプ
 	var lamp_root := Node3D.new()
@@ -658,6 +760,15 @@ func _build_kitchen() -> void:
 		pan.rotation.x = PI / 2
 		pan.position = Vector3(hx, 1.72, -2.27)
 		add_child(pan)
+
+
+## 透明にフェードアウトするグラデーション（パーティクルの寿命後半で消えるように）
+func _fade_out_gradient() -> Gradient:
+	var g := Gradient.new()
+	g.set_color(0, Color(1, 1, 1, 1))
+	g.set_color(1, Color(1, 1, 1, 0))
+	g.add_point(0.6, Color(1, 1, 1, 1))
+	return g
 
 
 # ================================================================ ヘルパー

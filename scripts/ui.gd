@@ -26,6 +26,7 @@ var pause_screen: Control
 var _day_label: Label
 var _today_label: Label
 var _money_label: Label
+var _money_shown := -1
 var _step_label: Label
 var _step_bar: ProgressBar
 var _gap_hint: Label
@@ -75,6 +76,7 @@ func _ready() -> void:
 	title_screen = _build_title()
 	root.add_child(title_screen)
 	refresh_texts()
+	_money_shown = GameState.money  # 起動時は0から数え上げず、いきなり現在値で表示
 
 
 # ---------------------------------------------------------------- 表示切替
@@ -107,11 +109,20 @@ func refresh_texts() -> void:
 	refresh_shop()
 
 
+func _process(delta: float) -> void:
+	# 所持金はいきなり切り替わらず、数字がパラパラと数え上がる/下がる演出
+	if _money_shown != GameState.money and _money_label:
+		var diff := GameState.money - _money_shown
+		var step := maxi(1, roundi(absf(diff) * delta * 12.0))
+		step = mini(step, absi(diff))
+		_money_shown += step if diff > 0 else -step
+		_money_label.text = tr("HUD_MONEY") % _money_shown
+
+
 func update_hud(grams_today: int, step_text: String, step_progress: float,
 		tears: float, wide_gaps: bool) -> void:
 	_day_label.text = tr("HUD_DAY") % GameState.day
 	_today_label.text = tr("HUD_TODAY") % grams_today
-	_money_label.text = tr("HUD_MONEY") % GameState.money
 	_step_label.text = step_text
 	_step_bar.value = step_progress * 100.0
 	_gap_hint.visible = wide_gaps
@@ -141,11 +152,8 @@ func refresh_shop() -> void:
 		else:
 			button.text = tr("SHOP_BUY") % GameState.upgrade_cost(id)
 			button.disabled = not GameState.can_buy(id)
-	if _money_label:
-		_money_label.text = tr("HUD_MONEY") % GameState.money
 
-
-## 画面上の位置に「+100 g」などを浮かび上がらせる
+## 画面上の位置に「+100 g」などを、弾みをつけてポップアップさせる
 func popup(text: String, screen_pos: Vector2, color: Color = COL_ACCENT) -> void:
 	var label := Label.new()
 	label.text = text
@@ -154,11 +162,17 @@ func popup(text: String, screen_pos: Vector2, color: Color = COL_ACCENT) -> void
 	label.add_theme_color_override("font_outline_color", Color.BLACK)
 	label.add_theme_constant_override("outline_size", 8)
 	label.position = screen_pos - Vector2(60, 20)
+	label.pivot_offset = Vector2(60, 20)
+	label.scale = Vector2.ZERO
 	label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	hud.add_child(label)
+	# 飛び出すように少し大きく弾んでから落ち着く（バックイージングでオーバーシュート）
+	var pop := label.create_tween()
+	pop.tween_property(label, "scale", Vector2.ONE * 1.15, 0.16).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	pop.tween_property(label, "scale", Vector2.ONE, 0.12).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
 	var tw := label.create_tween().set_parallel()
 	tw.tween_property(label, "position:y", label.position.y - 90.0, 1.1).set_ease(Tween.EASE_OUT)
-	tw.tween_property(label, "modulate:a", 0.0, 1.1).set_ease(Tween.EASE_IN)
+	tw.tween_property(label, "modulate:a", 0.0, 1.1).set_delay(0.15).set_ease(Tween.EASE_IN)
 	tw.chain().tween_callback(label.queue_free)
 
 

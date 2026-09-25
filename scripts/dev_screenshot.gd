@@ -1,7 +1,8 @@
 # 開発用：コマンドラインから画面写真を撮って終了する。
 #   godot --path . -- --shot=mince --out=/tmp/mince.png --lang=ja
-# shot の種類: title / cut / mince / shop / fresh　（--order=soup などで注文を指定できる）
+# shot の種類: title / cut / mince / shop / fresh / complete　（--order=soup などで注文を指定できる）
 #   fresh: 1回も切っていない、まっさらな玉ねぎ（回転・スケールが落ち着いた状態）
+#   complete: 1品を完成させ、ヒットストップ・きらめき演出まで通す
 extends Node
 
 var _args := {}
@@ -41,7 +42,7 @@ func _process(_delta: float) -> void:
 			main.onion = null
 			main.order_queue.push_front(_args["order"])
 			main._spawn_onion(false)
-	if shot in ["cut", "mince"]:
+	if shot in ["cut", "mince", "complete"]:
 		var o: Onion = main.onion
 		if _frame == 30:
 			# 工程1: 縦の切り込みを等間隔に
@@ -60,6 +61,19 @@ func _process(_delta: float) -> void:
 				for i in 14:
 					main.chop_at(o.global_position.x - 0.07 + i * 0.01 + k * 0.003)
 			main.tears = 0.85
+		if _frame == 30 and shot == "complete":
+			# 工程1: 一気に細かく切り込みを入れる
+			for i in range(1, 20):
+				main.chop_at(o.global_position.x - o.rx + i * o.rx * 2.0 / 20)
+		if _frame == 90 and shot == "complete":
+			# 工程2: 一気に細かく刻む
+			for i in range(1, 20):
+				main.chop_at(o.global_position.x - o.rz + i * o.rz * 2.0 / 20)
+		if _frame == 150 and shot == "complete":
+			# 目標サイズ以下になるまで徹底的に刻んで、完成（ヒットストップ・きらめき）まで通す
+			for pass_i in 30:
+				for i in 20:
+					main.chop_at(o.global_position.x - 0.08 + i * 0.008)
 		if _frame == 150 and shot == "cut":
 			main._knife_x = o.global_position.x + 0.012
 	if _frame == 90 and shot == "fresh":
