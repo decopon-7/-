@@ -5,6 +5,7 @@
 // ・職員は端末で名前を選ぶだけ（パスワードなし）
 // ・設定の変更は、管理者がパスワードを入れて「管理者モード」にした時だけ。10分で自動で戻る
 import { hashPassword, verifyPassword, burnPasswordTime, newToken, sha256Hex, PASSWORD_MIN } from './auth.js';
+import { checkSnapshot } from '../app/meals.js';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 // 使っている端末は登録が続き、90日使わなかった端末は登録が切れる
@@ -20,6 +21,7 @@ const OP_PAST_MS = 36 * 60 * 60 * 1000;
 const OP_FUTURE_MS = 5 * 60 * 1000;
 const MAX_OPS = 200;
 const POSTURES = ['supine', 'right', 'left', 'prone'];
+const FOOD_CATEGORIES_MAX = 20;
 // 職員（名前を選ぶだけの人）の password_hash。どのパスワードとも一致しない
 const NO_PASSWORD = '!';
 
@@ -82,6 +84,11 @@ function id(v) {
 
 function password(v) {
   if (typeof v !== 'string' || v.length < PASSWORD_MIN || v.length > 128) fail(400, 'weak_password');
+  return v;
+}
+
+function dayParam(v) {
+  if (typeof v !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(v)) fail(400, 'invalid_input');
   return v;
 }
 
@@ -336,6 +343,117 @@ export function createApi({ db, now = () => Date.now() }) {
     return json({ results, ...(await dayData(me, dayOf(now()))) });
   }
 
+
+  // ---------- 給食の未経験食材チェック（docs/meal-check-design.md） ----------
+
+  async function mealContext(me, classId, day) {
+    const children = await all(
+      'SELECT id FROM children WHERE facility_id = ? AND class_id = ? AND active = 1', me.facility_id, classId);
+    const menu = (await all('SELECT food_id FROM menu_items WHERE class_id = ? AND day = ? AND facility_id = ?',
+      classId, day, me.facility_id)).map((r) => r.food_id);
+    const childFoods = await all(
+      `SELECT child_id AS childId, food_id AS foodId, status FROM child_foods
+        WHERE facility_id = ? AND child_id IN (SELECT id FROM children WHERE facility_id = ? AND class_id = ?)`,
+      me.facility_id, me.facility_id, classId);
+    return { children, menu, childFoods };
+  }
+
+  async function getMeals(me, url) {
+    const day = dayParam(url.searchParams.get('day') || dayOf(now()));
+    const foods = await all(
+      'SELECT id, name, category, sort, active FROM foods WHERE facility_id = ? ORDER BY sort, category, name', me.facility_id);
+    const childFoods = await all(
+      'SELECT child_id AS childId, food_id AS foodId, status FROM child_foods WHERE facility_id = ?', me.facility_id);
+    const items = await all('SELECT class_id, food_id FROM menu_items WHERE facility_id = ? AND day = ?', me.facility_id, day);
+    const menuRows = await all(
+      'SELECT class_id AS classId, updated_at AS updatedAt, recorder_id AS recorderId FROM menus WHERE facility_id = ? AND day = ?',
+      me.facility_id, day);
+    const menus = menuRows.map((m) => ({ ...m, foodIds: items.filter((i) => i.class_id === m.classId).map((i) => i.food_id) }));
+    const checks = (await all(
+      `SELECT id, class_id AS classId, t, checker1_id AS checker1Id, checker2_id AS checker2Id, snapshot
+         FROM meal_checks WHERE facility_id = ? AND day = ? ORDER BY t`, me.facility_id, day))
+      .map((c) => ({ ...c, snapshot: JSON.parse(c.snapshot) }));
+    return json({ day, foods: foods.map((f) => ({ ...f, active: !!f.active })), childFoods, menus, checks });
+  }
+
+  async function classOfFacility(me, classId) {
+    const c = await one('SELECT id FROM classes WHERE id = ? AND facility_id = ?', id(classId), me.facility_id);
+    if (!c) fail(404, 'class_not_found');
+    return c.id;
+  }
+
+  // 献立は「食材ごとに1つ増やす／減らす」操作にしている（丸ごと置き換えではない）。
+  // 全食材を毎回まるごと送る作りだと、連続でタップした時にあとから送ったはずの内容が
+  // 消えることがあった（実際に確認して直した）。1件ずつなら、届く順番が入れ替わっても結果は変わらない
+  async function toggleMenuFood(me, request) {
+    const b = await body(request);
+    const classId = await classOfFacility(me, b.classId);
+    const day = dayParam(b.day);
+    const food = await one('SELECT id FROM foods WHERE id = ? AND facility_id = ?', id(b.foodId), me.facility_id);
+    if (!food) fail(404, 'food_not_found');
+    const recorder = await recorderOf(me, b.recorderId);
+    if (b.on) {
+      await run(`INSERT INTO menu_items (facility_id, class_id, day, food_id) VALUES (?, ?, ?, ?)
+                 ON CONFLICT(class_id, day, food_id) DO NOTHING`, me.facility_id, classId, day, food.id);
+    } else {
+      await run('DELETE FROM menu_items WHERE class_id = ? AND day = ? AND food_id = ? AND facility_id = ?',
+        classId, day, food.id, me.facility_id);
+    }
+    await run(`INSERT INTO menus (facility_id, class_id, day, updated_at, recorder_id, device_name) VALUES (?, ?, ?, ?, ?, ?)
+               ON CONFLICT(class_id, day) DO UPDATE SET updated_at = excluded.updated_at,
+                 recorder_id = excluded.recorder_id, device_name = excluded.device_name`,
+      me.facility_id, classId, day, now(), recorder, me.device_name);
+    return json({ ok: true });
+  }
+
+  async function setChildFood(me, request) {
+    const b = await body(request);
+    const child = await one('SELECT id FROM children WHERE id = ? AND facility_id = ?', id(b.childId), me.facility_id);
+    if (!child) fail(404, 'child_not_found');
+    const food = await one('SELECT id FROM foods WHERE id = ? AND facility_id = ?', id(b.foodId), me.facility_id);
+    if (!food) fail(404, 'food_not_found');
+    if (!['none', 'ok', 'ng'].includes(b.status)) fail(400, 'invalid_input');
+    const recorder = await recorderOf(me, b.recorderId);
+    const t = now();
+    if (b.status === 'none') {
+      await run('DELETE FROM child_foods WHERE child_id = ? AND food_id = ?', child.id, food.id);
+    } else {
+      await run(`INSERT INTO child_foods (child_id, food_id, facility_id, status, updated_at) VALUES (?, ?, ?, ?, ?)
+                 ON CONFLICT(child_id, food_id) DO UPDATE SET status = excluded.status, updated_at = excluded.updated_at`,
+        child.id, food.id, me.facility_id, b.status, t);
+    }
+    await run(`INSERT INTO child_food_log (facility_id, child_id, food_id, status, recorder_id, device_name, at)
+               VALUES (?, ?, ?, ?, ?, ?, ?)`, me.facility_id, child.id, food.id, b.status, recorder, me.device_name, t);
+    return json({ ok: true });
+  }
+
+  // 配膳前の確認（2名）。対象の子・食材はサーバーで計算し直して残す
+  async function mealCheck(me, request) {
+    const b = await body(request);
+    const classId = await classOfFacility(me, b.classId);
+    if (!Array.isArray(b.checkerIds) || b.checkerIds.length !== 2) fail(400, 'two_checkers_required');
+    const [c1, c2] = [await recorderOf(me, b.checkerIds[0]), await recorderOf(me, b.checkerIds[1])];
+    if (c1 === c2) fail(400, 'two_checkers_required');
+    const day = dayOf(now());
+    const ctx = await mealContext(me, classId, day);
+    if (!ctx.menu.length) fail(400, 'no_menu');
+    const snapshot = checkSnapshot(ctx.children, ctx.childFoods, ctx.menu);
+    await run(`INSERT INTO meal_checks (id, facility_id, class_id, day, t, checker1_id, checker2_id, device_name, snapshot, created_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(id) DO NOTHING`,
+      id(b.id), me.facility_id, classId, day, now(), c1, c2, me.device_name, JSON.stringify(snapshot), now());
+    return json({ ok: true, snapshot });
+  }
+
+  async function childFoodHistory(me, url) {
+    const child = await one('SELECT id FROM children WHERE id = ? AND facility_id = ?',
+      id(url.searchParams.get('childId') || ''), me.facility_id);
+    if (!child) fail(404, 'child_not_found');
+    const rows = await all(
+      `SELECT food_id AS foodId, status, recorder_id AS recorderId, device_name AS deviceName, at
+         FROM child_food_log WHERE child_id = ? AND facility_id = ? ORDER BY at DESC LIMIT 200`, child.id, me.facility_id);
+    return json({ history: rows });
+  }
+
   // ---------- 管理（管理者モードのみ） ----------
 
   async function admin(me, request, parts) {
@@ -367,6 +485,39 @@ export function createApi({ db, now = () => Date.now() }) {
         me.facility_id, targetId, me.token_hash);
       await audit(me, 'revoke_device', { id: targetId });
       return json({ ok: true });
+    }
+
+
+    if (resource === 'foods') {
+      const b = await body(request);
+      if (method === 'POST' && !targetId) {
+        // まとめて登録（園の食材チェック表の項目を貼り付ける）。すでにある名前は飛ばす
+        if (!Array.isArray(b.names) || !b.names.length || b.names.length > 300) fail(400, 'invalid_input');
+        const category = b.category ? text(b.category, FOOD_CATEGORIES_MAX) : '';
+        const base = (await one('SELECT COALESCE(MAX(sort), 0) AS m FROM foods WHERE facility_id = ?', me.facility_id)).m;
+        let added = 0;
+        for (const [i, raw] of b.names.entries()) {
+          const name = text(raw, 30);
+          const r = await run(`INSERT INTO foods (id, facility_id, name, category, sort, created_at) VALUES (?, ?, ?, ?, ?, ?)
+                               ON CONFLICT(facility_id, name) DO NOTHING`,
+            crypto.randomUUID(), me.facility_id, name, category, base + i + 1, now());
+          added += r.meta?.changes ?? 0;
+        }
+        await audit(me, 'create_foods', { count: added });
+        return json({ added });
+      }
+      if (method === 'PATCH' && targetId) {
+        const cur = await one('SELECT * FROM foods WHERE id = ? AND facility_id = ?', id(targetId), me.facility_id);
+        if (!cur) fail(404, 'not_found');
+        await run('UPDATE foods SET name = ?, category = ?, sort = ?, active = ? WHERE id = ?',
+          b.name !== undefined ? text(b.name, 30) : cur.name,
+          b.category !== undefined ? (b.category ? text(b.category, FOOD_CATEGORIES_MAX) : '') : cur.category,
+          b.sort !== undefined ? int(b.sort, 0, 9999) : cur.sort,
+          b.active !== undefined ? (b.active ? 1 : 0) : cur.active,
+          cur.id);
+        await audit(me, 'update_food', { id: cur.id, fields: Object.keys(b) });
+        return json({ ok: true });
+      }
     }
 
     if (resource === 'classes') {
@@ -490,6 +641,11 @@ export function createApi({ db, now = () => Date.now() }) {
     if (path === '/api/bootstrap' && method === 'GET') return bootstrap(me);
     if (path === '/api/day' && method === 'GET') return getDay(me, url);
     if (path === '/api/ops' && method === 'POST') return postOps(me, request);
+    if (path === '/api/meals' && method === 'GET') return getMeals(me, url);
+    if (path === '/api/meals/menu' && method === 'POST') return toggleMenuFood(me, request);
+    if (path === '/api/meals/child-food' && method === 'POST') return setChildFood(me, request);
+    if (path === '/api/meals/check' && method === 'POST') return mealCheck(me, request);
+    if (path === '/api/meals/history' && method === 'GET') return childFoodHistory(me, url);
     if (path.startsWith('/api/admin/')) return admin(me, request, path.slice('/api/admin/'.length).split('/'));
     return fail(404, 'not_found');
   }

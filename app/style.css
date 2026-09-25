@@ -123,7 +123,7 @@ button {
 /* タブ */
 .tabs {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(4, 1fr);
   background: var(--card);
   border-bottom: 1px solid var(--line);
 }
@@ -360,7 +360,57 @@ details summary { font-size: 13px; color: var(--green-dark); cursor: pointer; pa
   border-radius: 10px;
   background: #fff;
 }
+.add-row textarea { flex: 1 1 100%; resize: vertical; }
 .toggle { display: flex; align-items: center; justify-content: space-between; }
+
+/* 給食 */
+.meal-subnav { display: flex; gap: 6px; margin: 4px 0 12px; flex-wrap: wrap; }
+.sub-tab {
+  border: 1px solid var(--line);
+  background: var(--card);
+  border-radius: 999px;
+  padding: 8px 14px;
+  font-size: 14px;
+  color: var(--muted);
+}
+.sub-tab.active { background: var(--green); border-color: var(--green); color: #fff; font-weight: 700; }
+.meal-menu-line { font-size: 14px; margin: 0 0 10px; }
+.meal-ok-line { color: var(--muted); font-size: 13px; margin: 8px 0; }
+.meal-flag-card {
+  background: var(--card);
+  border: 2px solid var(--soon);
+  border-radius: var(--radius);
+  padding: 10px 12px;
+  margin-bottom: 8px;
+}
+.meal-flag-card .name { font-size: 16px; font-weight: 700; display: block; margin-bottom: 4px; }
+.food-tags { display: flex; gap: 6px; flex-wrap: wrap; }
+.food-tag { font-size: 12px; padding: 3px 8px; border-radius: 999px; }
+.food-tag.untried { background: var(--soon-soft); color: #7a4f0d; }
+.food-tag.excluded { background: var(--alert-soft); color: var(--alert); font-weight: 700; }
+.meal-checks { margin-top: 16px; }
+.check-row { font-size: 13px; padding: 8px 0; border-bottom: 1px solid var(--line); display: flex; flex-direction: column; gap: 2px; }
+.check-row:last-child { border-bottom: 0; }
+.check-row.stale { color: var(--alert); }
+.food-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: 8px; margin-bottom: 14px; }
+.food-btn {
+  border: 2px solid var(--line);
+  background: #fff;
+  border-radius: 10px;
+  padding: 10px 6px;
+  font-size: 14px;
+  font-weight: 600;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+}
+.food-btn small { font-size: 11px; font-weight: 400; color: var(--muted); }
+.food-btn.active { background: var(--green); border-color: var(--green); color: #fff; }
+.food-btn.status-ok { background: var(--green-soft); border-color: var(--green); }
+.food-btn.status-ng { background: var(--alert-soft); border-color: var(--alert); color: var(--alert); }
+.food-btn.status-ng small { color: var(--alert); }
+.child-bar { padding: 0 0 10px; }
 
 /* ダイアログ */
 dialog {

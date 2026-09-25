@@ -3,6 +3,7 @@ import {
   fmtTime, fmtDuration, dateKey,
 } from './logic.js';
 import { applyDayOps, sessionsByChild, newId } from './ops.js';
+import { FOOD_STATUS, nextStatus, mealFlags, checkSnapshot, isStale } from './meals.js';
 
 // ---------- 端末に残す情報 ----------
 // 登録した園の情報・その日の記録・送信待ちの操作だけを保存し、登録解除で消す
@@ -22,7 +23,9 @@ let st = {
 };
 let online = true;
 // duty: クラスごとの午睡担当 { [classId]: { ids: [職員ID, 職員ID], active: 0 | 1 } }（端末ごと）
-let ui = { tab: 'check', classId: null, recordDay: null, duty: {}, sound: true };
+let ui = { tab: 'check', classId: null, recordDay: null, duty: {}, sound: true, mealView: 'precheck', mealChildId: null };
+// 給食：今日の分をサーバーから取得してここに持つ（オフライン時の送信待ちには入れない）
+let meals = null; // { day, foods, childFoods, menus, checks }
 
 function load(key) {
   try {
@@ -102,6 +105,12 @@ const MESSAGES = {
   cannot_demote_self: '自分自身を停止することはできません',
   admin_mode_required: '管理者モードの時間が過ぎました。もう一度管理者モードにしてください',
   invalid_input: '入力内容を確かめてください',
+  no_menu: '今日の献立が登録されていません。先に「今日の献立」で登録してください',
+  two_checkers_required: '違う2名を選んでください',
+  food_not_found: 'その食材が見つかりません',
+  child_not_found: 'その子どもが見つかりません',
+  class_not_found: 'そのクラスが見つかりません',
+  recorder_not_found: '記録者が見つかりません。担当を選び直してください',
 };
 const messageOf = (e) => MESSAGES[e.code] || `うまくいきませんでした（${e.code}）`;
 
@@ -183,6 +192,123 @@ function handleApiError(e) {
   } else {
     toast(messageOf(e));
   }
+}
+
+// ---------- 給食（オフライン非対応。つながらない時はその旨を出す） ----------
+
+let mealSavesInFlight = 0;
+
+async function loadMeals() {
+  if (st.mode !== 'server') return;
+  let r;
+  try {
+    r = await api('GET', `/api/meals?day=${dateKey(Date.now())}`);
+  } catch (e) {
+    handleApiError(e);
+    return;
+  }
+  // 取りに行っている間にタップが始まっていたら、その分を巻き戻さないよう受け取った内容は捨てる
+  if (mealSavesInFlight > 0) return;
+  meals = r;
+  if (ui.tab === 'meal' || ui.tab === 'settings') render();
+}
+
+// 保存中でない時だけ、ほかの端末での変更を定期的に取り込む
+async function pollMeals() {
+  if (st.mode !== 'server' || unregistered() || mealSavesInFlight > 0) return;
+  if (ui.tab !== 'meal' && ui.tab !== 'settings') return;
+  await loadMeals();
+}
+
+function handleMealError(e) {
+  if (e.status === 401 || e.status === 0) handleApiError(e);
+  else toast(messageOf(e));
+  // 保存に失敗した時は、画面を先読みで変えた分が実際の値とずれている。サーバーの値で直す
+  if (e.status !== 0) loadMeals();
+}
+
+// 同じ献立・同じ子×食材への保存は、必ず1件ずつ順番に送る。
+// 献立の保存は「今の全食材」を毎回まるごと送る作りなので、連打で2件が同時に届くと
+// サーバー側の処理順が入れ替わり、あとから送ったはずの内容が消えることがある（実際に確認して直した）
+const saveChains = new Map();
+function serialize(key, task) {
+  mealSavesInFlight++;
+  const prev = saveChains.get(key) || Promise.resolve();
+  const next = prev.then(task, task).finally(() => { mealSavesInFlight--; });
+  saveChains.set(key, next);
+  return next;
+}
+
+// 成功した時はサーバーへ送った内容がそのまま画面の状態と一致しているので、わざわざ読み直さない。
+// ここで毎回読み直すと、その応答が返るまでの間に次のタップが読む状態を巻き戻してしまい、
+// 連打した時に直前の変更が消えることがあった（実際に確認して直した）。失敗した時だけ読み直す
+async function saveMenuFood(cls, foodId, on, recorderId) {
+  // 食材1つずつの増減にしているので、違う食材どうしは並行に送っても結果が変わらない。
+  // 同じ食材への操作だけ順番を守ればよいので、食材ごとに直列化する
+  return serialize(`menu:${cls.id}:${foodId}`, async () => {
+    try {
+      await api('POST', '/api/meals/menu', { classId: cls.id, day: dateKey(Date.now()), foodId, on, recorderId });
+    } catch (e) {
+      handleMealError(e);
+    }
+  });
+}
+
+async function saveChildFood(childId, foodId, status, recorderId) {
+  return serialize(`food:${childId}:${foodId}`, async () => {
+    try {
+      await api('POST', '/api/meals/child-food', { childId, foodId, status, recorderId });
+    } catch (e) {
+      handleMealError(e);
+    }
+  });
+}
+
+async function submitMealCheck(cls, checkerIds) {
+  try {
+    await api('POST', '/api/meals/check', { id: newId(), classId: cls.id, checkerIds });
+    toast('確認して記録しました');
+    await loadMeals();
+  } catch (e) {
+    handleMealError(e);
+  }
+}
+
+async function adminMealCall(method, path, data, okMsg) {
+  try {
+    await api(method, path, data);
+    if (okMsg) toast(okMsg);
+    await loadMeals();
+    return true;
+  } catch (e) {
+    handleApiError(e);
+    if (e.status === 0) toast(MESSAGES.offline);
+    return false;
+  }
+}
+
+// 保存の応答を待たずに画面へ反映する（タップした通りに、すぐ見た目へ反映するため）
+function applyLocalMenuFood(classId, foodId, on) {
+  if (!meals) return;
+  const i = meals.menus.findIndex((m) => m.classId === classId);
+  const foodIds = i >= 0 ? meals.menus[i].foodIds : [];
+  const has = foodIds.includes(foodId);
+  if (on === has) return;
+  const nextIds = on ? [...foodIds, foodId] : foodIds.filter((f) => f !== foodId);
+  if (i >= 0) meals.menus[i] = { ...meals.menus[i], foodIds: nextIds };
+  else meals.menus.push({ classId, foodIds: nextIds, updatedAt: Date.now(), recorderId: null });
+}
+
+function applyLocalChildFood(childId, foodId, status) {
+  if (!meals) return;
+  meals.childFoods = meals.childFoods.filter((cf) => !(cf.childId === childId && cf.foodId === foodId));
+  if (status !== 'none') meals.childFoods.push({ childId, foodId, status });
+}
+
+function groupBy(arr, keyFn) {
+  const out = {};
+  for (const item of arr) (out[keyFn(item)] ||= []).push(item);
+  return out;
 }
 
 function setBoot(boot) {
@@ -722,6 +848,167 @@ function checkAlerts(byChild) {
   if (fresh && ui.sound) beep();
 }
 
+// ---------- 給食画面 ----------
+
+function foodNameOf(id) {
+  return meals.foods.find((f) => f.id === id)?.name || '？';
+}
+
+function renderMealPrecheck(cls) {
+  const kids = childrenOf(cls.id);
+  const menu = meals.menus.find((m) => m.classId === cls.id);
+  const menuFoodIds = menu?.foodIds || [];
+  if (!menuFoodIds.length) {
+    return '<p class="empty-note">今日の献立がまだ登録されていません。「今日の献立」タブで登録してください。</p>';
+  }
+  const flagged = mealFlags(kids, meals.childFoods, menuFoodIds);
+  const flaggedIds = new Set(flagged.map((f) => f.childId));
+  const okCount = kids.length - flaggedIds.size;
+
+  const rows = flagged.map((f) => {
+    const child = kids.find((c) => c.id === f.childId);
+    const untried = f.untried.length
+      ? `<span class="food-tag untried">未経験：${f.untried.map((id) => esc(foodNameOf(id))).join('、')}</span>` : '';
+    const excluded = f.excluded.length
+      ? `<span class="food-tag excluded">除去：${f.excluded.map((id) => esc(foodNameOf(id))).join('、')}</span>` : '';
+    return `<div class="meal-flag-card"><span class="name">${esc(child.name)}</span><div class="food-tags">${untried}${excluded}</div></div>`;
+  }).join('');
+
+  const currentSnapshot = checkSnapshot(kids, meals.childFoods, menuFoodIds);
+  const checks = meals.checks.filter((c) => c.classId === cls.id);
+  const checkRows = checks.map((c) => {
+    const stale = isStale(c.snapshot, currentSnapshot);
+    return `<div class="check-row ${stale ? 'stale' : ''}">
+      <span>${fmtTime(c.t)}　${esc(staffName(c.checker1Id))}・${esc(staffName(c.checker2Id))}で確認</span>
+      ${stale ? '<span class="warn">確認後に献立・食材の記録が変わっています</span>' : ''}
+    </div>`;
+  }).join('');
+
+  return `
+    <p class="meal-menu-line">今日の献立：${menuFoodIds.map((id) => esc(foodNameOf(id))).join('、')}</p>
+    ${rows || '<p class="empty-note">未経験・除去の食材がある子はいません。</p>'}
+    ${okCount > 0 ? `<p class="meal-ok-line">ほか${okCount}名は問題なし</p>` : ''}
+    <button class="btn primary big" data-act="mealCheck">2名で確認して記録</button>
+    ${checkRows ? `<div class="meal-checks">${checkRows}</div>` : ''}
+    <p class="help">アレルギー対応は、医師の指示書に基づく園の手順が優先です。ここでの確認は、照らし合わせの見落としを減らす補助です。</p>`;
+}
+
+function renderMealMenu(cls) {
+  const menu = meals.menus.find((m) => m.classId === cls.id);
+  const menuFoodIds = new Set(menu?.foodIds || []);
+  const groups = groupBy(meals.foods.filter((f) => f.active), (f) => f.category || 'その他');
+  const groupHtml = Object.entries(groups).map(([cat, items]) => `
+    <h3>${esc(cat)}</h3>
+    <div class="food-grid">${items.map((f) =>
+      `<button class="food-btn ${menuFoodIds.has(f.id) ? 'active' : ''}" data-act="toggleMenuFood" data-id="${f.id}">${esc(f.name)}</button>`).join('')}</div>`).join('');
+  return `<p class="help">タップで、今日この献立に使う食材を選んでください。</p>
+    ${groupHtml || '<p class="empty-note">食材が登録されていません。管理者モードで登録してください。</p>'}`;
+}
+
+function renderMealFoods(cls) {
+  const kids = childrenOf(cls.id);
+  if (!ui.mealChildId || !kids.some((k) => k.id === ui.mealChildId)) ui.mealChildId = kids[0]?.id || null;
+  if (!ui.mealChildId) return '<p class="empty-note">このクラスには子どもが登録されていません。</p>';
+  const child = kids.find((k) => k.id === ui.mealChildId);
+  const childChips = kids.map((k) =>
+    `<button class="class-chip ${k.id === ui.mealChildId ? 'active' : ''}" data-act="pickMealChild" data-id="${k.id}">${esc(k.name)}</button>`).join('');
+  const statusOfFood = (fid) => meals.childFoods.find((cf) => cf.childId === ui.mealChildId && cf.foodId === fid)?.status || 'none';
+  const groups = groupBy(meals.foods.filter((f) => f.active), (f) => f.category || 'その他');
+  const groupHtml = Object.entries(groups).map(([cat, items]) => `
+    <h3>${esc(cat)}</h3>
+    <div class="food-grid">${items.map((f) => {
+      const s = statusOfFood(f.id);
+      return `<button class="food-btn status-${s}" data-act="cycleChildFood" data-id="${f.id}">${esc(f.name)}<small>${FOOD_STATUS[s].label}</small></button>`;
+    }).join('')}</div>`).join('');
+  return `
+    <div class="class-bar child-bar no-print">${childChips}</div>
+    <h2 class="print-title">${esc(st.boot.facility.name)}　${esc(child.name)}　食材チェック表</h2>
+    <button class="btn no-print" data-act="printFoodChart">この子の食材チェック表を印刷</button>
+    ${groupHtml || '<p class="empty-note">食材が登録されていません。管理者モードで登録してください。</p>'}`;
+}
+
+function renderMeal() {
+  const cls = currentClass();
+  if (!cls) {
+    view.innerHTML = '<p class="empty-note">クラスが登録されていません。</p>';
+    return;
+  }
+  if (st.mode === 'demo') {
+    view.innerHTML = '<p class="empty-note">デモでは給食機能は使えません。管理者が登録した園でお試しください。</p>';
+    return;
+  }
+  if (!meals || meals.day !== dateKey(Date.now())) {
+    view.innerHTML = '<p class="empty-note">読み込んでいます…</p>';
+    loadMeals();
+    return;
+  }
+  const subnav = `<div class="meal-subnav no-print">
+    <button class="sub-tab ${ui.mealView === 'precheck' ? 'active' : ''}" data-act="mealView" data-view="precheck">配膳前チェック</button>
+    <button class="sub-tab ${ui.mealView === 'menu' ? 'active' : ''}" data-act="mealView" data-view="menu">今日の献立</button>
+    <button class="sub-tab ${ui.mealView === 'foods' ? 'active' : ''}" data-act="mealView" data-view="foods">食べた食材</button>
+  </div>`;
+  const body = ui.mealView === 'menu' ? renderMealMenu(cls)
+    : ui.mealView === 'foods' ? renderMealFoods(cls)
+    : renderMealPrecheck(cls);
+  view.innerHTML = subnav + body;
+}
+
+function openMealCheckDialog(cls) {
+  const picked = [];
+  const draw = () => {
+    const items = st.boot.staff.filter((s) => s.active).map((s) => {
+      const i = picked.indexOf(s.id);
+      return `<button class="btn ${i >= 0 ? 'primary' : ''}" data-act="toggle" data-id="${s.id}">${i >= 0 ? `${'①②'[i]} ` : ''}${esc(s.name)}</button>`;
+    }).join('');
+    dialogBody.innerHTML = `
+      <h3>${esc(cls.name)}：配膳前チェック</h3>
+      <p>2名で献立と食材を照らし合わせたら、その2名の名前をタップしてください。</p>
+      <div class="choice-list">${items || '<p>職員が登録されていません。</p>'}</div>
+      <button class="btn primary big" data-act="ok" ${picked.length === 2 ? '' : 'disabled'}>この2名で確認して記録</button>
+      <button class="btn ghost" data-act="cancel">キャンセル</button>`;
+  };
+  openDialog('', (act, data) => {
+    if (act === 'toggle') {
+      const i = picked.indexOf(data.id);
+      if (i >= 0) picked.splice(i, 1);
+      else if (picked.length < 2) picked.push(data.id);
+      else toast('2名までです。先にどちらかを外してください');
+      draw();
+      return true;
+    }
+    if (act === 'ok' && picked.length === 2) submitMealCheck(cls, picked);
+    return false;
+  });
+  draw();
+}
+
+function onMealClick(e) {
+  const b = e.target.closest('button[data-act]');
+  if (!b) return;
+  const act = b.dataset.act;
+  const cls = currentClass();
+
+  if (act === 'mealView') { ui.mealView = b.dataset.view; render(); return; }
+  if (act === 'pickMealChild') { ui.mealChildId = b.dataset.id; render(); return; }
+  if (act === 'printFoodChart') { window.print(); return; }
+  if (act === 'mealCheck') { openMealCheckDialog(cls); return; }
+  if (act === 'toggleMenuFood') {
+    const menu = meals.menus.find((m) => m.classId === cls.id);
+    const on = !(menu?.foodIds || []).includes(b.dataset.id);
+    applyLocalMenuFood(cls.id, b.dataset.id, on);
+    render();
+    withInputter((recorderId) => saveMenuFood(cls, b.dataset.id, on, recorderId));
+    return;
+  }
+  if (act === 'cycleChildFood') {
+    const cur = meals.childFoods.find((cf) => cf.childId === ui.mealChildId && cf.foodId === b.dataset.id)?.status || 'none';
+    const next = nextStatus(cur);
+    applyLocalChildFood(ui.mealChildId, b.dataset.id, next);
+    render();
+    withInputter((recorderId) => saveChildFood(ui.mealChildId, b.dataset.id, next, recorderId));
+  }
+}
+
 // ---------- 記録画面 ----------
 
 const recordCache = new Map();
@@ -927,6 +1214,16 @@ function adminSettingsHtml() {
       </span>
     </div>`).join('');
 
+  if (meals === null) loadMeals();
+  const foodRows = meals ? meals.foods.map((f) => `
+    <div class="list-item ${f.active ? '' : 'inactive'}">
+      <span>${esc(f.name)}${f.category ? `<small class="sub">${esc(f.category)}</small>` : ''}${f.active ? '' : '（停止中）'}</span>
+      <span class="item-actions">
+        <button class="btn" data-act="renameFood" data-id="${f.id}">名前</button>
+        <button class="btn ${f.active ? 'danger' : ''}" data-act="toggleFood" data-id="${f.id}">${f.active ? '停止' : '再開'}</button>
+      </span>
+    </div>`).join('') : '<p class="help">読み込んでいます…</p>';
+
   if (devices === null) loadDevices();
   const deviceRows = (devices || []).map((d) => `
     <div class="list-item">
@@ -975,6 +1272,16 @@ function adminSettingsHtml() {
         <input name="name" placeholder="クラスの名前" autocomplete="off" required maxlength="40">
         <select name="age">${[0, 1, 2, 3, 4, 5].map((a) => `<option value="${a}">${a}歳</option>`).join('')}</select>
         <button class="btn primary">追加</button>
+      </form>
+    </div>
+    <div class="section">
+      <h2>給食の食材</h2>
+      <p class="help">園の食材チェック表の項目をまとめて登録できます（改行で区切って貼り付けてください）。</p>
+      ${foodRows}
+      <form class="add-row food-add-form" data-form="addFoods">
+        <textarea name="names" class="field" placeholder="例：米&#10;にんじん&#10;たまご" rows="3" required></textarea>
+        <input name="category" placeholder="分類（任意・例：野菜）" autocomplete="off" maxlength="20">
+        <button class="btn primary">まとめて登録</button>
       </form>
     </div>
     <div class="section">
@@ -1092,6 +1399,17 @@ function onSettingsClick(e) {
     } else {
       adminCall('PATCH', `/api/admin/classes/${c.id}`, { active: true });
     }
+  } else if (act === 'renameFood') {
+    const f = meals.foods.find((x) => x.id === idOf);
+    inputDialog('食材の名前', '', { value: f.name }, (v) => adminMealCall('PATCH', `/api/admin/foods/${f.id}`, { name: v }));
+  } else if (act === 'toggleFood') {
+    const f = meals.foods.find((x) => x.id === idOf);
+    if (f.active) {
+      confirmDialog(`${f.name}を停止しますか？`, '献立・食べた食材の選択肢に出なくなります。過去の記録は残ります。', '停止', () =>
+        adminMealCall('PATCH', `/api/admin/foods/${f.id}`, { active: false }), true);
+    } else {
+      adminMealCall('PATCH', `/api/admin/foods/${f.id}`, { active: true });
+    }
   } else if (act === 'revokeDevice') {
     const d = devices.find((x) => x.id === idOf);
     confirmDialog(`「${d.name}」の登録を解除しますか？`, 'その端末では記録できなくなります。', '解除', async () => {
@@ -1121,6 +1439,13 @@ async function onSettingsSubmit(e) {
       { name: f.name, loginId: f.loginId, password: f.password, role: 'admin' }, '管理者を追加しました');
   } else if (form.dataset.form === 'addClass') {
     ok = await adminCall('POST', '/api/admin/classes', { name: f.name, age: Number(f.age) }, '追加しました');
+  } else if (form.dataset.form === 'addFoods') {
+    const names = f.names.split('\n').map((s) => s.trim()).filter(Boolean);
+    if (names.length) {
+      const r = await adminMealCall('POST', '/api/admin/foods', { names, category: f.category || '' }, null);
+      if (r) toast(`${names.length}件を登録しました`);
+      ok = r;
+    }
   }
   if (ok) form.reset();
 }
@@ -1131,6 +1456,7 @@ function render() {
   if (!st.boot || $('#appView').hidden) return;
   renderChrome();
   if (ui.tab === 'check') renderCheck();
+  else if (ui.tab === 'meal') renderMeal();
   else if (ui.tab === 'record') renderRecord();
   else renderSettings();
 }
@@ -1157,6 +1483,7 @@ $('#staffBtn').addEventListener('click', switchInputter);
 
 view.addEventListener('click', (e) => {
   if (ui.tab === 'check') onCheckClick(e);
+  else if (ui.tab === 'meal') onMealClick(e);
   else if (ui.tab === 'record') onRecordClick(e);
   else onSettingsClick(e);
 });
@@ -1205,6 +1532,7 @@ setInterval(() => {
   }
 }, 1000);
 setInterval(poll, POLL_MS);
+setInterval(pollMeals, POLL_MS);
 
 // ---------- 起動 ----------
 

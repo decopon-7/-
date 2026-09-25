@@ -11,6 +11,10 @@
   - 園の複数のタブレットで同じ記録を共有（15秒ごとに更新）
   - Wi-Fi が切れても記録を続けられ、つながったら自動で送信
   - 設計：[docs/gosui-check-design.md](docs/gosui-check-design.md)、[docs/server-design.md](docs/server-design.md)
+- **給食の未経験食材チェック（v0.1）**
+  - その日の献立と、子どもごとの「家庭で食べた食材」を自動で照らし合わせ、配膳前に未経験・除去の食材がある子だけを一覧表示
+  - 確認は2名で。記録には確認した時点の献立・対象の子と食材をそのまま残す
+  - 設計：[docs/meal-check-design.md](docs/meal-check-design.md)
 
 ## 構成
 
