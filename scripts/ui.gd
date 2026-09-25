@@ -49,6 +49,9 @@ var _quit_button: Button
 
 var _end_title: Label
 var _end_body: Label
+var _diary_box: Control
+var _diary_title: Label
+var _diary_text: Label
 var _shop_title: Label
 var _shop_rows := {}
 var _start_day_button: Button
@@ -100,6 +103,7 @@ func refresh_texts() -> void:
 	_tears_label.text = tr("HUD_TEARS")
 	_end_shift_button.text = tr("HUD_END_SHIFT")
 	_shop_title.text = tr("SHOP_TITLE")
+	_diary_title.text = tr("DIARY_TITLE")
 	_start_day_button.text = tr("BTN_START_DAY")
 	_pause_title.text = tr("PAUSE_TITLE")
 	_resume_button.text = tr("BTN_RESUME")
@@ -130,10 +134,13 @@ func update_hud(grams_today: int, step_text: String, step_progress: float,
 	_tears_bar.modulate = COL_BAD if tears > 0.8 else Color.WHITE
 
 
-func show_day_end(grams: int, earned: int) -> void:
+func show_day_end(grams: int, earned: int, diary: String = "") -> void:
 	_end_title.text = tr("END_TITLE")
 	_end_title.modulate = COL_ACCENT
 	_end_body.text = tr("END_BODY") % [grams, earned]
+	_diary_box.visible = diary != ""
+	if diary != "":
+		_diary_text.text = diary
 	refresh_shop()
 	show_only(day_end_screen)
 
@@ -295,6 +302,27 @@ func _ticket_label(size: int, color: Color) -> Label:
 	return l
 
 
+## 主人公の日記。決まった日にだけ、仕込み終了画面に小さく出てくる
+func _build_diary_box() -> Control:
+	var panel := PanelContainer.new()
+	panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var paper := _style(Color(0.16, 0.16, 0.14), 4, 14)
+	paper.border_color = Color(0.4, 0.38, 0.3)
+	paper.border_width_left = 4
+	panel.add_theme_stylebox_override("panel", paper)
+	var box := VBoxContainer.new()
+	box.add_theme_constant_override("separation", 4)
+	panel.add_child(box)
+	_diary_title = _label(15, COL_ACCENT)
+	_diary_text = _label(19, Color(0.85, 0.83, 0.76))
+	_diary_text.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	box.add_child(_diary_title)
+	box.add_child(_diary_text)
+	_diary_box = panel
+	_diary_box.visible = false
+	return panel
+
+
 func update_ticket(order_id: String, next_ids: Array, number: int) -> void:
 	var o: Dictionary = GameState.ORDERS[order_id]
 	_ticket_title.text = tr("TICKET_TITLE") % number
@@ -340,6 +368,7 @@ func _build_day_end() -> Control:
 	_shop_title = _label(30, COL_ACCENT)
 	box.add_child(_end_title)
 	box.add_child(_end_body)
+	box.add_child(_build_diary_box())
 	box.add_child(HSeparator.new())
 	box.add_child(_shop_title)
 

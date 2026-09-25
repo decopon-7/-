@@ -72,6 +72,65 @@ const STRINGS := {
 	"BTN_MUSIC_ON": {"ja": "BGM: オン", "en": "Music: On"},
 	"BTN_MUSIC_OFF": {"ja": "BGM: オフ", "en": "Music: Off"},
 	"BTN_TO_TITLE": {"ja": "タイトルへ（自動保存）", "en": "Back to title (autosave)"},
+
+	# ---- 主人公の日記（多くを語らない性格なので、断片的にしてある） ----
+	"DIARY_TITLE": {"ja": "日記", "en": "Diary"},
+	"DIARY_1": {
+		"ja": "財布も、行くあてもほとんど残っていなかった。大将に「涙もろいやつほど、いい仕事をする」と言われ、住み込みで働くことになった。",
+		"en": "My wallet was nearly empty, and I had nowhere to go. The owner said, \"The ones who cry easily make the best cooks,\" and took me in.",
+	},
+	"DIARY_2": {
+		"ja": "慣れない手つきで玉ねぎを刻む。目にしみるのは、玉ねぎのせいだけではない気がした。",
+		"en": "My hands are still clumsy with the knife. The sting in my eyes isn't only from the onions, I think.",
+	},
+	"DIARY_3": {
+		"ja": "大将は多くを聞いてこない。それがありがたい。",
+		"en": "The owner doesn't ask many questions. I'm grateful for that.",
+	},
+	"DIARY_5": {
+		"ja": "常連の漁師が「新顔か」とだけ言って、いつもの席に座った。名前も聞かれなかった。",
+		"en": "A regular fisherman just said \"new face\" and sat in his usual seat. He didn't ask my name.",
+	},
+	"DIARY_7": {
+		"ja": "一週間経った。まだこの町の名前も、ちゃんと覚えていない。",
+		"en": "A week has passed. I still don't quite remember the name of this town.",
+	},
+	"DIARY_10": {
+		"ja": "少しだけ、包丁の音が軽くなった気がする。",
+		"en": "The sound of the knife feels a little lighter now.",
+	},
+	"DIARY_13": {
+		"ja": "隣町から来たという老婆が、スープを飲んで「懐かしい味だ」と泣いていた。理由は聞かなかった。",
+		"en": "An old woman from the next town cried over her soup, saying it tasted like something from long ago. I didn't ask why.",
+	},
+	"DIARY_16": {
+		"ja": "夜、賄いを食べながら大将がぽつりと言った。「うちも昔、誰かを拾ったことがある」",
+		"en": "Over the staff meal, the owner said quietly, \"We took someone in once before, too.\"",
+	},
+	"DIARY_20": {
+		"ja": "漁師が魚を分けてくれた。「稼ぎになるかは知らんが」と、ぶっきらぼうに。",
+		"en": "The fisherman shared some of his catch. \"Not sure it's worth much,\" he muttered.",
+	},
+	"DIARY_24": {
+		"ja": "玉ねぎの皮をむくとき、もう昔ほど手が震えない。",
+		"en": "My hands don't shake as much when I peel an onion anymore.",
+	},
+	"DIARY_28": {
+		"ja": "この町に、少しずつ顔見知りが増えてきた。まだ名乗ってはいないけれど。",
+		"en": "I'm starting to recognize more faces in this town. I still haven't told anyone mine.",
+	},
+	"DIARY_32": {
+		"ja": "大将に「ここにいたいだけいていい」と言われた。理由も聞かれなかった。",
+		"en": "The owner said, \"Stay as long as you like.\" No questions asked.",
+	},
+	"DIARY_36": {
+		"ja": "涙は、悲しいときだけに出るものじゃないと、最近わかってきた。",
+		"en": "I'm starting to understand — tears don't only come from sadness.",
+	},
+	"DIARY_40": {
+		"ja": "今日も玉ねぎを刻む。急ぐ理由は、もうどこにもない。",
+		"en": "I cut onions again today. There's no reason to hurry, not anymore.",
+	},
 }
 
 

@@ -26,6 +26,9 @@ const SHAKE_ORDER_DONE := 0.3
 const HIT_STOP_DURATION := 0.07
 const HIT_STOP_SCALE := 0.15
 
+## 主人公の日記が出てくる日。文言は scripts/i18n.gd の DIARY_<日> にある
+const DIARY_DAYS := [1, 2, 3, 5, 7, 10, 13, 16, 20, 24, 28, 32, 36, 40]
+
 var state := State.TITLE
 var grams_today := 0
 var earned_today := 0
@@ -129,12 +132,17 @@ func _start_day() -> void:
 func _end_day() -> void:
 	if state != State.PLAYING:
 		return
-	ui.show_day_end(grams_today, earned_today)
+	ui.show_day_end(grams_today, earned_today, _diary_text_for(GameState.day))
 	Sfx.play("bell", -2.0, 0.0)
 	Sfx.set_loop("processor", false)
 	GameState.day += 1
 	GameState.save_game()
 	_set_state(State.DAY_END)
+
+
+## 主人公の小さな日記。多くを語らない性格なので、決まった日にだけぽつりと出てくる
+func _diary_text_for(day: int) -> String:
+	return tr("DIARY_%d" % day) if day in DIARY_DAYS else ""
 
 
 func _process(delta: float) -> void:
