@@ -1,10 +1,11 @@
 # 開発用：コマンドラインから画面写真を撮って終了する。
 #   godot --path . -- --shot=mince --out=/tmp/mince.png --lang=ja
-# shot の種類: title / cut / mince / shop / fresh / complete / golden
+# shot の種類: title / cut / mince / shop / fresh / complete / golden / knife
 #   （--order=soup などで注文を指定できる）
 #   fresh: 1回も切っていない、まっさらな玉ねぎ（回転・スケールが落ち着いた状態）
 #   complete: 1品を完成させ、ヒットストップ・きらめき演出まで通す
 #   golden: 「幸運の玉ねぎ」の見た目を確認する（本番は確率抽選、ここでは強制的に出す）
+#   knife: 包丁のLv別の見た目を確認する（--knife_lv=0〜5 で指定、省略時は5＝最大Lv）
 extends Node
 
 var _args := {}
@@ -78,6 +79,11 @@ func _process(_delta: float) -> void:
 					main.chop_at(o.global_position.x - 0.08 + i * 0.008)
 		if _frame == 150 and shot == "cut":
 			main._knife_x = o.global_position.x + 0.012
+	if _frame == 20 and shot == "knife":
+		var lv := int(_args.get("knife_lv", 5))
+		GameState.levels["knife"] = lv
+		main._rebuild_knife_visual()
+		main._knife_x = main.onion.global_position.x
 	if _frame == 20 and shot == "pause":
 		main._set_state(main.State.PAUSED)
 		GameState.set_fullscreen(true)

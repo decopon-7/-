@@ -485,6 +485,8 @@ func _on_upgrade_bought(id: String) -> void:
 	if GameState.buy(id):
 		Sfx.play("coin", -4.0, 0.0, 0.8)
 		ui.refresh_shop()
+		if id == "knife":
+			_rebuild_knife_visual()
 
 
 # ================================================================ 手応え（カメラ・スクワッシュ・きらめき）
@@ -541,18 +543,48 @@ func _notification(what: int) -> void:
 # ================================================================ 包丁・機械の組み立て
 
 func _build_knife() -> void:
-	var steel := _mat(Color(0.8, 0.81, 0.83), 0.2, 0.95)
-	var wood := _mat(Color(0.2, 0.13, 0.08), 0.6)
 	knife = Node3D.new()
 	add_child(knife)
 	# 見た目だけを入れ子にしておき、当たった瞬間のスクワッシュはここだけを動かす
 	# （knife 自身の位置・傾きは _update_knife_pose が管理しているため）
 	knife_visual = Node3D.new()
 	knife.add_child(knife_visual)
+	_rebuild_knife_visual()
+
+
+## 包丁のアップグレードLvに応じて見た目を変える（地味だが、育てた実感が出るように）
+## Lv0: ふつうの包丁 → Lv上がるごとに刃が長く・輝きが増し → 最大Lvで柄口に金の縁飾り
+func _rebuild_knife_visual() -> void:
+	if knife_visual == null:
+		return
+	for c in knife_visual.get_children():
+		c.queue_free()
+	var lv: int = GameState.levels["knife"]
+	var max_lv: int = GameState.UPGRADES["knife"]["max"]
+	var t: float = float(lv) / float(max_lv)  # 0.0〜1.0
+
+	var blade_len: float = lerpf(0.22, 0.285, t)
+	var blade_color := Color(0.8, 0.81, 0.83).lerp(Color(0.86, 0.89, 0.94), t)
+	var blade_roughness: float = lerpf(0.2, 0.04, t)
+	var steel := _mat(blade_color, blade_roughness, 0.95)
+
+	var handle_color := Color(0.2, 0.13, 0.08).lerp(Color(0.06, 0.05, 0.06), t)
+	var wood := _mat(handle_color, lerpf(0.6, 0.3, t))
+
 	# 刃は Z 方向（奥〜手前）に伸びる。原点が刃先の線。
-	_box(knife_visual, Vector3(0.003, 0.05, 0.22), Vector3(0, 0.025, -0.04), steel)
+	_box(knife_visual, Vector3(0.003, 0.05, blade_len), Vector3(0, 0.025, -0.04 - (blade_len - 0.22) * 0.5), steel)
 	_box(knife_visual, Vector3(0.008, 0.03, 0.015), Vector3(0, 0.035, 0.075), steel)
 	_box(knife_visual, Vector3(0.018, 0.024, 0.12), Vector3(0, 0.037, 0.14), wood)
+
+	if lv >= 3:
+		# 中間Lv以降：口金（ボルスター）を真鍮色に
+		var brass := _mat(Color(0.8, 0.65, 0.25), 0.25, 0.9)
+		_box(knife_visual, Vector3(0.02, 0.026, 0.01), Vector3(0, 0.037, 0.083), brass)
+	if lv >= max_lv:
+		# 最大Lv：刃の背に金のライン、柄尻に金のキャップ（職人技の一振りという貫禄）
+		var gold := _mat(Color(0.95, 0.78, 0.35), 0.15, 1.0)
+		_box(knife_visual, Vector3(0.0032, 0.006, blade_len - 0.01), Vector3(0, 0.049, -0.04 - (blade_len - 0.22) * 0.5), gold)
+		_box(knife_visual, Vector3(0.02, 0.026, 0.006), Vector3(0, 0.037, 0.197), gold)
 
 	chips = CPUParticles3D.new()
 	var chip_mesh := BoxMesh.new()
