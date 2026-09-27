@@ -7,6 +7,7 @@
 #   Sfx.play("cut")                 … 鳴らす
 #   Sfx.play("mince", -3.0, 0.15)   … 音量(dB)と、ピッチのばらつき
 #   Sfx.set_music_muffled(true)     … メニュー中はBGMをこもらせる
+#   Sfx.set_sound_volume(0.5)       … 効果音の音量（0〜1）。設定は GameState 経由が基本
 extends Node
 
 const RATE := 22050
@@ -23,10 +24,13 @@ var _lp_state := [0.0, 0.0, 0.0, 0.0]
 var _music: AudioStreamPlayer
 var _music_lowpass: AudioEffectLowPassFilter
 var _music_pitch := 1.0
+var _music_muffled := false
+var _user_music_volume := 1.0
 
 
 func _ready() -> void:
 	_rng.seed = 12345
+	_setup_sfx_bus()
 	_streams["cut"] = _make(0.18, _cut)            # ザクッ（玉ねぎを切る）
 	_streams["mince"] = _make(0.1, _mince)         # トン（みじん切り）
 	_streams["knock"] = _make(0.09, _knock)        # コツ（まな板だけ叩いた）
@@ -42,10 +46,21 @@ func _ready() -> void:
 
 	for i in POOL_SIZE:
 		var p := AudioStreamPlayer.new()
+		p.bus = "SFX"
 		add_child(p)
 		_pool.append(p)
 	set_loop("ambience", true, -20.0)
 	_setup_music()
+
+
+func _setup_sfx_bus() -> void:
+	# 効果音だけをまとめたバス。音楽用の "Music" バスと分けておくことで、
+	# 効果音の音量とBGMの音量をそれぞれ独立して調整できるようにする
+	var bus := AudioServer.bus_count
+	AudioServer.add_bus(bus)
+	AudioServer.set_bus_name(bus, "SFX")
+	AudioServer.set_bus_send(bus, "Master")
+	set_sound_volume(GameState.sound_volume)
 
 
 func _process(delta: float) -> void:
@@ -69,9 +84,10 @@ func _setup_music() -> void:
 	_music = AudioStreamPlayer.new()
 	_music.stream = load(MUSIC_PATH)
 	_music.bus = "Music"
-	_music.volume_db = MUSIC_VOLUME_DB
 	add_child(_music)
-	set_music_enabled(GameState.music_on)
+	_user_music_volume = GameState.music_volume
+	_apply_music_volume()
+	_music.play()
 
 
 func _exit_tree() -> void:
@@ -86,18 +102,24 @@ func _exit_tree() -> void:
 		AudioServer.remove_bus_effect(bus, 0)
 
 
-func set_music_enabled(on: bool) -> void:
-	if on and not _music.playing:
-		_music.play()
-	elif not on:
-		_music.stop()
+func _apply_music_volume() -> void:
+	var db := MUSIC_VOLUME_DB - (3.0 if _music_muffled else 0.0)
+	db += linear_to_db(maxf(_user_music_volume, 0.0001))
+	_music.volume_db = db
+
+
+## 0〜1。0 にしても止めはせず、音量だけ絞る（再開時にブツ切れの間ができないように）
+func set_music_volume(v: float) -> void:
+	_user_music_volume = clampf(v, 0.0, 1.0)
+	_apply_music_volume()
 
 
 ## メニューを開いている間は、壁の向こうで鳴っているようにこもらせる
 func set_music_muffled(muffled: bool) -> void:
 	var bus := AudioServer.get_bus_index("Music")
 	AudioServer.set_bus_effect_enabled(bus, 0, muffled)
-	_music.volume_db = MUSIC_VOLUME_DB - (3.0 if muffled else 0.0)
+	_music_muffled = muffled
+	_apply_music_volume()
 
 
 ## 1.0 が通常。開店間際は少し速くして焦らせる
@@ -123,6 +145,7 @@ func set_loop(sound: String, on: bool, volume_db: float = 0.0) -> void:
 	if not _loops.has(sound):
 		var p := AudioStreamPlayer.new()
 		p.stream = _streams[sound]
+		p.bus = "SFX"
 		add_child(p)
 		_loops[sound] = p
 	var player: AudioStreamPlayer = _loops[sound]
@@ -133,8 +156,11 @@ func set_loop(sound: String, on: bool, volume_db: float = 0.0) -> void:
 		player.stop()
 
 
-func set_muted(muted: bool) -> void:
-	AudioServer.set_bus_mute(0, muted)
+## 0〜1
+func set_sound_volume(v: float) -> void:
+	var bus := AudioServer.get_bus_index("SFX")
+	if bus >= 0:
+		AudioServer.set_bus_volume_db(bus, linear_to_db(maxf(v, 0.0001)))
 
 
 func get_stream(sound: String) -> AudioStreamWAV:

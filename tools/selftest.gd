@@ -3,7 +3,6 @@
 # 成功なら "ALL OK" を出して終了コード 0、失敗なら 1。
 extends SceneTree
 
-const GameStateScript := preload("res://scripts/game_state.gd")
 const OnionScript := preload("res://scripts/onion.gd")
 
 
@@ -12,9 +11,13 @@ func _initialize() -> void:
 
 
 func _run() -> void:
+	# オートロードの GameState をそのまま使う（game_state.gd を preload で直接クラス
+	# 参照すると、この単体スクリプト起動モードでは Sfx への参照が解決できず
+	# コンパイルエラーになることがあるため）
+	var game_state := root.get_node("GameState")
 	var failed := false
-	for id in GameStateScript.ORDER_IDS:
-		var order: Dictionary = GameStateScript.ORDERS[id]
+	for id in game_state.ORDER_IDS:
+		var order: Dictionary = game_state.ORDERS[id]
 		var onion: Node3D = OnionScript.new()
 		onion.configure(id, order)
 		root.add_child(onion)

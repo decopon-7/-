@@ -38,8 +38,11 @@ var money := 0
 var total_grams := 0
 var levels := {}
 var locale := ""
-var muted := false
-var music_on := true
+## 音量は 0.0〜1.0。実際にバスへ反映するのは Sfx 側
+## （オートロードの順番上、Sfx のバスがまだ無い時点でここから触れないため）
+var sound_volume := 1.0
+var music_volume := 1.0
+var fullscreen := false
 
 
 func _ready() -> void:
@@ -49,7 +52,11 @@ func _ready() -> void:
 	if locale == "":
 		locale = "ja" if OS.get_locale_language() == "ja" else "en"
 	TranslationServer.set_locale(locale)
-	AudioServer.set_bus_mute(0, muted)
+	_apply_window_settings()
+
+
+func _apply_window_settings() -> void:
+	get_window().mode = Window.MODE_EXCLUSIVE_FULLSCREEN if fullscreen else Window.MODE_WINDOWED
 
 
 func reset() -> void:
@@ -124,14 +131,24 @@ func buy(id: String) -> bool:
 	return true
 
 
-func set_muted(value: bool) -> void:
-	muted = value
-	AudioServer.set_bus_mute(0, muted)
-	save_game()
+## live: 値を反映するだけ（スライダーを動かしている最中など）。false ならセーブまで行う。
+func set_sound_volume(value: float, live: bool = false) -> void:
+	sound_volume = clampf(value, 0.0, 1.0)
+	Sfx.set_sound_volume(sound_volume)
+	if not live:
+		save_game()
 
 
-func set_music_on(value: bool) -> void:
-	music_on = value
+func set_music_volume(value: float, live: bool = false) -> void:
+	music_volume = clampf(value, 0.0, 1.0)
+	Sfx.set_music_volume(music_volume)
+	if not live:
+		save_game()
+
+
+func set_fullscreen(value: bool) -> void:
+	fullscreen = value
+	_apply_window_settings()
 	save_game()
 
 
@@ -149,14 +166,15 @@ func save_game() -> void:
 		push_warning("セーブに失敗しました: %s" % FileAccess.get_open_error())
 		return
 	f.store_string(JSON.stringify({
-		"version": 2,
+		"version": 3,
 		"day": day,
 		"money": money,
 		"total_grams": total_grams,
 		"levels": levels,
 		"locale": locale,
-		"muted": muted,
-		"music_on": music_on,
+		"sound_volume": sound_volume,
+		"music_volume": music_volume,
+		"fullscreen": fullscreen,
 	}, "\t"))
 
 
@@ -171,8 +189,10 @@ func load_game() -> void:
 	money = int(data.get("money", 0))
 	total_grams = int(data.get("total_grams", 0))
 	locale = str(data.get("locale", ""))
-	muted = bool(data.get("muted", false))
-	music_on = bool(data.get("music_on", true))
+	# version 2 以前（オン/オフの2択）からの引き継ぎ。新しい保存にはもう出てこない
+	sound_volume = float(data.get("sound_volume", 0.0 if data.get("muted", false) else 1.0))
+	music_volume = float(data.get("music_volume", 1.0 if data.get("music_on", true) else 0.0))
+	fullscreen = bool(data.get("fullscreen", false))
 	var saved_levels: Dictionary = data.get("levels", {})
 	for id in UPGRADE_IDS:
 		levels[id] = clampi(int(saved_levels.get(id, 0)), 0, UPGRADES[id]["max"])

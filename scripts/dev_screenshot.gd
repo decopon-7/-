@@ -78,6 +78,10 @@ func _process(_delta: float) -> void:
 					main.chop_at(o.global_position.x - 0.08 + i * 0.008)
 		if _frame == 150 and shot == "cut":
 			main._knife_x = o.global_position.x + 0.012
+	if _frame == 20 and shot == "pause":
+		main._set_state(main.State.PAUSED)
+		GameState.set_fullscreen(true)
+		main.ui.refresh_texts()
 	if _frame == 20 and shot == "golden":
 		main.onion.set_golden(true)
 		main._clean_view = true  # Hキーによる「UIを隠す」の見た目を一緒に確認

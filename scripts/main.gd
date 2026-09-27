@@ -182,6 +182,12 @@ func _unhandled_input(event: InputEvent) -> void:
 		_clean_view = not _clean_view
 		ui.hud.visible = not _clean_view
 		return
+	# 地味だが実用的なQoL：F11でいつでもフルスクリーン切り替え
+	if event is InputEventKey and event.pressed and event.keycode == KEY_F11 and not event.echo:
+		GameState.set_fullscreen(not GameState.fullscreen)
+		if ui.pause_screen.visible:
+			ui.refresh_texts()
+		return
 	if state != State.PLAYING:
 		return
 	var pressed := false
@@ -523,6 +529,13 @@ func _hit_stop(duration: float, scale: float) -> void:
 
 func _exit_tree() -> void:
 	Engine.time_scale = 1.0
+
+
+## 地味だが実用的なQoL：他のウィンドウに切り替えたら自動で一時停止する
+## （離席中に涙が限界を超えたり、うっかり刻みすぎたりしないように）
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_APPLICATION_FOCUS_OUT and state == State.PLAYING:
+		_set_state(State.PAUSED)
 
 
 # ================================================================ 包丁・機械の組み立て

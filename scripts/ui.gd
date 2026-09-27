@@ -11,6 +11,9 @@ signal to_title_pressed
 signal end_shift_pressed
 signal upgrade_bought(id: String)
 
+## バグ報告のときに版を伝えやすいよう、一時停止画面の隅に小さく出す
+const GAME_VERSION := "v0.1-proto"
+
 const COL_PANEL := Color(0.08, 0.08, 0.07, 0.86)
 const COL_ACCENT := Color(0.93, 0.78, 0.36)
 const COL_TEXT := Color(0.93, 0.91, 0.86)
@@ -58,9 +61,13 @@ var _start_day_button: Button
 
 var _pause_title: Label
 var _resume_button: Button
-var _sound_button: Button
-var _music_button: Button
+var _sound_label: Label
+var _sound_slider: HSlider
+var _music_label: Label
+var _music_slider: HSlider
+var _fullscreen_button: Button
 var _to_title_button: Button
+var _version_label: Label
 
 
 func _ready() -> void:
@@ -108,8 +115,9 @@ func refresh_texts() -> void:
 	_pause_title.text = tr("PAUSE_TITLE")
 	_resume_button.text = tr("BTN_RESUME")
 	_to_title_button.text = tr("BTN_TO_TITLE")
-	_sound_button.text = tr("BTN_SOUND_OFF") if GameState.muted else tr("BTN_SOUND_ON")
-	_music_button.text = tr("BTN_MUSIC_ON") if GameState.music_on else tr("BTN_MUSIC_OFF")
+	_sound_label.text = tr("OPT_SOUND") % roundi(GameState.sound_volume * 100)
+	_music_label.text = tr("OPT_MUSIC") % roundi(GameState.music_volume * 100)
+	_fullscreen_button.text = tr("BTN_FULLSCREEN_ON") if GameState.fullscreen else tr("BTN_FULLSCREEN_OFF")
 	refresh_shop()
 
 
@@ -407,15 +415,52 @@ func _build_pause() -> Control:
 	box.add_child(_pause_title)
 	box.add_child(_spacer(20))
 	_resume_button = _button(box, resume_pressed.emit)
-	_sound_button = _button(box, func():
-		GameState.set_muted(not GameState.muted)
-		refresh_texts())
-	_music_button = _button(box, func():
-		GameState.set_music_on(not GameState.music_on)
-		Sfx.set_music_enabled(GameState.music_on)
+
+	_sound_label = _label(18, COL_DIM)
+	_slider_row(box, _sound_label, "OPT_SOUND", GameState.sound_volume,
+		func(v): GameState.set_sound_volume(v, true),
+		func(v): GameState.set_sound_volume(v, false))
+
+	_music_label = _label(18, COL_DIM)
+	_slider_row(box, _music_label, "OPT_MUSIC", GameState.music_volume,
+		func(v): GameState.set_music_volume(v, true),
+		func(v): GameState.set_music_volume(v, false))
+
+	_fullscreen_button = _button(box, func():
+		GameState.set_fullscreen(not GameState.fullscreen)
 		refresh_texts())
 	_to_title_button = _button(box, to_title_pressed.emit)
+
+	_version_label = _label(13, Color(0.4, 0.39, 0.36))
+	_version_label.text = "Onion Tears " + GAME_VERSION
+	_version_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	box.add_child(_spacer(6))
+	box.add_child(_version_label)
 	return c
+
+
+## ラベル＋スライダーの1行。live はドラッグ中の即時反映、commit は指を離したときの保存
+func _slider_row(parent: Control, label: Label, key: String, initial: float,
+		live: Callable, commit: Callable) -> HSlider:
+	var row := VBoxContainer.new()
+	row.add_theme_constant_override("separation", 2)
+	row.custom_minimum_size = Vector2(360, 0)
+	parent.add_child(row)
+	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	label.text = tr(key) % roundi(initial * 100)
+	row.add_child(label)
+	var slider := HSlider.new()
+	slider.min_value = 0.0
+	slider.max_value = 1.0
+	slider.step = 0.05
+	slider.value = initial
+	slider.custom_minimum_size = Vector2(0, 28)
+	slider.value_changed.connect(func(v):
+		label.text = tr(key) % roundi(v * 100)
+		live.call(v))
+	slider.drag_ended.connect(func(_changed): commit.call(slider.value))
+	row.add_child(slider)
+	return slider
 
 
 # ---------------------------------------------------------------- 部品

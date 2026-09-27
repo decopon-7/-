@@ -68,10 +68,10 @@ const STRINGS := {
 	"BTN_START_DAY": {"ja": "仕込み開始", "en": "Start prep"},
 	"PAUSE_TITLE": {"ja": "一時停止", "en": "Paused"},
 	"BTN_RESUME": {"ja": "再開", "en": "Resume"},
-	"BTN_SOUND_ON": {"ja": "音: オン", "en": "Sound: On"},
-	"BTN_SOUND_OFF": {"ja": "音: オフ", "en": "Sound: Off"},
-	"BTN_MUSIC_ON": {"ja": "BGM: オン", "en": "Music: On"},
-	"BTN_MUSIC_OFF": {"ja": "BGM: オフ", "en": "Music: Off"},
+	"OPT_SOUND": {"ja": "効果音 %d%%", "en": "Sound %d%%"},
+	"OPT_MUSIC": {"ja": "BGM %d%%", "en": "Music %d%%"},
+	"BTN_FULLSCREEN_ON": {"ja": "画面表示: フルスクリーン", "en": "Display: Fullscreen"},
+	"BTN_FULLSCREEN_OFF": {"ja": "画面表示: ウィンドウ", "en": "Display: Windowed"},
 	"BTN_TO_TITLE": {"ja": "タイトルへ（自動保存）", "en": "Back to title (autosave)"},
 
 	# ---- 主人公の日記（多くを語らない性格なので、断片的にしてある） ----
