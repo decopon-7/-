@@ -8,6 +8,7 @@ const WORK_POS := Vector3(0.0, BOARD_TOP, 0.04)
 const CRATE_POS := Vector3(0.6, 1.0, -0.12)
 const BOWL_POS := Vector3(-0.56, 0.94, -0.16)
 const PROCESSOR_POS := Vector3(-0.3, 0.94, -0.38)
+const GOGGLES_POS := Vector3(0.22, 0.941, -0.3)
 const KNIFE_LIFT := 0.09
 const KNIFE_X_LIMIT := 0.26
 
@@ -47,7 +48,10 @@ var onion: Onion
 var knife: Node3D
 var chips: CPUParticles3D
 var processor: Node3D
+var processor_visual: Node3D
 var processor_blade: Node3D
+var goggles: Node3D
+var goggles_visual: Node3D
 var bowl_fill: MeshInstance3D
 var gap_markers: Array[MeshInstance3D] = []
 var tear_overlay: ColorRect
@@ -77,6 +81,7 @@ func _ready() -> void:
 	_build_kitchen()
 	_build_knife()
 	_build_processor()
+	_build_goggles()
 	_build_tear_overlay()
 
 	ui = GameUI.new()
@@ -89,6 +94,8 @@ func _ready() -> void:
 	ui.to_title_pressed.connect(_on_to_title)
 	ui.end_shift_pressed.connect(_end_day)
 	ui.upgrade_bought.connect(_on_upgrade_bought)
+	GameState.achievement_unlocked.connect(_on_achievement_unlocked)
+	GameState.skin_tier_changed.connect(_on_skin_tier_changed)
 
 	_refill_orders()
 	_spawn_onion(false)
@@ -127,11 +134,13 @@ func _start_day() -> void:
 	stun = 0.0
 	_update_bowl()
 	processor.visible = GameState.processor_interval() > 0.0
+	goggles.visible = GameState.levels["goggles"] > 0
 	if onion == null:
 		_spawn_onion(true)
 	Sfx.play("bell", -8.0, 0.0, 1.2)
 	_prepare_orders()
 	_set_state(State.PLAYING)
+	GameState.check_achievements()
 
 
 func _end_day() -> void:
@@ -327,9 +336,12 @@ func _on_onion_phase(p: int) -> void:
 		sparkle.emitting = true
 	var done := onion
 	onion = null
+	if done.is_golden:
+		GameState.golden_onions += 1
 	var multiplier: float = GameState.ORDERS[done.order_id]["pay"] * (GOLDEN_BONUS if done.is_golden else 1.0)
 	var pay := GameState.pay_for(done.grams, multiplier)
 	_award(done.grams, pay)
+	GameState.check_achievements()
 	ui.popup(tr("POP_ONION") % [done.grams, pay], camera.unproject_position(done.global_position + Vector3(0, 0.05, 0)))
 	# まな板からボウルへ移す
 	var tw := done.create_tween()
@@ -485,8 +497,31 @@ func _on_upgrade_bought(id: String) -> void:
 	if GameState.buy(id):
 		Sfx.play("coin", -4.0, 0.0, 0.8)
 		ui.refresh_shop()
-		if id == "knife":
-			_rebuild_knife_visual()
+		match id:
+			"knife": _rebuild_knife_visual()
+			"goggles": _rebuild_goggles_visual()
+			"processor": _rebuild_processor_visual()
+
+
+## 実績を解除した瞬間に一言お知らせする（地味な実績も、見た目の称号に繋がる特別なものも同じ扱い）
+func _on_achievement_unlocked(id: String) -> void:
+	Sfx.play("bell", -2.0, 0.0, 1.5)
+	Sfx.play_later(0.12, "coin", -4.0)
+	var text := "🏆 " + tr(GameState.ACHIEVEMENTS[id]["name"])
+	ui.popup(text, get_viewport().get_visible_rect().size * Vector2(0.5, 0.4), Color(1.0, 0.85, 0.3))
+
+
+## ゴールド／プラチナ／ダイヤの称号を得た瞬間、道具の見た目を丸ごと塗り替える
+func _on_skin_tier_changed(tier: int) -> void:
+	_rebuild_knife_visual()
+	_rebuild_goggles_visual()
+	_rebuild_processor_visual()
+	if tier <= 0:
+		return
+	Sfx.play("bell", 0.0, 0.0, 1.2)
+	Sfx.play_later(0.18, "bell", -2.0)
+	var text := "✨ " + tr(GameState.SKIN_NAMES[tier])
+	ui.popup(text, get_viewport().get_visible_rect().size * Vector2(0.5, 0.3), Color(1.0, 0.85, 0.3))
 
 
 # ================================================================ 手応え（カメラ・スクワッシュ・きらめき）
@@ -552,8 +587,32 @@ func _build_knife() -> void:
 	_rebuild_knife_visual()
 
 
+## 実績で解禁する見た目の称号（0=なし/1=ゴールド/2=プラチナ/3=ダイヤ）に応じた、
+## 道具の主要パーツを丸ごと塗り替えるための素材。称号がなければ null。
+func _current_skin_mat() -> StandardMaterial3D:
+	var m: StandardMaterial3D
+	match GameState.skin_tier:
+		1:
+			m = _mat(Color(0.85, 0.7, 0.25), 0.12, 1.0)
+			m.emission_enabled = true
+			m.emission = Color(0.6, 0.45, 0.1)
+			m.emission_energy_multiplier = 0.35
+		2:
+			m = _mat(Color(0.86, 0.88, 0.92), 0.05, 1.0)
+			m.emission_enabled = true
+			m.emission = Color(0.5, 0.55, 0.6)
+			m.emission_energy_multiplier = 0.3
+		3:
+			m = _mat(Color(0.82, 0.93, 0.98), 0.03, 0.9)
+			m.emission_enabled = true
+			m.emission = Color(0.35, 0.7, 0.95)
+			m.emission_energy_multiplier = 0.55
+	return m
+
+
 ## 包丁のアップグレードLvに応じて見た目を変える（地味だが、育てた実感が出るように）
 ## Lv0: ふつうの包丁 → Lv上がるごとに刃が長く・輝きが増し → 最大Lvで柄口に金の縁飾り
+## さらに実績で称号（ゴールド/プラチナ/ダイヤ）を得ていれば、そちらの色を丸ごと優先する
 func _rebuild_knife_visual() -> void:
 	if knife_visual == null:
 		return
@@ -562,14 +621,11 @@ func _rebuild_knife_visual() -> void:
 	var lv: int = GameState.levels["knife"]
 	var max_lv: int = GameState.UPGRADES["knife"]["max"]
 	var t: float = float(lv) / float(max_lv)  # 0.0〜1.0
+	var skin := _current_skin_mat()
 
 	var blade_len: float = lerpf(0.22, 0.285, t)
-	var blade_color := Color(0.8, 0.81, 0.83).lerp(Color(0.86, 0.89, 0.94), t)
-	var blade_roughness: float = lerpf(0.2, 0.04, t)
-	var steel := _mat(blade_color, blade_roughness, 0.95)
-
-	var handle_color := Color(0.2, 0.13, 0.08).lerp(Color(0.06, 0.05, 0.06), t)
-	var wood := _mat(handle_color, lerpf(0.6, 0.3, t))
+	var steel := skin if skin else _mat(Color(0.8, 0.81, 0.83).lerp(Color(0.86, 0.89, 0.94), t), lerpf(0.2, 0.04, t), 0.95)
+	var wood := skin if skin else _mat(Color(0.2, 0.13, 0.08).lerp(Color(0.06, 0.05, 0.06), t), lerpf(0.6, 0.3, t))
 
 	# 刃は Z 方向（奥〜手前）に伸びる。原点が刃先の線。
 	_box(knife_visual, Vector3(0.003, 0.05, blade_len), Vector3(0, 0.025, -0.04 - (blade_len - 0.22) * 0.5), steel)
@@ -577,12 +633,12 @@ func _rebuild_knife_visual() -> void:
 	_box(knife_visual, Vector3(0.018, 0.024, 0.12), Vector3(0, 0.037, 0.14), wood)
 
 	if lv >= 3:
-		# 中間Lv以降：口金（ボルスター）を真鍮色に
-		var brass := _mat(Color(0.8, 0.65, 0.25), 0.25, 0.9)
+		# 中間Lv以降：口金（ボルスター）を真鍮色に（称号があればそちらを優先）
+		var brass := skin if skin else _mat(Color(0.8, 0.65, 0.25), 0.25, 0.9)
 		_box(knife_visual, Vector3(0.02, 0.026, 0.01), Vector3(0, 0.037, 0.083), brass)
 	if lv >= max_lv:
 		# 最大Lv：刃の背に金のライン、柄尻に金のキャップ（職人技の一振りという貫禄）
-		var gold := _mat(Color(0.95, 0.78, 0.35), 0.15, 1.0)
+		var gold := skin if skin else _mat(Color(0.95, 0.78, 0.35), 0.15, 1.0)
 		_box(knife_visual, Vector3(0.0032, 0.006, blade_len - 0.01), Vector3(0, 0.049, -0.04 - (blade_len - 0.22) * 0.5), gold)
 		_box(knife_visual, Vector3(0.02, 0.026, 0.006), Vector3(0, 0.037, 0.197), gold)
 
@@ -635,30 +691,115 @@ func _rebuild_knife_visual() -> void:
 
 
 func _build_processor() -> void:
-	var body_mat := _mat(Color(0.85, 0.83, 0.78), 0.4)
-	var glass := _mat(Color(0.8, 0.9, 0.95, 0.25), 0.05)
-	glass.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	glass.cull_mode = BaseMaterial3D.CULL_DISABLED
 	processor = Node3D.new()
 	processor.position = PROCESSOR_POS
 	add_child(processor)
-	_box(processor, Vector3(0.2, 0.1, 0.2), Vector3(0, 0.05, 0), body_mat)
+	processor_visual = Node3D.new()
+	processor.add_child(processor_visual)
+	processor.visible = false
+	_rebuild_processor_visual()
+
+
+## フードプロセッサーのLvに応じて見た目を変える：本体が大きく艶やかに、
+## Lv3以降は刃が十字（2枚）になり、最大Lvで電源ランプ（赤いつまみ）が付く。
+## 称号（ゴールド/プラチナ/ダイヤ）があれば本体と刃をそちらの色で丸ごと塗り替える。
+func _rebuild_processor_visual() -> void:
+	if processor_visual == null:
+		return
+	for c in processor_visual.get_children():
+		c.queue_free()
+	var lv: int = GameState.levels["processor"]
+	var max_lv: int = GameState.UPGRADES["processor"]["max"]
+	var t: float = float(lv) / float(max_lv)
+	var skin := _current_skin_mat()
+
+	var body_mat := skin if skin else _mat(Color(0.85, 0.83, 0.78).lerp(Color(0.78, 0.8, 0.84), t), lerpf(0.4, 0.15, t), lerpf(0.0, 0.55, t))
+	var glass := _mat(Color(0.8, 0.9, 0.95, 0.25), 0.05)
+	glass.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	glass.cull_mode = BaseMaterial3D.CULL_DISABLED
+
+	var base_size: float = lerpf(0.2, 0.24, t)
+	_box(processor_visual, Vector3(base_size, 0.1, base_size), Vector3(0, 0.05, 0), body_mat)
+
 	var jar := MeshInstance3D.new()
 	var jar_mesh := CylinderMesh.new()
-	jar_mesh.top_radius = 0.08
-	jar_mesh.bottom_radius = 0.075
-	jar_mesh.height = 0.16
+	jar_mesh.top_radius = lerpf(0.08, 0.095, t)
+	jar_mesh.bottom_radius = lerpf(0.075, 0.09, t)
+	jar_mesh.height = lerpf(0.16, 0.19, t)
 	jar.mesh = jar_mesh
 	jar.material_override = glass
 	jar.position = Vector3(0, 0.18, 0)
-	processor.add_child(jar)
+	processor_visual.add_child(jar)
+
 	processor_blade = Node3D.new()
 	processor_blade.position = Vector3(0, 0.125, 0)
-	processor.add_child(processor_blade)
-	_box(processor_blade, Vector3(0.12, 0.004, 0.015), Vector3.ZERO, _mat(Color(0.7, 0.7, 0.72), 0.2, 0.9))
-	var lid := _box(processor, Vector3(0.17, 0.015, 0.17), Vector3(0, 0.265, 0), body_mat)
+	processor_visual.add_child(processor_blade)
+	var blade_mat := skin if skin else _mat(Color(0.7, 0.7, 0.72), 0.2, 0.9)
+	_box(processor_blade, Vector3(0.12, 0.004, 0.015), Vector3.ZERO, blade_mat)
+	if lv >= 3:
+		# 中間Lv以降：刃がもう1枚、十字に増える（よりパワフルな印象に）
+		_box(processor_blade, Vector3(0.015, 0.004, 0.12), Vector3.ZERO, blade_mat)
+
+	var lid := _box(processor_visual, Vector3(lerpf(0.17, 0.2, t), 0.015, lerpf(0.17, 0.2, t)),
+			Vector3(0, jar.position.y + jar_mesh.height * 0.5 + 0.005, 0), body_mat)
 	lid.rotation.y = PI / 4
-	processor.visible = false
+
+	if lv >= max_lv:
+		# 最大Lv：電源ランプ（プロ機っぽい赤いつまみ）
+		var knob_mat := skin if skin else _mat(Color(0.9, 0.2, 0.2), 0.3, 0.2)
+		var knob := MeshInstance3D.new()
+		var knob_mesh := CylinderMesh.new()
+		knob_mesh.top_radius = 0.014
+		knob_mesh.bottom_radius = 0.014
+		knob_mesh.height = 0.02
+		knob.mesh = knob_mesh
+		knob.material_override = knob_mat
+		knob.position = Vector3(base_size * 0.5 - 0.025, 0.06, base_size * 0.5 - 0.025)
+		processor_visual.add_child(knob)
+
+
+func _build_goggles() -> void:
+	goggles = Node3D.new()
+	goggles.position = GOGGLES_POS
+	goggles.rotation.y = deg_to_rad(18.0)
+	add_child(goggles)
+	goggles_visual = Node3D.new()
+	goggles.add_child(goggles_visual)
+	goggles.visible = false
+	_rebuild_goggles_visual()
+
+
+## 玉ねぎゴーグルのLvに応じて見た目を変える：透明な安全メガネ→琥珀色のレンズ→
+## 金属フレームの鏡面レンズへ。最大Lvでフレームに金の縁飾り。
+## 称号があればフレームをそちらの色で丸ごと塗り替える（レンズの色味は残す）。
+func _rebuild_goggles_visual() -> void:
+	if goggles_visual == null:
+		return
+	for c in goggles_visual.get_children():
+		c.queue_free()
+	var lv: int = GameState.levels["goggles"]
+	if lv <= 0:
+		return
+	var max_lv: int = GameState.UPGRADES["goggles"]["max"]
+	var t: float = float(lv) / float(max_lv)
+	var skin := _current_skin_mat()
+
+	var lens_color := Color(0.75, 0.85, 0.9, 0.55).lerp(Color(0.35, 0.55, 0.75, 0.85), t)
+	var lens_mat := _mat(lens_color, 0.1, lerpf(0.1, 0.6, t))
+	lens_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	var frame_mat := skin if skin else _mat(Color(0.15, 0.15, 0.16).lerp(Color(0.3, 0.3, 0.32), t), lerpf(0.6, 0.25, t), lerpf(0.1, 0.6, t))
+
+	for side in [-1.0, 1.0]:
+		_box(goggles_visual, Vector3(0.058, 0.006, 0.052), Vector3(side * 0.032, 0.0, 0), frame_mat)
+		_box(goggles_visual, Vector3(0.05, 0.012, 0.045), Vector3(side * 0.032, 0.006, 0), lens_mat)
+	_box(goggles_visual, Vector3(0.02, 0.008, 0.018), Vector3(0, 0.006, 0), frame_mat)
+	_box(goggles_visual, Vector3(0.13, 0.006, 0.006), Vector3(0, 0.006, -0.03), frame_mat)
+
+	if lv >= max_lv:
+		# 最大Lv：フレームの縁に金の飾り（称号があればそちらの色のまま）
+		var gold := skin if skin else _mat(Color(0.95, 0.78, 0.35), 0.15, 1.0)
+		for side in [-1.0, 1.0]:
+			_box(goggles_visual, Vector3(0.062, 0.004, 0.056), Vector3(side * 0.032, 0.009, 0), gold)
 
 
 # ================================================================ 空間の組み立て

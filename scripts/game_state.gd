@@ -21,6 +21,27 @@ const UPGRADES := {
 ##   gap:   切れ目の間隔の上限（メートル）
 ##   size:  みじん切りの目標サイズ（メートル）
 ##   pay:   報酬の倍率
+## 実績。base はすべて揃うとゴールドの見た目（skin_tier=1）を解禁する。
+## day40 / grams20000 はその上の特別な実績で、順にプラチナ（2）・ダイヤ（3）へ格上げする。
+const BASE_ACHIEVEMENT_IDS := ["knife_max", "goggles_max", "processor_max", "contract_max",
+		"day10", "money1000", "golden1", "grams3000"]
+const TIER_ACHIEVEMENT_IDS := ["day40", "grams20000"]
+const ALL_ACHIEVEMENT_IDS := BASE_ACHIEVEMENT_IDS + TIER_ACHIEVEMENT_IDS
+const ACHIEVEMENTS := {
+	"knife_max": {"name": "ACH_KNIFE_MAX", "desc": "ACH_KNIFE_MAX_DESC"},
+	"goggles_max": {"name": "ACH_GOGGLES_MAX", "desc": "ACH_GOGGLES_MAX_DESC"},
+	"processor_max": {"name": "ACH_PROCESSOR_MAX", "desc": "ACH_PROCESSOR_MAX_DESC"},
+	"contract_max": {"name": "ACH_CONTRACT_MAX", "desc": "ACH_CONTRACT_MAX_DESC"},
+	"day10": {"name": "ACH_DAY10", "desc": "ACH_DAY10_DESC"},
+	"money1000": {"name": "ACH_MONEY1000", "desc": "ACH_MONEY1000_DESC"},
+	"golden1": {"name": "ACH_GOLDEN1", "desc": "ACH_GOLDEN1_DESC"},
+	"grams3000": {"name": "ACH_GRAMS3000", "desc": "ACH_GRAMS3000_DESC"},
+	"day40": {"name": "ACH_DAY40", "desc": "ACH_DAY40_DESC"},
+	"grams20000": {"name": "ACH_GRAMS20000", "desc": "ACH_GRAMS20000_DESC"},
+}
+## 見た目の称号。0=なし 1=ゴールド 2=プラチナ 3=ダイヤ
+const SKIN_NAMES := ["", "SKIN_GOLD", "SKIN_PLATINUM", "SKIN_DIAMOND"]
+
 const ORDER_IDS := ["hamburg", "curry", "soup", "dressing"]
 const ORDERS := {
 	"hamburg": {"name": "ORDER_HAMBURG", "style": "STYLE_MINCE", "day": 1, "pay": 1.0,
@@ -33,10 +54,16 @@ const ORDERS := {
 			"steps": ["L", "C", "M"], "gap": 0.02, "size": 0.0045},
 }
 
+signal achievement_unlocked(id: String)
+signal skin_tier_changed(tier: int)
+
 var day := 1
 var money := 0
 var total_grams := 0
+var golden_onions := 0
 var levels := {}
+var achievements := {}
+var skin_tier := 0
 var locale := ""
 ## 音量は 0.0〜1.0。実際にバスへ反映するのは Sfx 側
 ## （オートロードの順番上、Sfx のバスがまだ無い時点でここから触れないため）
@@ -63,9 +90,12 @@ func reset() -> void:
 	day = 1
 	money = 0
 	total_grams = 0
+	golden_onions = 0
 	levels = {}
 	for id in UPGRADE_IDS:
 		levels[id] = 0
+	achievements = {}
+	skin_tier = 0
 
 
 func has_save() -> bool:
@@ -128,7 +158,58 @@ func buy(id: String) -> bool:
 	money -= upgrade_cost(id)
 	levels[id] += 1
 	save_game()
+	check_achievements()
 	return true
+
+
+# ---- 実績・見た目の称号 ----
+
+func _achievement_condition(id: String) -> bool:
+	match id:
+		"knife_max": return is_maxed("knife")
+		"goggles_max": return is_maxed("goggles")
+		"processor_max": return is_maxed("processor")
+		"contract_max": return is_maxed("contract")
+		"day10": return day >= 10
+		"money1000": return money >= 1000
+		"golden1": return golden_onions >= 1
+		"grams3000": return total_grams >= 3000
+		"day40": return day >= 40
+		"grams20000": return total_grams >= 20000
+		_: return false
+
+
+func base_achievements_complete() -> bool:
+	return BASE_ACHIEVEMENT_IDS.all(func(id): return achievements.get(id, false))
+
+
+func _recompute_skin_tier() -> void:
+	var tier := 0
+	if base_achievements_complete():
+		tier = 1
+		if achievements.get("day40", false):
+			tier = 2
+			if achievements.get("grams20000", false):
+				tier = 3
+	if tier != skin_tier:
+		skin_tier = tier
+		skin_tier_changed.emit(skin_tier)
+
+
+## 実績条件をまとめて確認し、新しく解除したものがあれば通知する。
+## アップグレード購入・報酬受け取り・幸運の玉ねぎ・日の開始など、状況が変わるたびに呼ぶ。
+func check_achievements() -> void:
+	var unlocked_any := false
+	for id in ALL_ACHIEVEMENT_IDS:
+		if achievements.get(id, false):
+			continue
+		if _achievement_condition(id):
+			achievements[id] = true
+			unlocked_any = true
+			achievement_unlocked.emit(id)
+	_recompute_skin_tier()
+	if unlocked_any:
+		save_game()
 
 
 ## live: 値を反映するだけ（スライダーを動かしている最中など）。false ならセーブまで行う。
@@ -166,11 +247,13 @@ func save_game() -> void:
 		push_warning("セーブに失敗しました: %s" % FileAccess.get_open_error())
 		return
 	f.store_string(JSON.stringify({
-		"version": 3,
+		"version": 4,
 		"day": day,
 		"money": money,
 		"total_grams": total_grams,
+		"golden_onions": golden_onions,
 		"levels": levels,
+		"achievements": achievements,
 		"locale": locale,
 		"sound_volume": sound_volume,
 		"music_volume": music_volume,
@@ -188,6 +271,7 @@ func load_game() -> void:
 	day = int(data.get("day", 1))
 	money = int(data.get("money", 0))
 	total_grams = int(data.get("total_grams", 0))
+	golden_onions = int(data.get("golden_onions", 0))
 	locale = str(data.get("locale", ""))
 	# version 2 以前（オン/オフの2択）からの引き継ぎ。新しい保存にはもう出てこない
 	sound_volume = float(data.get("sound_volume", 0.0 if data.get("muted", false) else 1.0))
@@ -196,6 +280,12 @@ func load_game() -> void:
 	var saved_levels: Dictionary = data.get("levels", {})
 	for id in UPGRADE_IDS:
 		levels[id] = clampi(int(saved_levels.get(id, 0)), 0, UPGRADES[id]["max"])
+	var saved_achievements: Dictionary = data.get("achievements", {})
+	achievements = {}
+	for id in ALL_ACHIEVEMENT_IDS:
+		if saved_achievements.get(id, false):
+			achievements[id] = true
+	_recompute_skin_tier()
 
 
 func delete_save() -> void:

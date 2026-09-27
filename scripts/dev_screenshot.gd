@@ -6,6 +6,9 @@
 #   complete: 1品を完成させ、ヒットストップ・きらめき演出まで通す
 #   golden: 「幸運の玉ねぎ」の見た目を確認する（本番は確率抽選、ここでは強制的に出す）
 #   knife: 包丁のLv別の見た目を確認する（--knife_lv=0〜5 で指定、省略時は5＝最大Lv）
+#   gear: ゴーグル・フードプロセッサー・包丁をまとめて確認する
+#         （--gear_lv=0〜5 で全道具のLv、--skin=0〜3 で称号スキンを指定。省略時はLv5・称号なし）
+#   achievements: 実績一覧画面を確認する（--skin=0〜3 で称号を指定可能）
 extends Node
 
 var _args := {}
@@ -84,6 +87,26 @@ func _process(_delta: float) -> void:
 		GameState.levels["knife"] = lv
 		main._rebuild_knife_visual()
 		main._knife_x = main.onion.global_position.x
+	if _frame == 20 and shot == "gear":
+		var lv := int(_args.get("gear_lv", 5))
+		GameState.skin_tier = int(_args.get("skin", 0))
+		GameState.levels["knife"] = clampi(lv, 0, GameState.UPGRADES["knife"]["max"])
+		GameState.levels["goggles"] = clampi(lv, 0, GameState.UPGRADES["goggles"]["max"])
+		GameState.levels["processor"] = clampi(lv, 0, GameState.UPGRADES["processor"]["max"])
+		main._rebuild_knife_visual()
+		main._rebuild_goggles_visual()
+		main._rebuild_processor_visual()
+		main.goggles.visible = true
+		main.processor.visible = true
+		main._knife_x = main.onion.global_position.x
+	if _frame == 20 and shot == "achievements":
+		GameState.skin_tier = int(_args.get("skin", 0))
+		if _args.get("unlock", "0") == "1":
+			GameState.achievements["knife_max"] = true
+			GameState.achievements["day10"] = true
+		main._set_state(main.State.PAUSED)
+		main.ui.refresh_achievements()
+		main.ui.show_only(main.ui.achievements_screen)
 	if _frame == 20 and shot == "pause":
 		main._set_state(main.State.PAUSED)
 		GameState.set_fullscreen(true)

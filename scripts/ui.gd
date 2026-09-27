@@ -25,6 +25,7 @@ var hud: Control
 var title_screen: Control
 var day_end_screen: Control
 var pause_screen: Control
+var achievements_screen: Control
 
 var _day_label: Label
 var _today_label: Label
@@ -66,8 +67,14 @@ var _sound_slider: HSlider
 var _music_label: Label
 var _music_slider: HSlider
 var _fullscreen_button: Button
+var _achievements_button: Button
 var _to_title_button: Button
 var _version_label: Label
+
+var _achievements_title: Label
+var _achievements_back_button: Button
+var _skin_tier_label: Label
+var _ach_rows := {}
 
 
 func _ready() -> void:
@@ -83,6 +90,8 @@ func _ready() -> void:
 	root.add_child(day_end_screen)
 	pause_screen = _build_pause()
 	root.add_child(pause_screen)
+	achievements_screen = _build_achievements()
+	root.add_child(achievements_screen)
 	title_screen = _build_title()
 	root.add_child(title_screen)
 	refresh_texts()
@@ -92,7 +101,7 @@ func _ready() -> void:
 # ---------------------------------------------------------------- 表示切替
 
 func show_only(screen: Control) -> void:
-	for s in [title_screen, day_end_screen, pause_screen]:
+	for s in [title_screen, day_end_screen, pause_screen, achievements_screen]:
 		s.visible = s == screen
 	hud.visible = screen == null or screen == pause_screen
 
@@ -118,7 +127,10 @@ func refresh_texts() -> void:
 	_sound_label.text = tr("OPT_SOUND") % roundi(GameState.sound_volume * 100)
 	_music_label.text = tr("OPT_MUSIC") % roundi(GameState.music_volume * 100)
 	_fullscreen_button.text = tr("BTN_FULLSCREEN_ON") if GameState.fullscreen else tr("BTN_FULLSCREEN_OFF")
+	_achievements_button.text = tr("BTN_ACHIEVEMENTS")
+	_achievements_back_button.text = tr("BTN_BACK")
 	refresh_shop()
+	refresh_achievements()
 
 
 func _process(delta: float) -> void:
@@ -429,6 +441,9 @@ func _build_pause() -> Control:
 	_fullscreen_button = _button(box, func():
 		GameState.set_fullscreen(not GameState.fullscreen)
 		refresh_texts())
+	_achievements_button = _button(box, func():
+		refresh_achievements()
+		show_only(achievements_screen))
 	_to_title_button = _button(box, to_title_pressed.emit)
 
 	_version_label = _label(13, Color(0.4, 0.39, 0.36))
@@ -437,6 +452,73 @@ func _build_pause() -> Control:
 	box.add_child(_spacer(6))
 	box.add_child(_version_label)
 	return c
+
+
+func _build_achievements() -> Control:
+	var c := _overlay(0.6)
+	var panel := _panel()
+	panel.set_anchors_preset(Control.PRESET_CENTER)
+	panel.grow_horizontal = Control.GROW_DIRECTION_BOTH
+	panel.grow_vertical = Control.GROW_DIRECTION_BOTH
+	panel.custom_minimum_size = Vector2(720, 0)
+	c.add_child(panel)
+	var box := VBoxContainer.new()
+	box.add_theme_constant_override("separation", 10)
+	panel.add_child(box)
+
+	_achievements_title = _label(40, COL_ACCENT)
+	_achievements_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	box.add_child(_achievements_title)
+	_skin_tier_label = _label(18, COL_DIM)
+	_skin_tier_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	box.add_child(_skin_tier_label)
+	box.add_child(_spacer(8))
+
+	var scroll := ScrollContainer.new()
+	scroll.custom_minimum_size = Vector2(0, 380)
+	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	box.add_child(scroll)
+	var grid := GridContainer.new()
+	grid.columns = 2
+	grid.add_theme_constant_override("h_separation", 20)
+	grid.add_theme_constant_override("v_separation", 6)
+	grid.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	scroll.add_child(grid)
+	for id in GameState.ALL_ACHIEVEMENT_IDS:
+		var text_box := VBoxContainer.new()
+		text_box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		text_box.add_theme_constant_override("separation", 0)
+		var name_label := _label(19)
+		var desc_label := _label(14, COL_DIM)
+		text_box.add_child(name_label)
+		text_box.add_child(desc_label)
+		var status_label := _label(19, COL_DIM)
+		status_label.custom_minimum_size = Vector2(90, 0)
+		status_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+		grid.add_child(text_box)
+		grid.add_child(status_label)
+		_ach_rows[id] = {"name": name_label, "desc": desc_label, "status": status_label}
+
+	box.add_child(_spacer(8))
+	_achievements_back_button = _button(box, func(): show_only(pause_screen))
+	return c
+
+
+func refresh_achievements() -> void:
+	var unlocked := 0
+	for id in GameState.ALL_ACHIEVEMENT_IDS:
+		var a: Dictionary = GameState.ACHIEVEMENTS[id]
+		var row: Dictionary = _ach_rows[id]
+		var got: bool = GameState.achievements.get(id, false)
+		unlocked += 1 if got else 0
+		row["name"].text = tr(a["name"])
+		row["name"].modulate = Color.WHITE if got else Color(1, 1, 1, 0.5)
+		row["desc"].text = tr(a["desc"])
+		row["status"].text = tr("ACH_DONE") if got else tr("ACH_LOCKED")
+		row["status"].add_theme_color_override("font_color", COL_GOOD if got else COL_DIM)
+	_achievements_title.text = tr("ACHIEVEMENTS_TITLE") % [unlocked, GameState.ALL_ACHIEVEMENT_IDS.size()]
+	var tier: int = GameState.skin_tier
+	_skin_tier_label.text = tr("SKIN_LABEL") % (tr(GameState.SKIN_NAMES[tier]) if tier > 0 else tr("SKIN_NONE"))
 
 
 ## ラベル＋スライダーの1行。live はドラッグ中の即時反映、commit は指を離したときの保存
