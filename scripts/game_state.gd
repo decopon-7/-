@@ -42,6 +42,10 @@ const ACHIEVEMENTS := {
 ## 見た目の称号。0=なし 1=ゴールド 2=プラチナ 3=ダイヤ
 const SKIN_NAMES := ["", "SKIN_GOLD", "SKIN_PLATINUM", "SKIN_DIAMOND"]
 
+## 主人公の日記が出てくる日。40日目だけは特別で、遊び方によって内容が分岐する（複数エンド）
+const DIARY_DAYS := [1, 2, 3, 5, 7, 10, 13, 16, 20, 24, 28, 32, 36, 40]
+const ENDING_DAY := 40
+
 const ORDER_IDS := ["hamburg", "curry", "soup", "dressing"]
 const ORDERS := {
 	"hamburg": {"name": "ORDER_HAMBURG", "style": "STYLE_MINCE", "day": 1, "pay": 1.0,
@@ -64,6 +68,10 @@ var golden_onions := 0
 var levels := {}
 var achievements := {}
 var skin_tier := 0
+## 読んだ日記の日付（回想機能で「まだ読んでいない」ものを伏せるため）
+var diary_seen := {}
+## 最終日（ENDING_DAY）に決まる分岐エンド。一度決まったら固定（"master" / "bonds" / "quiet"）
+var ending_id := ""
 var locale := ""
 ## 音量は 0.0〜1.0。実際にバスへ反映するのは Sfx 側
 ## （オートロードの順番上、Sfx のバスがまだ無い時点でここから触れないため）
@@ -96,6 +104,8 @@ func reset() -> void:
 		levels[id] = 0
 	achievements = {}
 	skin_tier = 0
+	diary_seen = {}
+	ending_id = ""
 
 
 func has_save() -> bool:
@@ -160,6 +170,21 @@ func buy(id: String) -> bool:
 	save_game()
 	check_achievements()
 	return true
+
+
+## 最終日（ENDING_DAY）に、それまでの遊び方から進む道を決める（複数エンド）。
+## 道具を鍛え上げた「職人」／幸運を何度も引き当てた「絆」／どちらでもない「静かな日々」の3択。
+## 優先度は職人 > 絆 > 静かな日々（両方の条件を満たしても職人を優先）
+func determine_ending() -> String:
+	var maxed_count := 0
+	for id in UPGRADE_IDS:
+		if is_maxed(id):
+			maxed_count += 1
+	if maxed_count >= 3:
+		return "master"
+	if golden_onions >= 3:
+		return "bonds"
+	return "quiet"
 
 
 # ---- 実績・見た目の称号 ----
@@ -247,13 +272,15 @@ func save_game() -> void:
 		push_warning("セーブに失敗しました: %s" % FileAccess.get_open_error())
 		return
 	f.store_string(JSON.stringify({
-		"version": 4,
+		"version": 5,
 		"day": day,
 		"money": money,
 		"total_grams": total_grams,
 		"golden_onions": golden_onions,
 		"levels": levels,
 		"achievements": achievements,
+		"diary_seen": diary_seen,
+		"ending_id": ending_id,
 		"locale": locale,
 		"sound_volume": sound_volume,
 		"music_volume": music_volume,
@@ -286,6 +313,17 @@ func load_game() -> void:
 		if saved_achievements.get(id, false):
 			achievements[id] = true
 	_recompute_skin_tier()
+	var saved_diary: Dictionary = data.get("diary_seen", {})
+	diary_seen = {}
+	for d in DIARY_DAYS:
+		# JSONの辞書キーは文字列になるため、日付(int)を文字列にして引く
+		if saved_diary.get(str(d), false):
+			diary_seen[d] = true
+	ending_id = str(data.get("ending_id", ""))
+	# version 4 以前のセーブデータで、既に最終日を過ぎている場合は、現在の状態からさかのぼって決める
+	if ending_id == "" and day > ENDING_DAY:
+		ending_id = determine_ending()
+		diary_seen[ENDING_DAY] = true
 
 
 func delete_save() -> void:

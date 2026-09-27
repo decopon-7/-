@@ -27,9 +27,6 @@ const SHAKE_ORDER_DONE := 0.3
 const HIT_STOP_DURATION := 0.07
 const HIT_STOP_SCALE := 0.15
 
-## 主人公の日記が出てくる日。文言は scripts/i18n.gd の DIARY_<日> にある
-const DIARY_DAYS := [1, 2, 3, 5, 7, 10, 13, 16, 20, 24, 28, 32, 36, 40]
-
 ## ごくたまに出てくる「幸運の玉ねぎ」（見た目が金色になり、報酬が増える驚きの演出）
 const GOLDEN_CHANCE := 0.04
 const GOLDEN_BONUS := 5.0
@@ -154,9 +151,17 @@ func _end_day() -> void:
 	_set_state(State.DAY_END)
 
 
-## 主人公の小さな日記。多くを語らない性格なので、決まった日にだけぽつりと出てくる
+## 主人公の小さな日記。多くを語らない性格なので、決まった日にだけぽつりと出てくる。
+## 最終日（ENDING_DAY）だけは、それまでの遊び方によって内容が分岐する（複数エンド）
 func _diary_text_for(day: int) -> String:
-	return tr("DIARY_%d" % day) if day in DIARY_DAYS else ""
+	if not day in GameState.DIARY_DAYS:
+		return ""
+	GameState.diary_seen[day] = true
+	if day == GameState.ENDING_DAY:
+		if GameState.ending_id == "":
+			GameState.ending_id = GameState.determine_ending()
+		return tr("ENDING_" + GameState.ending_id.to_upper())
+	return tr("DIARY_%d" % day)
 
 
 func _process(delta: float) -> void:

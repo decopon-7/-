@@ -160,10 +160,24 @@ const STRINGS := {
 		"ja": "涙は、悲しいときだけに出るものじゃないと、最近わかってきた。",
 		"en": "I'm starting to understand — tears don't only come from sadness.",
 	},
-	"DIARY_40": {
+	# 40日目（ENDING_DAY）だけは特別で、それまでの遊び方によって3つに分岐する（複数エンド）
+	"ENDING_MASTER": {
+		"ja": "気づけば、包丁もゴーグルもプロセッサーも、店の誰よりも手に馴染んでいた。大将は何も言わずに、厨房の合鍵をそっと渡してくれた。",
+		"en": "Without quite noticing, every tool in this kitchen had become an extension of my hand. The owner said nothing — just quietly handed me a spare key to the kitchen.",
+	},
+	"ENDING_BONDS": {
+		"ja": "幸運の玉ねぎに、何度も出くわした気がする。漁師も、隣町の老婆も、いつのまにか顔なじみになっていた。誰も理由を聞かないこの町で、初めて「ただいま」と言いたくなった。",
+		"en": "I seem to have crossed paths with the lucky onion more than once. The fisherman, the old woman from the next town — somehow, they'd all become familiar faces. In this town where no one asks why, for the first time, I wanted to say \"I'm home.\"",
+	},
+	"ENDING_QUIET": {
 		"ja": "今日も玉ねぎを刻む。急ぐ理由は、もうどこにもない。",
 		"en": "I cut onions again today. There's no reason to hurry, not anymore.",
 	},
+
+	"BTN_DIARY": {"ja": "日記を読み返す", "en": "Reread the Diary"},
+	"DIARY_RECAP_TITLE": {"ja": "日記（%d / %d）", "en": "Diary (%d / %d)"},
+	"DIARY_DAY_LABEL": {"ja": "%d日目", "en": "Day %d"},
+	"DIARY_LOCKED": {"ja": "……（まだ読んでいない）", "en": "…… (not read yet)"},
 }
 
 

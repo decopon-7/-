@@ -9,6 +9,7 @@
 #   gear: ゴーグル・フードプロセッサー・包丁をまとめて確認する
 #         （--gear_lv=0〜5 で全道具のLv、--skin=0〜3 で称号スキンを指定。省略時はLv5・称号なし）
 #   achievements: 実績一覧画面を確認する（--skin=0〜3 で称号を指定可能）
+#   diary: 日記の回想画面を確認する（--diary_days=1,2,40 のように読んだことにする日を指定可能）
 extends Node
 
 var _args := {}
@@ -107,6 +108,17 @@ func _process(_delta: float) -> void:
 		main._set_state(main.State.PAUSED)
 		main.ui.refresh_achievements()
 		main.ui.show_only(main.ui.achievements_screen)
+	if _frame == 20 and shot == "diary":
+		if _args.has("force_ending"):
+			GameState.ending_id = _args["force_ending"]
+		if _args.has("diary_days"):
+			for tok in _args["diary_days"].split(","):
+				var d := int(tok)
+				GameState.diary_seen[d] = true
+				if d == GameState.ENDING_DAY and GameState.ending_id == "":
+					GameState.ending_id = GameState.determine_ending()
+		main.ui.refresh_diary_recap()
+		main.ui.show_only(main.ui.diary_screen)
 	if _frame == 20 and shot == "pause":
 		main._set_state(main.State.PAUSED)
 		GameState.set_fullscreen(true)

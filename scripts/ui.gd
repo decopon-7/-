@@ -26,6 +26,7 @@ var title_screen: Control
 var day_end_screen: Control
 var pause_screen: Control
 var achievements_screen: Control
+var diary_screen: Control
 
 var _day_label: Label
 var _today_label: Label
@@ -49,7 +50,12 @@ var _title_sub: Label
 var _continue_button: Button
 var _new_game_button: Button
 var _language_button: Button
+var _diary_button: Button
 var _quit_button: Button
+
+var _diary_recap_title: Label
+var _diary_back_button: Button
+var _diary_rows := {}
 
 var _end_title: Label
 var _end_body: Label
@@ -92,6 +98,8 @@ func _ready() -> void:
 	root.add_child(pause_screen)
 	achievements_screen = _build_achievements()
 	root.add_child(achievements_screen)
+	diary_screen = _build_diary_recap()
+	root.add_child(diary_screen)
 	title_screen = _build_title()
 	root.add_child(title_screen)
 	refresh_texts()
@@ -101,7 +109,7 @@ func _ready() -> void:
 # ---------------------------------------------------------------- 表示切替
 
 func show_only(screen: Control) -> void:
-	for s in [title_screen, day_end_screen, pause_screen, achievements_screen]:
+	for s in [title_screen, day_end_screen, pause_screen, achievements_screen, diary_screen]:
 		s.visible = s == screen
 	hud.visible = screen == null or screen == pause_screen
 
@@ -113,6 +121,8 @@ func refresh_texts() -> void:
 	_continue_button.text = tr("BTN_CONTINUE") % GameState.day
 	_new_game_button.text = tr("BTN_NEW_GAME")
 	_language_button.text = tr("BTN_LANGUAGE")
+	_diary_button.text = tr("BTN_DIARY")
+	_diary_back_button.text = tr("BTN_BACK")
 	_quit_button.text = tr("BTN_QUIT")
 	_hint_label.text = tr("HUD_HINT")
 	_gap_hint.text = tr("HUD_GAP_HINT")
@@ -131,6 +141,7 @@ func refresh_texts() -> void:
 	_achievements_back_button.text = tr("BTN_BACK")
 	refresh_shop()
 	refresh_achievements()
+	refresh_diary_recap()
 
 
 func _process(delta: float) -> void:
@@ -367,6 +378,9 @@ func _build_title() -> Control:
 	_language_button = _button(box, func():
 		GameState.set_locale(I18n.next_locale(TranslationServer.get_locale()))
 		refresh_texts())
+	_diary_button = _button(box, func():
+		refresh_diary_recap()
+		show_only(diary_screen))
 	_quit_button = _button(box, func(): get_tree().quit())
 	return c
 
@@ -519,6 +533,66 @@ func refresh_achievements() -> void:
 	_achievements_title.text = tr("ACHIEVEMENTS_TITLE") % [unlocked, GameState.ALL_ACHIEVEMENT_IDS.size()]
 	var tier: int = GameState.skin_tier
 	_skin_tier_label.text = tr("SKIN_LABEL") % (tr(GameState.SKIN_NAMES[tier]) if tier > 0 else tr("SKIN_NONE"))
+
+
+func _build_diary_recap() -> Control:
+	var c := _overlay(0.6)
+	var panel := _panel()
+	panel.set_anchors_preset(Control.PRESET_CENTER)
+	panel.grow_horizontal = Control.GROW_DIRECTION_BOTH
+	panel.grow_vertical = Control.GROW_DIRECTION_BOTH
+	panel.custom_minimum_size = Vector2(720, 0)
+	c.add_child(panel)
+	var box := VBoxContainer.new()
+	box.add_theme_constant_override("separation", 10)
+	panel.add_child(box)
+
+	_diary_recap_title = _label(40, COL_ACCENT)
+	_diary_recap_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	box.add_child(_diary_recap_title)
+	box.add_child(_spacer(8))
+
+	var scroll := ScrollContainer.new()
+	scroll.custom_minimum_size = Vector2(0, 420)
+	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	box.add_child(scroll)
+	var list := VBoxContainer.new()
+	list.add_theme_constant_override("separation", 12)
+	list.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	scroll.add_child(list)
+	for d in GameState.DIARY_DAYS:
+		var row := VBoxContainer.new()
+		row.add_theme_constant_override("separation", 0)
+		var day_label := _label(16, COL_ACCENT)
+		var text_label := _label(18)
+		text_label.autowrap_mode = TextServer.AUTOWRAP_WORD
+		text_label.custom_minimum_size = Vector2(660, 0)
+		row.add_child(day_label)
+		row.add_child(text_label)
+		list.add_child(row)
+		_diary_rows[d] = {"day": day_label, "text": text_label}
+
+	box.add_child(_spacer(8))
+	_diary_back_button = _button(box, func(): show_only(title_screen))
+	return c
+
+
+## 日記の回想画面：これまでに読んだ日にちだけ本文を見せ、まだの日は伏せる（ネタバレ防止）
+func refresh_diary_recap() -> void:
+	var unlocked := 0
+	for d in GameState.DIARY_DAYS:
+		var row: Dictionary = _diary_rows[d]
+		var seen: bool = GameState.diary_seen.get(d, false)
+		unlocked += 1 if seen else 0
+		row["day"].text = tr("DIARY_DAY_LABEL") % d
+		if seen:
+			var key := "ENDING_" + GameState.ending_id.to_upper() if d == GameState.ENDING_DAY else "DIARY_%d" % d
+			row["text"].text = tr(key)
+			row["text"].modulate = Color.WHITE
+		else:
+			row["text"].text = tr("DIARY_LOCKED")
+			row["text"].modulate = Color(1, 1, 1, 0.5)
+	_diary_recap_title.text = tr("DIARY_RECAP_TITLE") % [unlocked, GameState.DIARY_DAYS.size()]
 
 
 ## ラベル＋スライダーの1行。live はドラッグ中の即時反映、commit は指を離したときの保存
