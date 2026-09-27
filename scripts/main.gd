@@ -29,6 +29,10 @@ const HIT_STOP_SCALE := 0.15
 ## 主人公の日記が出てくる日。文言は scripts/i18n.gd の DIARY_<日> にある
 const DIARY_DAYS := [1, 2, 3, 5, 7, 10, 13, 16, 20, 24, 28, 32, 36, 40]
 
+## ごくたまに出てくる「幸運の玉ねぎ」（見た目が金色になり、報酬が増える驚きの演出）
+const GOLDEN_CHANCE := 0.04
+const GOLDEN_BONUS := 5.0
+
 var state := State.TITLE
 var grams_today := 0
 var earned_today := 0
@@ -57,6 +61,7 @@ var _cooldown := 0.0
 var _holding := false
 var _chips_time := 0.0
 var _gap_mat: StandardMaterial3D
+var _clean_view := false
 
 ## 手応え（カメラの微振動・包丁のスクワッシュ・きらめき演出）
 var knife_visual: Node3D
@@ -172,6 +177,11 @@ func _unhandled_input(event: InputEvent) -> void:
 		elif state == State.PAUSED:
 			_set_state(State.PLAYING)
 		return
+	# 実況・配信用：文字要素を消して、映像だけのきれいな画を撮れるようにする
+	if event is InputEventKey and event.pressed and event.keycode == KEY_H and not event.echo:
+		_clean_view = not _clean_view
+		ui.hud.visible = not _clean_view
+		return
 	if state != State.PLAYING:
 		return
 	var pressed := false
@@ -278,6 +288,14 @@ func _spawn_onion(animated: bool) -> void:
 	ui.update_ticket(id, order_queue.slice(0, 2), ticket_number)
 	add_child(onion)
 	onion.phase_changed.connect(_on_onion_phase)
+	if rng.randf() < GOLDEN_CHANCE:
+		onion.set_golden(true)
+		if sparkle:
+			sparkle.global_position = onion.global_position + Vector3(0, 0.04, 0)
+			sparkle.restart()
+			sparkle.emitting = true
+		Sfx.play("bell", -4.0, 0.0, 1.7)
+		ui.popup(tr("POP_GOLDEN"), get_viewport().get_visible_rect().size * Vector2(0.5, 0.3), Color(1.0, 0.85, 0.3))
 	if animated:
 		onion.position = CRATE_POS + Vector3(0, 0.06, 0)
 		var tw := onion.create_tween()
@@ -303,7 +321,8 @@ func _on_onion_phase(p: int) -> void:
 		sparkle.emitting = true
 	var done := onion
 	onion = null
-	var pay := GameState.pay_for(done.grams, GameState.ORDERS[done.order_id]["pay"])
+	var multiplier: float = GameState.ORDERS[done.order_id]["pay"] * (GOLDEN_BONUS if done.is_golden else 1.0)
+	var pay := GameState.pay_for(done.grams, multiplier)
 	_award(done.grams, pay)
 	ui.popup(tr("POP_ONION") % [done.grams, pay], camera.unproject_position(done.global_position + Vector3(0, 0.05, 0)))
 	# まな板からボウルへ移す
@@ -357,7 +376,8 @@ func _update_bowl() -> void:
 
 
 func _update_gap_markers() -> void:
-	var gaps := onion.get_wide_gaps_world() if onion else []
+	# 実況・配信用にUIを隠しているときは、赤い目印も一緒に隠して画面をきれいにする
+	var gaps := onion.get_wide_gaps_world() if onion and not _clean_view else []
 	while gap_markers.size() < gaps.size():
 		var m := MeshInstance3D.new()
 		m.mesh = BoxMesh.new()

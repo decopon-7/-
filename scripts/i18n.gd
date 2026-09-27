@@ -35,6 +35,7 @@ const STRINGS := {
 	"TICKET_NEXT": {"ja": "次: %s", "en": "Next: %s"},
 	"TICKET_PAY": {"ja": "報酬 ×%.1f", "en": "Pay ×%.1f"},
 	"POP_NEW_ORDER": {"ja": "新しい注文: %s", "en": "New order: %s"},
+	"POP_GOLDEN": {"ja": "✨ 幸運の玉ねぎだ！", "en": "✨ A lucky golden onion!"},
 	"ORDER_HAMBURG": {"ja": "ハンバーグ", "en": "Hamburg Steak"},
 	"ORDER_CURRY": {"ja": "カレー", "en": "Curry"},
 	"ORDER_SOUP": {"ja": "オニオンスープ", "en": "Onion Soup"},

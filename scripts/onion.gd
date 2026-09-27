@@ -36,6 +36,8 @@ var target_size := 0.006
 var rx := 0.08   # 幅の半分
 var rz := 0.072  # 根元〜先端の半分
 var h := 0.07    # 高さ
+## ごくたまに出てくる「幸運の玉ねぎ」。見た目が金色になり、main.gd 側で報酬が上がる
+var is_golden := false
 
 var cuts_x: Array[float] = []
 var cuts_z: Array[float] = []
@@ -82,6 +84,23 @@ func configure(id: String, order: Dictionary) -> void:
 	phase = steps[0]
 
 
+## 「幸運の玉ねぎ」の見た目に切り替える（add_child の前でも後でも呼べる）
+func set_golden(on: bool) -> void:
+	is_golden = on
+	_apply_golden_tint()
+
+
+func _apply_golden_tint() -> void:
+	if _material == null:
+		return
+	if is_golden:
+		_material.set_shader_parameter("skin_color", Color(1.0, 0.8, 0.15))
+		_material.set_shader_parameter("layer_color", Color(0.95, 0.7, 0.1))
+	else:
+		_material.set_shader_parameter("skin_color", Color(0.95, 0.9, 0.72))
+		_material.set_shader_parameter("layer_color", Color(0.82, 0.84, 0.62))
+
+
 func _ready() -> void:
 	_body = Node3D.new()
 	add_child(_body)
@@ -95,6 +114,7 @@ func _ready() -> void:
 	_mesh_instance.material_override = _material
 	_body.add_child(_mesh_instance)
 	_rebuild_mesh()
+	_apply_golden_tint()
 
 	var chunk_mat := StandardMaterial3D.new()
 	chunk_mat.vertex_color_use_as_albedo = true

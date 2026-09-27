@@ -1,8 +1,10 @@
 # 開発用：コマンドラインから画面写真を撮って終了する。
 #   godot --path . -- --shot=mince --out=/tmp/mince.png --lang=ja
-# shot の種類: title / cut / mince / shop / fresh / complete　（--order=soup などで注文を指定できる）
+# shot の種類: title / cut / mince / shop / fresh / complete / golden
+#   （--order=soup などで注文を指定できる）
 #   fresh: 1回も切っていない、まっさらな玉ねぎ（回転・スケールが落ち着いた状態）
 #   complete: 1品を完成させ、ヒットストップ・きらめき演出まで通す
+#   golden: 「幸運の玉ねぎ」の見た目を確認する（本番は確率抽選、ここでは強制的に出す）
 extends Node
 
 var _args := {}
@@ -76,6 +78,10 @@ func _process(_delta: float) -> void:
 					main.chop_at(o.global_position.x - 0.08 + i * 0.008)
 		if _frame == 150 and shot == "cut":
 			main._knife_x = o.global_position.x + 0.012
+	if _frame == 20 and shot == "golden":
+		main.onion.set_golden(true)
+		main._clean_view = true  # Hキーによる「UIを隠す」の見た目を一緒に確認
+		main.ui.hud.visible = false
 	if _frame == 90 and shot == "fresh":
 		var img := get_viewport().get_texture().get_image()
 		img.save_png(_args.get("out", "user://shot.png"))
