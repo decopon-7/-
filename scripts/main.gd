@@ -12,6 +12,10 @@ const GOGGLES_POS := Vector3(0.22, 0.941, -0.3)
 const KNIFE_LIFT := 0.09
 const KNIFE_X_LIMIT := 0.26
 
+## 1日の最低量。これを刻むまでは「今日はここまで」で終われない
+## （時間制限やノルマの罰則ではなく、1日を早送りしすぎてストーリーを消費し尽くさないための下限）
+const MIN_GRAMS_PER_DAY := 200
+
 ## 涙：1回切るごとに増える量（工程1・2 / 工程3）と、1秒あたりに引く量
 const TEARS_PER_CUT := 0.05
 const TEARS_PER_CHOP := 0.012
@@ -143,6 +147,8 @@ func _start_day() -> void:
 func _end_day() -> void:
 	if state != State.PLAYING:
 		return
+	if grams_today < MIN_GRAMS_PER_DAY:
+		return
 	ui.show_day_end(grams_today, earned_today, _diary_text_for(GameState.day))
 	Sfx.play("bell", -2.0, 0.0)
 	Sfx.set_loop("processor", false)
@@ -172,7 +178,8 @@ func _process(delta: float) -> void:
 		_update_chopping(delta)
 		_update_gap_markers()
 		ui.update_hud(grams_today, _step_text(), onion.get_progress() if onion else 1.0,
-				tears, not gap_markers.is_empty() and gap_markers[0].visible)
+				tears, not gap_markers.is_empty() and gap_markers[0].visible,
+				maxi(0, MIN_GRAMS_PER_DAY - grams_today))
 	else:
 		for m in gap_markers:
 			m.visible = false

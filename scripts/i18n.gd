@@ -27,6 +27,7 @@ const STRINGS := {
 	},
 	"HUD_GAP_HINT": {"ja": "赤い印のところの間隔が広すぎます", "en": "Cuts too far apart at the red marks"},
 	"HUD_END_SHIFT": {"ja": "今日はここまで", "en": "Finish for today"},
+	"HUD_END_SHIFT_LOCKED": {"ja": "あと %d g で終業できます", "en": "%d g more to finish for today"},
 	"POP_ONION": {"ja": "+%d g　+%d 円", "en": "+%d g  +$%d"},
 	"POP_PROCESSOR": {"ja": "プロセッサー +%d g", "en": "Processor +%d g"},
 	"POP_TEARS": {"ja": "目が、目がぁ…！", "en": "My eyes...!"},

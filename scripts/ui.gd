@@ -155,7 +155,7 @@ func _process(delta: float) -> void:
 
 
 func update_hud(grams_today: int, step_text: String, step_progress: float,
-		tears: float, wide_gaps: bool) -> void:
+		tears: float, wide_gaps: bool, remaining_for_day: int = 0) -> void:
 	_day_label.text = tr("HUD_DAY") % GameState.day
 	_today_label.text = tr("HUD_TODAY") % grams_today
 	_step_label.text = step_text
@@ -163,6 +163,10 @@ func update_hud(grams_today: int, step_text: String, step_progress: float,
 	_gap_hint.visible = wide_gaps
 	_tears_bar.value = tears * 100.0
 	_tears_bar.modulate = COL_BAD if tears > 0.8 else Color.WHITE
+	# 1日の最低量に届くまでは、終業ボタンを押せないようにして残りgを示す
+	_end_shift_button.disabled = remaining_for_day > 0
+	_end_shift_button.text = tr("HUD_END_SHIFT") if remaining_for_day <= 0 \
+			else tr("HUD_END_SHIFT_LOCKED") % remaining_for_day
 
 
 func show_day_end(grams: int, earned: int, diary: String = "") -> void:
