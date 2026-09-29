@@ -23,10 +23,12 @@ const UPGRADES := {
 ##   pay:   報酬の倍率
 ## 実績。base はすべて揃うとゴールドの見た目（skin_tier=1）を解禁する。
 ## day40 / grams20000 はその上の特別な実績で、順にプラチナ（2）・ダイヤ（3）へ格上げする。
+## bowl_* は称号には関わらない、1日の仕込み量に対するおまけの実績（3段階）。
 const BASE_ACHIEVEMENT_IDS := ["knife_max", "goggles_max", "processor_max", "contract_max",
 		"day10", "money1000", "golden1", "grams3000"]
 const TIER_ACHIEVEMENT_IDS := ["day40", "grams20000"]
-const ALL_ACHIEVEMENT_IDS := BASE_ACHIEVEMENT_IDS + TIER_ACHIEVEMENT_IDS
+const BOWL_ACHIEVEMENT_IDS := ["bowl1000", "bowl2500", "bowl5000"]
+const ALL_ACHIEVEMENT_IDS := BASE_ACHIEVEMENT_IDS + TIER_ACHIEVEMENT_IDS + BOWL_ACHIEVEMENT_IDS
 const ACHIEVEMENTS := {
 	"knife_max": {"name": "ACH_KNIFE_MAX", "desc": "ACH_KNIFE_MAX_DESC"},
 	"goggles_max": {"name": "ACH_GOGGLES_MAX", "desc": "ACH_GOGGLES_MAX_DESC"},
@@ -38,6 +40,9 @@ const ACHIEVEMENTS := {
 	"grams3000": {"name": "ACH_GRAMS3000", "desc": "ACH_GRAMS3000_DESC"},
 	"day40": {"name": "ACH_DAY40", "desc": "ACH_DAY40_DESC"},
 	"grams20000": {"name": "ACH_GRAMS20000", "desc": "ACH_GRAMS20000_DESC"},
+	"bowl1000": {"name": "ACH_BOWL1000", "desc": "ACH_BOWL1000_DESC"},
+	"bowl2500": {"name": "ACH_BOWL2500", "desc": "ACH_BOWL2500_DESC"},
+	"bowl5000": {"name": "ACH_BOWL5000", "desc": "ACH_BOWL5000_DESC"},
 }
 ## 見た目の称号。0=なし 1=ゴールド 2=プラチナ 3=ダイヤ
 const SKIN_NAMES := ["", "SKIN_GOLD", "SKIN_PLATINUM", "SKIN_DIAMOND"]
@@ -189,7 +194,8 @@ func determine_ending() -> String:
 
 # ---- 実績・見た目の称号 ----
 
-func _achievement_condition(id: String) -> bool:
+## grams_today は main.gd 側でその日ボウルに刻んだ量（呼び出し元が持っている値をそのまま渡す）
+func _achievement_condition(id: String, grams_today: int) -> bool:
 	match id:
 		"knife_max": return is_maxed("knife")
 		"goggles_max": return is_maxed("goggles")
@@ -201,6 +207,9 @@ func _achievement_condition(id: String) -> bool:
 		"grams3000": return total_grams >= 3000
 		"day40": return day >= 40
 		"grams20000": return total_grams >= 20000
+		"bowl1000": return grams_today >= 1000
+		"bowl2500": return grams_today >= 2500
+		"bowl5000": return grams_today >= 5000
 		_: return false
 
 
@@ -223,12 +232,13 @@ func _recompute_skin_tier() -> void:
 
 ## 実績条件をまとめて確認し、新しく解除したものがあれば通知する。
 ## アップグレード購入・報酬受け取り・幸運の玉ねぎ・日の開始など、状況が変わるたびに呼ぶ。
-func check_achievements() -> void:
+## grams_today は省略可（省略時は0。ボウル関連の実績はそのぶん判定を持ち越す）
+func check_achievements(grams_today: int = 0) -> void:
 	var unlocked_any := false
 	for id in ALL_ACHIEVEMENT_IDS:
 		if achievements.get(id, false):
 			continue
-		if _achievement_condition(id):
+		if _achievement_condition(id, grams_today):
 			achievements[id] = true
 			unlocked_any = true
 			achievement_unlocked.emit(id)

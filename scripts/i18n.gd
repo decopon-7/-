@@ -106,6 +106,12 @@ const STRINGS := {
 	"ACH_DAY40_DESC": {"ja": "40日目を迎える（特別な実績：ゴールド→プラチナ）", "en": "Reach day 40 (special: Gold → Platinum)"},
 	"ACH_GRAMS20000": {"ja": "玉ねぎの達人", "en": "Onion Virtuoso"},
 	"ACH_GRAMS20000_DESC": {"ja": "累計20000g刻む（特別な実績：プラチナ→ダイヤ）", "en": "Mince 20000 g in total (special: Platinum → Diamond)"},
+	"ACH_BOWL1000": {"ja": "ボウル、山盛り", "en": "A Heaping Bowl"},
+	"ACH_BOWL1000_DESC": {"ja": "1日で1000g刻む", "en": "Mince 1000 g in a single day"},
+	"ACH_BOWL2500": {"ja": "止まらない包丁", "en": "The Knife Doesn't Stop"},
+	"ACH_BOWL2500_DESC": {"ja": "1日で2500g刻む", "en": "Mince 2500 g in a single day"},
+	"ACH_BOWL5000": {"ja": "今日はよく働いた", "en": "A Hard Day's Work"},
+	"ACH_BOWL5000_DESC": {"ja": "1日で5000g刻む", "en": "Mince 5000 g in a single day"},
 
 	# ---- 主人公の日記（多くを語らない性格なので、断片的にしてある） ----
 	"DIARY_TITLE": {"ja": "日記", "en": "Diary"},

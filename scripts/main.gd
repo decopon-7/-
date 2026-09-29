@@ -146,7 +146,7 @@ func _start_day() -> void:
 	Sfx.play("bell", -8.0, 0.0, 1.2)
 	_prepare_orders()
 	_set_state(State.PLAYING)
-	GameState.check_achievements()
+	GameState.check_achievements(grams_today)
 
 
 func _end_day() -> void:
@@ -358,7 +358,7 @@ func _on_onion_phase(p: int) -> void:
 	var multiplier: float = GameState.ORDERS[done.order_id]["pay"] * (GOLDEN_BONUS if done.is_golden else 1.0)
 	var pay := GameState.pay_for(done.grams, multiplier)
 	_award(done.grams, pay)
-	GameState.check_achievements()
+	GameState.check_achievements(grams_today)
 	ui.popup(tr("POP_ONION") % [done.grams, pay], camera.unproject_position(done.global_position + Vector3(0, 0.05, 0)))
 	# まな板からボウルへ移す
 	var tw := done.create_tween()
@@ -490,6 +490,7 @@ func _update_processor(delta: float) -> void:
 		return
 	processor_timer -= interval
 	_award(100, GameState.pay_for(100))
+	GameState.check_achievements(grams_today)
 	Sfx.play("plop", -10.0, 0.1, 0.8)
 	ui.popup(tr("POP_PROCESSOR") % 100, camera.unproject_position(PROCESSOR_POS + Vector3(0, 0.3, 0)), GameUI.COL_GOOD)
 
