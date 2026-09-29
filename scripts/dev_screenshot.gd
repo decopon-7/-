@@ -10,6 +10,7 @@
 #         （--gear_lv=0〜5 で全道具のLv、--skin=0〜3 で称号スキンを指定。省略時はLv5・称号なし）
 #   achievements: 実績一覧画面を確認する（--skin=0〜3 で称号を指定可能）
 #   diary: 日記の回想画面を確認する（--diary_days=1,2,40 のように読んだことにする日を指定可能）
+#   bowl: ボウルの中身の見た目を確認する（--bowl_grams=750 のように溜まった量を指定可能。省略時750）
 extends Node
 
 var _args := {}
@@ -119,6 +120,13 @@ func _process(_delta: float) -> void:
 					GameState.ending_id = GameState.determine_ending()
 		main.ui.refresh_diary_recap()
 		main.ui.show_only(main.ui.diary_screen)
+	if _frame == 20 and shot == "bowl":
+		main.grams_today = int(_args.get("bowl_grams", 750))
+		main._update_bowl()
+		# ボウルの中身がよく見えるように、確認用にカメラだけ寄せる
+		# （_camera_base_transform も更新しないと、揺れ演出の復帰処理で毎フレーム元に戻ってしまう）
+		main.camera.look_at_from_position(Vector3(-0.56, 1.25, 0.28), main.BOWL_POS)
+		main._camera_base_transform = main.camera.global_transform
 	if _frame == 20 and shot == "pause":
 		main._set_state(main.State.PAUSED)
 		GameState.set_fullscreen(true)

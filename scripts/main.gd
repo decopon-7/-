@@ -11,6 +11,10 @@ const PROCESSOR_POS := Vector3(-0.3, 0.94, -0.38)
 const GOGGLES_POS := Vector3(0.22, 0.941, -0.3)
 const KNIFE_LIFT := 0.09
 const KNIFE_X_LIMIT := 0.26
+const CRATE_ONION_SHADER := preload("res://shaders/onion_whole.gdshader")
+## ボウルに溜まる、みじん切りのかけら（見た目用）の最大個数と、満タン時の散らばり半径
+const BOWL_CHUNK_COUNT := 70
+const BOWL_CHUNK_RADIUS := 0.16
 
 ## 1日の最低量。これを刻むまでは「今日はここまで」で終われない
 ## （時間制限やノルマの罰則ではなく、1日を早送りしすぎてストーリーを消費し尽くさないための下限）
@@ -54,6 +58,7 @@ var processor_blade: Node3D
 var goggles: Node3D
 var goggles_visual: Node3D
 var bowl_fill: MeshInstance3D
+var bowl_chunks: MultiMeshInstance3D
 var gap_markers: Array[MeshInstance3D] = []
 var tear_overlay: ColorRect
 ## これから来る注文（先頭が次の玉ねぎ）
@@ -403,6 +408,13 @@ func _update_bowl() -> void:
 	bowl_fill.visible = level > 0.0
 	bowl_fill.scale = Vector3(1.0, maxf(level, 0.01), 1.0)
 	bowl_fill.position = BOWL_POS + Vector3(0, 0.01 + 0.15 * level * 0.5, 0)
+	# みじん切りのかけらが、盛り上がった中身の表面に乗っているように見せる。
+	# ボウルはすぼまった形なので、中身が少ないうちは散らばる半径も一緒に絞る
+	var fill_top_y := 0.01 + 0.15 * level
+	var radius_now := lerpf(0.1, BOWL_CHUNK_RADIUS, level)
+	bowl_chunks.position = BOWL_POS + Vector3(0, fill_top_y, 0)
+	bowl_chunks.scale = Vector3.ONE * (radius_now / BOWL_CHUNK_RADIUS)
+	bowl_chunks.multimesh.visible_instance_count = roundi(level * BOWL_CHUNK_COUNT)
 
 
 func _update_gap_markers() -> void:
@@ -908,28 +920,36 @@ func _build_kitchen() -> void:
 	_box(self, Vector3(2.3, 0.05, 1.0), Vector3(0, 0.915, 0), steel)
 	_box(self, Vector3(0.6, 0.025, 0.36), Vector3(0, BOARD_TOP - 0.0125, 0.05), board)
 
-	# 玉ねぎのケース（右）
+	# 玉ねぎのケース（右）。1個ずつ別のマテリアルにして、色味・筋の位相をばらつかせる
 	_crate(CRATE_POS + Vector3(0, -0.06, 0), Vector3(0.42, 0.14, 0.4), _mat(Color(0.45, 0.3, 0.18), 0.8))
-	var onion_skin := _mat(Color(0.55, 0.33, 0.15), 0.6)
+	var stem_mat := _mat(Color(0.32, 0.2, 0.1), 0.7)
 	for i in 16:
 		var o := MeshInstance3D.new()
 		var sphere := SphereMesh.new()
-		sphere.radius = 0.045
-		sphere.height = 0.08
+		# 完全な球ではなく、少しつぶれた（現実の玉ねぎに近い）比率に
+		sphere.radius = 0.048
+		sphere.height = 0.078
 		o.mesh = sphere
-		o.material_override = onion_skin
+		var skin_mat := ShaderMaterial.new()
+		skin_mat.shader = CRATE_ONION_SHADER
+		skin_mat.set_shader_parameter("base_color",
+				Color(0.82, 0.55, 0.25).lightened(rng.randf_range(-0.12, 0.14)))
+		skin_mat.set_shader_parameter("seed", rng.randf_range(0.0, 20.0))
+		skin_mat.set_shader_parameter("streak_count", rng.randf_range(12.0, 20.0))
+		o.material_override = skin_mat
 		o.position = CRATE_POS + Vector3(rng.randf_range(-0.15, 0.15), rng.randf_range(-0.03, 0.02), rng.randf_range(-0.14, 0.14))
 		o.rotation = Vector3(rng.randf_range(-0.6, 0.6), rng.randf_range(-PI, PI), rng.randf_range(-0.6, 0.6))
 		o.scale = Vector3.ONE * rng.randf_range(0.85, 1.1)
 		add_child(o)
+		# 枯れた芽の跡（細く短い茶色の突起）
 		var tip := MeshInstance3D.new()
 		var cone := CylinderMesh.new()
-		cone.top_radius = 0.001
-		cone.bottom_radius = 0.012
-		cone.height = 0.025
+		cone.top_radius = 0.0015
+		cone.bottom_radius = 0.009
+		cone.height = 0.018
 		tip.mesh = cone
-		tip.material_override = onion_skin
-		tip.position = Vector3(0, 0.045, 0)
+		tip.material_override = stem_mat
+		tip.position = Vector3(0, 0.042, 0)
 		o.add_child(tip)
 
 	# みじん切りをためるボウル（左）
@@ -953,6 +973,7 @@ func _build_kitchen() -> void:
 	bowl_fill.mesh = fill_mesh
 	bowl_fill.material_override = _mat(Color(0.93, 0.91, 0.8), 0.3)
 	add_child(bowl_fill)
+	_build_bowl_chunks()
 
 	# 奥のシンク台・棚・鍋
 	_box(self, Vector3(3.6, 0.9, 0.6), Vector3(0, 0.45, -2.05), dark_steel)
@@ -986,6 +1007,40 @@ func _build_kitchen() -> void:
 		pan.rotation.x = PI / 2
 		pan.position = Vector3(hx, 1.72, -2.27)
 		add_child(pan)
+
+
+## ボウルの中身を、なめらかな1色の山ではなく、小さなかけらが積もった表面に見せる。
+## かけら（小さな箱）を中身の一番上の面にだけ薄く散らし、_update_bowl 側で
+## 「今の中身の高さ・広さ」に合わせてこのノードごと上下・拡縮する
+func _build_bowl_chunks() -> void:
+	bowl_chunks = MultiMeshInstance3D.new()
+	bowl_chunks.position = BOWL_POS
+	var chunk_mesh := BoxMesh.new()
+	chunk_mesh.size = Vector3(0.016, 0.011, 0.016)
+	var chunk_mat := StandardMaterial3D.new()
+	chunk_mat.vertex_color_use_as_albedo = true
+	chunk_mat.roughness = 0.4
+	chunk_mesh.material = chunk_mat
+	var mm := MultiMesh.new()
+	mm.transform_format = MultiMesh.TRANSFORM_3D
+	mm.use_colors = true
+	mm.mesh = chunk_mesh
+	mm.instance_count = BOWL_CHUNK_COUNT
+	mm.visible_instance_count = 0
+	bowl_chunks.multimesh = mm
+	add_child(bowl_chunks)
+
+	for i in BOWL_CHUNK_COUNT:
+		var ang := rng.randf_range(0.0, TAU)
+		var r := BOWL_CHUNK_RADIUS * sqrt(rng.randf_range(0.0, 0.92))
+		var y := rng.randf_range(-0.004, 0.012)
+		var pos := Vector3(cos(ang) * r, y, sin(ang) * r)
+		var rot := Basis(Vector3.UP, rng.randf_range(0.0, TAU))
+		rot = rot.rotated(Vector3.RIGHT, rng.randf_range(-0.3, 0.3))
+		var sc := rng.randf_range(0.7, 1.2)
+		mm.set_instance_transform(i, Transform3D(rot.scaled(Vector3.ONE * sc), pos))
+		var shade := rng.randf_range(0.88, 1.05)
+		mm.set_instance_color(i, Color(0.95, 0.93, 0.8) * shade)
 
 
 ## 透明にフェードアウトするグラデーション（パーティクルの寿命後半で消えるように）
