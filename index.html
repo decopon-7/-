@@ -23,7 +23,7 @@
   body{background:var(--bg);color:var(--ink);font-family:var(--font-body);font-size:15px;line-height:1.6;-webkit-font-smoothing:antialiased;min-height:100vh;}
   button{font-family:inherit;}
   button:focus-visible, input:focus-visible, textarea:focus-visible{outline:3px solid var(--teal);outline-offset:2px;}
-  #app{max-width:560px;margin:0 auto;padding:0 0 64px;min-height:100vh;position:relative;}
+  #app{max-width:560px;margin:0 auto;padding:0 0 110px;min-height:100vh;position:relative;}
 
   .brandbar{padding:28px 20px 18px;text-align:center;}
   .brand-mark{display:inline-flex;align-items:center;justify-content:center;height:44px;padding:0 16px;border-radius:14px;background:var(--teal);color:#fff;font-family:var(--font-display);font-weight:900;font-size:16px;letter-spacing:.04em;transform:rotate(-4deg);box-shadow:var(--shadow);margin-bottom:10px;}
@@ -149,6 +149,30 @@
 
   .helper-row{padding:2px 18px 10px;display:flex;justify-content:flex-end;flex-wrap:wrap;gap:8px;}
 
+  .cal-cell{min-height:64px;}
+  .cal-cell.readonly{cursor:default;}
+  .cal-cell.stamping:active{transform:scale(0.94);}
+  .cal-cell.multi{padding:5px 2px 4px;gap:3px;justify-content:flex-start;}
+  .cal-mini{display:flex;flex-direction:column;gap:2px;width:100%;align-items:center;}
+  .cal-mini-chip{display:block;width:calc(100% - 6px);border-radius:4px;color:#fff;font-size:9.5px;font-weight:700;line-height:14px;text-align:center;white-space:nowrap;overflow:hidden;font-family:var(--font-display);}
+  .cal-mini-more{font-size:9px;color:var(--ink-soft);font-weight:700;}
+  .cal-cell .cal-count{font-size:9px;color:var(--ink-faint);}
+  .person-chips{display:flex;gap:6px;padding:12px 14px 2px;overflow-x:auto;-webkit-overflow-scrolling:touch;}
+  .person-chip{flex:0 0 auto;padding:8px 14px;border-radius:999px;border:1.5px solid var(--line);background:var(--surface);font-weight:700;font-size:12.5px;color:var(--ink-soft);cursor:pointer;white-space:nowrap;}
+  .person-chip.active{background:var(--mustard);border-color:var(--mustard);color:#fff;}
+  .summary-row{display:flex;flex-wrap:wrap;gap:6px;padding:10px 18px 0;align-items:center;}
+  .summary-item{display:inline-flex;align-items:center;gap:5px;background:var(--surface);border:1px solid var(--line);border-radius:999px;padding:3px 10px 3px 4px;font-size:12px;font-weight:700;}
+  .summary-item .code-chip{min-width:0;height:22px;padding:0 8px;font-size:11px;border-radius:999px;}
+  .stamp-bar{position:fixed;left:0;right:0;bottom:0;z-index:50;background:var(--surface);border-top:1px solid var(--line);box-shadow:0 -4px 16px rgba(42,42,34,0.10);padding:8px 0 calc(8px + env(safe-area-inset-bottom));}
+  .stamp-inner{max-width:560px;margin:0 auto;}
+  .stamp-hint{font-size:11.5px;color:var(--ink-soft);padding:0 16px 6px;font-weight:700;}
+  .stamp-hint b{color:var(--teal-dark);}
+  .stamp-scroll{display:flex;gap:8px;overflow-x:auto;padding:2px 14px 4px;-webkit-overflow-scrolling:touch;}
+  .stamp-btn{flex:0 0 auto;border:2.5px solid transparent;background:none;border-radius:12px;padding:3px;cursor:pointer;}
+  .stamp-btn .code-chip{height:36px;min-width:48px;font-size:13.5px;}
+  .stamp-btn.active{border-color:var(--ink);transform:translateY(-3px);box-shadow:0 4px 8px rgba(0,0,0,.18);}
+  .stamp-btn.eraser .code-chip{background:var(--surface-alt);color:var(--ink-soft);border:1.5px dashed var(--ink-faint);}
+  .legend-wrap{padding-top:8px;}
   .loading-wrap{padding:60px 24px;text-align:center;color:var(--ink-faint);font-size:13px;}
   .koukyu-banner{margin:12px 18px 0;padding:12px 16px;border-radius:var(--radius-m);font-size:13px;font-weight:700;display:flex;align-items:center;justify-content:space-between;gap:10px;}
   .koukyu-banner.ok{background:var(--teal-bg);color:var(--teal-dark);}
@@ -234,9 +258,17 @@ const db = getFirestore(fbApp);
     finalByMonth: {},      // ym -> {name:{day:code}}  confirmed shift (live)
     finalReady: false,
 
+    stampCode: null,       // null = tap opens picker; code string or '__erase__' = stamp mode
+    adminPerson: null,     // null = everyone
+    staffFinalView: "me",  // me | all
     sheet: null,           // {mode:'staff', day} | {mode:'admin', day, name}
     dayDetail: null        // {context: 'agg'|'final'|'viewFinal', day}
   };
+
+  function loadSavedName(){ try{ return localStorage.getItem("shiftStampName") || ""; }catch(e){ return ""; } }
+  function saveName(n){ try{ localStorage.setItem("shiftStampName", n); }catch(e){} }
+  state.staffName = loadSavedName();
+  state.nameDraft = state.staffName;
 
   function getWorking(ym){ return state.workingByMonth[ym] || {}; }
   function getAgg(ym){ return state.aggByMonth[ym] || {}; }
@@ -322,6 +354,26 @@ const db = getFirestore(fbApp);
   function attrArg(v){
     return JSON.stringify(v).replace(/&/g,"&amp;").replace(/"/g,"&quot;").replace(/</g,"&lt;");
   }
+  var ERASE = "__erase__";
+  function renderSummary(bucket){
+    var counts = {};
+    Object.keys(bucket).forEach(function(d){ var c = bucket[d]; if(c) counts[c] = (counts[c]||0) + 1; });
+    var keys = Object.keys(counts).sort(function(a,b){ return counts[b]-counts[a]; });
+    if(!keys.length) return "";
+    return '<div class="summary-row">' + keys.map(function(c){
+      return '<span class="summary-item">' + renderChip(c) + counts[c] + '</span>';
+    }).join("") + '</div>';
+  }
+  function renderStampBar(){
+    var cur = state.stampCode;
+    var hint = cur ? (cur === ERASE ? '<b>消しゴム</b>：日付をタップすると消えます' : '<b>' + escapeHtml(cur) + '</b> のスタンプ：日付をタップして押す（もう一度押すと消える）')
+                   : 'スタンプを選んで日付をタップ。選ばずに日付を押すと個別に選べます';
+    var btns = state.codes.map(function(c){
+      return '<button class="stamp-btn' + (cur===c?" active":"") + '" onclick="App.setStamp(' + attrArg(c) + ')">' + renderChip(c) + '</button>';
+    }).join("");
+    btns += '<button class="stamp-btn eraser' + (cur===ERASE?" active":"") + '" onclick="App.setStamp(' + attrArg(ERASE) + ')"><span class="code-chip">消す</span></button>';
+    return '<div class="stamp-bar"><div class="stamp-inner"><div class="stamp-hint">' + hint + '</div><div class="stamp-scroll">' + btns + '</div></div></div>';
+  }
   function renderCalendarGrid(ym, bucket, todayNum, onTapFn){
     var days = daysInMonth(ym);
     var leadBlanks = days[0].weekday;
@@ -334,9 +386,9 @@ const db = getFirestore(fbApp);
     var cells = days.map(function(dInfo){
       var code = bucket[dInfo.day];
       var wcls = dInfo.weekday===0?"sun":(dInfo.weekday===6?"sat":"");
-      var cls = "cal-cell" + (code?" has-code":"") + (wcls?" "+wcls:"") + (dInfo.day===todayNum?" is-today":"");
+      var cls = "cal-cell" + (code?" has-code":"") + (wcls?" "+wcls:"") + (dInfo.day===todayNum?" is-today":"") + (onTapFn?(state.stampCode?" stamping":""):" readonly");
       var style = code ? (' style="' + chipStyle(code) + '"') : "";
-      return '<button class="' + cls + '"' + style + ' onclick="' + onTapFn + '(' + dInfo.day + ')">'
+      return '<button class="' + cls + '"' + style + (onTapFn ? ' onclick="' + onTapFn + '(' + dInfo.day + ')"' : '') + '>'
         + '<span class="cal-day-num">' + dInfo.day + '</span>'
         + (code ? '<span class="cal-code-label">' + escapeHtml(code) + '</span>' : '')
         + '</button>';
@@ -454,15 +506,18 @@ const db = getFirestore(fbApp);
   App.confirmNo = function(){ state.confirmState = null; render(); };
 
   /* ================= nav ================= */
-  function go(screen){ state.screen = screen; render(); }
+  function go(screen){ state.screen = screen; state.stampCode = null; render(); }
   App.goLanding = function(){ state.screen = "landing"; state.sheet = null; render(); };
-  App.enterStaff = function(){ state.nameDraft = state.staffName; go("staffName"); };
+  App.enterStaff = function(){
+    if(state.staffName){ state.staffTab = "input"; enterStaffMonth(state.yearMonth, state.staffName); go("staffMain"); return; }
+    state.nameDraft = ""; go("staffName");
+  };
   App.goStaffName = function(){ state.nameDraft = state.staffName; go("staffName"); };
   App.updateNameDraft = function(v){ state.nameDraft = v; };
   App.confirmStaffName = function(){
     var name = (state.nameDraft || "").trim();
     if(!name) return;
-    state.staffName = name; state.staffTab = "input";
+    state.staffName = name; saveName(name); state.staffTab = "input";
     enterStaffMonth(state.yearMonth, name);
     go("staffMain");
   };
@@ -472,7 +527,7 @@ const db = getFirestore(fbApp);
     state.yearMonth = shiftYearMonth(state.yearMonth, delta);
     enterStaffMonth(state.yearMonth, state.staffName);
   };
-  App.setStaffTab = function(t){ state.staffTab = t; render(); };
+  App.setStaffTab = function(t){ state.staffTab = t; state.stampCode = null; render(); };
   App.toggleLegend = function(){ state.legendOpen = !state.legendOpen; render(); };
   App.toggleCodesEditing = function(){ state.codesEditing = !state.codesEditing; render(); };
   App.updateNewCodeDraft = function(v){ state.newCodeDraft = v; };
@@ -495,17 +550,45 @@ const db = getFirestore(fbApp);
       render();
     });
   };
+  App.setStamp = function(code){ state.stampCode = (state.stampCode === code) ? null : code; render(); };
+  function setStaffDay(day, code){
+    var bucket = Object.assign({}, getWorking(state.yearMonth));
+    if(code === null) delete bucket[day]; else bucket[day] = code;
+    state.workingByMonth[state.yearMonth] = bucket;
+    render();
+    saveMyRequest(state.yearMonth, state.staffName, bucket);
+  }
+  function setFinalDay(name, day, code){
+    var bucket = Object.assign({}, getFinal(state.yearMonth));
+    var row = Object.assign({}, bucket[name] || {});
+    if(code === null) delete row[day]; else row[day] = code;
+    bucket[name] = row;
+    state.finalByMonth[state.yearMonth] = bucket;
+    render();
+    saveFinal(state.yearMonth, bucket);
+  }
+  App.tapStaffDay = function(day){
+    var st = state.stampCode;
+    if(!st){ App.openStaffSheet(day); return; }
+    var cur = getWorking(state.yearMonth)[day];
+    setStaffDay(day, (st === ERASE || cur === st) ? null : st);
+  };
+  App.tapAdminDay = function(day){
+    var name = state.adminPerson, st = state.stampCode;
+    if(!st){ App.openAdminFinalSheet(name, day); return; }
+    var cur = (getFinal(state.yearMonth)[name] || {})[day];
+    setFinalDay(name, day, (st === ERASE || cur === st) ? null : st);
+  };
+  App.setAdminPerson = function(name){ state.adminPerson = name; state.stampCode = null; render(); };
+  App.setStaffFinalView = function(v){ state.staffFinalView = v; render(); };
   App.openStaffSheet = function(day){ state.sheet = { mode:"staff", day: day }; render(); };
   App.closeSheet = function(){ state.sheet = null; render(); };
   App.openDayDetail = function(context, day){ state.dayDetail = { context: context, day: day }; render(); };
   App.closeDayDetail = function(){ state.dayDetail = null; render(); };
   App.pickCodeStaff = function(code){
     var day = state.sheet.day;
-    var bucket = Object.assign({}, getWorking(state.yearMonth));
-    if(code === null) delete bucket[day]; else bucket[day] = code;
-    state.workingByMonth[state.yearMonth] = bucket;
-    state.sheet = null; render();
-    saveMyRequest(state.yearMonth, state.staffName, bucket);
+    state.sheet = null;
+    setStaffDay(day, code);
   };
 
   /* ================= admin actions ================= */
@@ -536,7 +619,7 @@ const db = getFirestore(fbApp);
     state.adminAuthed = false;
     App.goLanding();
   };
-  App.setAdminTab = function(t){ state.adminTab = t; render(); };
+  App.setAdminTab = function(t){ state.adminTab = t; state.stampCode = null; render(); };
   App.adminChangeMonth = function(delta){
     state.yearMonth = shiftYearMonth(state.yearMonth, delta);
     enterAdminMonth(state.yearMonth);
@@ -560,13 +643,8 @@ const db = getFirestore(fbApp);
   App.openAdminFinalSheet = function(name, day){ state.dayDetail = null; state.sheet = { mode:"admin", day: day, name: name }; render(); };
   App.pickCodeAdmin = function(code){
     var name = state.sheet.name, day = state.sheet.day;
-    var bucket = Object.assign({}, getFinal(state.yearMonth));
-    var row = Object.assign({}, bucket[name] || {});
-    if(code === null) delete row[day]; else row[day] = code;
-    bucket[name] = row;
-    state.finalByMonth[state.yearMonth] = bucket;
-    state.sheet = null; render();
-    saveFinal(state.yearMonth, bucket);
+    state.sheet = null;
+    setFinalDay(name, day, code);
   };
 
   /* ================= render ================= */
@@ -686,7 +764,8 @@ const db = getFirestore(fbApp);
 
   function renderStaffMain(){
     var who = '<span class="name-badge">' + escapeHtml(state.staffName) + '</span>';
-    var html = topbarHtml("App.goStaffName()", who);
+    var html = topbarHtml("App.goStaffName()", who, "名前を変える");
+
     html += renderMonthNav("App.staffChangeMonth(-1)", "App.staffChangeMonth(1)");
     html += '<div class="tabs">'
       + '<div class="tab' + (state.staffTab==="input"?" active":"") + '" onclick="App.setStaffTab(\'input\')">希望を入力</div>'
@@ -698,10 +777,12 @@ const db = getFirestore(fbApp);
     } else if(state.staffTab === "input"){
       var bucket = getWorking(state.yearMonth);
       html += koukyuBanner(bucket, state.yearMonth);
-      html += renderLegend();
       var today = todayDayNum(state.yearMonth);
-      html += renderCalendarGrid(state.yearMonth, bucket, today, "App.openStaffSheet")
-      + '<p class="footnote" style="padding-top:0;">タップすると自動で保存されます。</p>';
+      html += renderSummary(bucket);
+      html += renderCalendarGrid(state.yearMonth, bucket, today, "App.tapStaffDay")
+      + renderLegend()
+      + '<p class="footnote" style="padding-top:0;">タップすると自動で保存されます。</p>'
+      + renderStampBar();
     } else {
       html += renderStaffViewFinal();
     }
@@ -720,7 +801,19 @@ const db = getFirestore(fbApp);
     if(Object.keys(fin).length === 0){
       return '<div class="empty-state"><span class="emoji">🗓️</span><p>この月の確定シフトはまだ公開されていません。</p></div>';
     }
-    return '<div class="section" style="padding-bottom:0;"><h2 class="section-title">' + monthLabel(state.yearMonth) + ' の確定シフト</h2><p class="hint-text">日付をタップすると、その日の担当が見られます。</p></div>'
+    var toggle = '<div class="person-chips">'
+      + '<div class="person-chip' + (state.staffFinalView==="me"?" active":"") + '" onclick="App.setStaffFinalView(\'me\')">自分のシフト</div>'
+      + '<div class="person-chip' + (state.staffFinalView==="all"?" active":"") + '" onclick="App.setStaffFinalView(\'all\')">みんなのシフト</div>'
+      + '</div>';
+    if(state.staffFinalView === "me"){
+      var mine = fin[state.staffName];
+      if(!mine){
+        return toggle + '<div class="empty-state"><span class="emoji">🗓️</span><p>' + escapeHtml(state.staffName) + ' さんの確定シフトはまだありません。</p><p>「みんなのシフト」で全体を見られます。</p></div>';
+      }
+      return toggle + renderSummary(mine) + renderCalendarGrid(state.yearMonth, mine, today, null)
+        + '<p class="footnote">管理者が確定した内容です。変更はリアルタイムで反映されます。</p>';
+    }
+    return toggle + '<div class="section" style="padding-bottom:0;"><p class="hint-text">日付をタップすると、その日の担当が見られます。数字は人数です。</p></div>'
       + renderMultiCalendarGrid(state.yearMonth, fin, today, "viewFinal");
   }
 
@@ -747,13 +840,17 @@ const db = getFirestore(fbApp);
       });
       var wcls = dInfo.weekday===0?"sun":(dInfo.weekday===6?"sat":"");
       var cls = "cal-cell multi" + (wcls?" "+wcls:"") + (dInfo.day===todayNum?" is-today":"") + (entries.length?" has-entries":"");
-      var dots = entries.slice(0,6).map(function(code){
-        return '<span class="cal-dot" style="' + chipStyle(code) + '"></span>';
+      var counts = {};
+      entries.forEach(function(c){ counts[c] = (counts[c]||0) + 1; });
+      var keys = Object.keys(counts).sort(function(a,b){ return counts[b]-counts[a]; });
+      var shown = keys.slice(0,3).map(function(code){
+        return '<span class="cal-mini-chip" style="' + chipStyle(code) + '">' + escapeHtml(code) + ' ' + counts[code] + '</span>';
       }).join("");
-      var overflow = entries.length > 6 ? '<span class="cal-more">+' + (entries.length-6) + '</span>' : "";
+      var dots = '<span class="cal-mini">' + shown + (keys.length > 3 ? '<span class="cal-mini-more">+' + (keys.length-3) + '種</span>' : '') + '</span>';
+      var overflow = "";
       return '<button class="' + cls + '" onclick="App.openDayDetail(' + attrArg(context) + ',' + dInfo.day + ')">'
         + '<span class="cal-day-num">' + dInfo.day + '</span>'
-        + '<span class="cal-dots">' + dots + overflow + '</span>'
+        + dots + overflow
         + '</button>';
     }).join("");
     return '<div class="cal-weekday-row">' + head + '</div>'
@@ -816,6 +913,12 @@ const db = getFirestore(fbApp);
     return html;
   }
 
+  function renderPersonChips(names, person){
+    var all = '<div class="person-chip' + (!person?" active":"") + '" onclick="App.setAdminPerson(null)">全員</div>';
+    return '<div class="person-chips">' + all + names.slice().sort().map(function(n){
+      return '<div class="person-chip' + (person===n?" active":"") + '" onclick="App.setAdminPerson(' + attrArg(n) + ')">' + escapeHtml(n) + '</div>';
+    }).join("") + '</div>';
+  }
   function renderAggTab(){
     if(!state.aggReady){ return '<div class="loading-wrap">読み込み中…</div>'; }
     var agg = getAgg(state.yearMonth);
@@ -827,8 +930,12 @@ const db = getFirestore(fbApp);
     var manage = '<div class="manage-list">' + names.sort().map(function(name){
       return '<div class="manage-item"><span>' + escapeHtml(name) + ' ' + koukyuBadge(agg[name]||{}, state.yearMonth) + '</span><button onclick="App.removeAggStaff(' + attrArg(name) + ')">削除</button></div>';
     }).join("") + '</div>';
-    return '<div class="section" style="padding-bottom:2px;"><p class="hint-text">全員の入力がリアルタイムで反映されます。日付をタップすると、その日の希望者が見られます。</p></div>'
-      + renderMultiCalendarGrid(state.yearMonth, agg, today, "agg")
+    var person = names.indexOf(state.adminPerson) !== -1 ? state.adminPerson : null;
+    var chips = renderPersonChips(names, person);
+    var cal = person
+      ? renderSummary(agg[person]) + renderCalendarGrid(state.yearMonth, agg[person], today, null)
+      : '<div class="section" style="padding-bottom:2px;"><p class="hint-text">全員の入力がリアルタイムで反映されます。日付をタップすると、その日の希望者が見られます。数字は人数です。</p></div>' + renderMultiCalendarGrid(state.yearMonth, agg, today, "agg");
+    return chips + cal
       + '<div class="section" style="padding-bottom:4px;"><h2 class="section-title">職員ごとの公休</h2></div>'
       + manage;
   }
@@ -849,9 +956,11 @@ const db = getFirestore(fbApp);
       return '<div class="manage-item"><span>' + escapeHtml(name) + ' ' + koukyuBadge(fin[name]||{}, state.yearMonth) + '</span></div>';
     }).join("") + '</div>';
 
-    return helper + renderLegend()
-      + '<div class="section" style="padding-bottom:0;"><p class="hint-text">日付をタップすると、その日の担当を確認・編集できます。</p></div>'
-      + renderMultiCalendarGrid(state.yearMonth, fin, today, "final")
+    var person = names.indexOf(state.adminPerson) !== -1 ? state.adminPerson : null;
+    var body = person
+      ? renderSummary(fin[person] || {}) + renderCalendarGrid(state.yearMonth, fin[person] || {}, today, "App.tapAdminDay")
+      : '<div class="section" style="padding-bottom:0;"><p class="hint-text">上の名前を選ぶと、その人の1か月をスタンプで入力できます。日付をタップすると、その日の担当を確認・編集できます。</p></div>' + renderMultiCalendarGrid(state.yearMonth, fin, today, "final");
+    return helper + renderPersonChips(names, person) + body + (person ? renderStampBar() : "") + renderLegend()
       + '<div class="section" style="padding-bottom:4px;"><h2 class="section-title">職員ごとの公休</h2></div>'
       + koukyuList
       + '<p class="footnote">ここで編集すると、職員側の「確定シフトを見る」画面に自動で反映されます。</p>';
