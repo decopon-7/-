@@ -24,11 +24,15 @@ const UPGRADES := {
 ## 実績。base はすべて揃うとゴールドの見た目（skin_tier=1）を解禁する。
 ## day40 / grams20000 はその上の特別な実績で、順にプラチナ（2）・ダイヤ（3）へ格上げする。
 ## bowl_* は称号には関わらない、1日の仕込み量に対するおまけの実績（3段階）。
+## knife_only も同様に称号には関わらない：フードプロセッサーを一度も稼働させないまま
+## （買うだけは買ってもよい）累計3000g刻んだら解除する、包丁一本の職人向けの実績。
 const BASE_ACHIEVEMENT_IDS := ["knife_max", "goggles_max", "processor_max", "contract_max",
 		"day10", "money1000", "golden1", "grams3000"]
 const TIER_ACHIEVEMENT_IDS := ["day40", "grams20000"]
 const BOWL_ACHIEVEMENT_IDS := ["bowl1000", "bowl2500", "bowl5000"]
-const ALL_ACHIEVEMENT_IDS := BASE_ACHIEVEMENT_IDS + TIER_ACHIEVEMENT_IDS + BOWL_ACHIEVEMENT_IDS
+const KNIFE_ONLY_ACHIEVEMENT_IDS := ["knife_only"]
+const ALL_ACHIEVEMENT_IDS := BASE_ACHIEVEMENT_IDS + TIER_ACHIEVEMENT_IDS \
+		+ BOWL_ACHIEVEMENT_IDS + KNIFE_ONLY_ACHIEVEMENT_IDS
 const ACHIEVEMENTS := {
 	"knife_max": {"name": "ACH_KNIFE_MAX", "desc": "ACH_KNIFE_MAX_DESC"},
 	"goggles_max": {"name": "ACH_GOGGLES_MAX", "desc": "ACH_GOGGLES_MAX_DESC"},
@@ -43,6 +47,7 @@ const ACHIEVEMENTS := {
 	"bowl1000": {"name": "ACH_BOWL1000", "desc": "ACH_BOWL1000_DESC"},
 	"bowl2500": {"name": "ACH_BOWL2500", "desc": "ACH_BOWL2500_DESC"},
 	"bowl5000": {"name": "ACH_BOWL5000", "desc": "ACH_BOWL5000_DESC"},
+	"knife_only": {"name": "ACH_KNIFE_ONLY", "desc": "ACH_KNIFE_ONLY_DESC"},
 }
 ## 見た目の称号。0=なし 1=ゴールド 2=プラチナ 3=ダイヤ
 const SKIN_NAMES := ["", "SKIN_GOLD", "SKIN_PLATINUM", "SKIN_DIAMOND"]
@@ -73,6 +78,8 @@ var golden_onions := 0
 var levels := {}
 var achievements := {}
 var skin_tier := 0
+## フードプロセッサーが一度でも自動で刻んだら true（knife_only 実績の判定用。買うだけなら影響しない）
+var processor_used := false
 ## 読んだ日記の日付（回想機能で「まだ読んでいない」ものを伏せるため）
 var diary_seen := {}
 ## 最終日（ENDING_DAY）に決まる分岐エンド。一度決まったら固定（"master" / "bonds" / "quiet"）
@@ -109,6 +116,7 @@ func reset() -> void:
 		levels[id] = 0
 	achievements = {}
 	skin_tier = 0
+	processor_used = false
 	diary_seen = {}
 	ending_id = ""
 
@@ -210,6 +218,7 @@ func _achievement_condition(id: String, grams_today: int) -> bool:
 		"bowl1000": return grams_today >= 1000
 		"bowl2500": return grams_today >= 2500
 		"bowl5000": return grams_today >= 5000
+		"knife_only": return total_grams >= 3000 and not processor_used
 		_: return false
 
 
@@ -287,6 +296,7 @@ func save_game() -> void:
 		"money": money,
 		"total_grams": total_grams,
 		"golden_onions": golden_onions,
+		"processor_used": processor_used,
 		"levels": levels,
 		"achievements": achievements,
 		"diary_seen": diary_seen,
@@ -309,6 +319,7 @@ func load_game() -> void:
 	money = int(data.get("money", 0))
 	total_grams = int(data.get("total_grams", 0))
 	golden_onions = int(data.get("golden_onions", 0))
+	processor_used = bool(data.get("processor_used", false))
 	locale = str(data.get("locale", ""))
 	# version 2 以前（オン/オフの2択）からの引き継ぎ。新しい保存にはもう出てこない
 	sound_volume = float(data.get("sound_volume", 0.0 if data.get("muted", false) else 1.0))

@@ -489,6 +489,7 @@ func _update_processor(delta: float) -> void:
 	if processor_timer < interval:
 		return
 	processor_timer -= interval
+	GameState.processor_used = true
 	_award(100, GameState.pay_for(100))
 	GameState.check_achievements(grams_today)
 	Sfx.play("plop", -10.0, 0.1, 0.8)

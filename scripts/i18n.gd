@@ -112,6 +112,11 @@ const STRINGS := {
 	"ACH_BOWL2500_DESC": {"ja": "1日で2500g刻む", "en": "Mince 2500 g in a single day"},
 	"ACH_BOWL5000": {"ja": "今日はよく働いた", "en": "A Hard Day's Work"},
 	"ACH_BOWL5000_DESC": {"ja": "1日で5000g刻む", "en": "Mince 5000 g in a single day"},
+	"ACH_KNIFE_ONLY": {"ja": "包丁一本の職人", "en": "One-Knife Craftsman"},
+	"ACH_KNIFE_ONLY_DESC": {
+		"ja": "フードプロセッサーを一度も稼働させずに累計3000g刻む（買うだけなら可）",
+		"en": "Mince 3000 g in total without ever running the food processor (owning one is fine)",
+	},
 
 	# ---- 主人公の日記（多くを語らない性格なので、断片的にしてある） ----
 	"DIARY_TITLE": {"ja": "日記", "en": "Diary"},
