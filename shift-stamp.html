@@ -1,0 +1,878 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1">
+<title>シフトすたんぷ</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Zen+Maru+Gothic:wght@500;700;900&family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#EEF1E7; --surface:#FFFFFF; --surface-alt:#E3E8D9; --line:#D7DBC7;
+    --ink:#2A2A22; --ink-soft:#6E6C5C; --ink-faint:#9A9887;
+    --teal:#356F6C; --teal-dark:#244F4D; --teal-bg:#DCEAE7;
+    --mustard:#DFA23B; --mustard-bg:#F7E8CB; --mustard-dark:#9C6A1D;
+    --danger:#B24C3E; --danger-bg:#F3DCD7;
+    --radius-s:8px; --radius-m:14px; --radius-l:24px;
+    --shadow:0 2px 10px rgba(42,42,34,0.08);
+    --font-display:'Zen Maru Gothic', sans-serif; --font-body:'Noto Sans JP', sans-serif;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{background:var(--bg);color:var(--ink);font-family:var(--font-body);font-size:15px;line-height:1.6;-webkit-font-smoothing:antialiased;min-height:100vh;}
+  button{font-family:inherit;}
+  button:focus-visible, input:focus-visible, textarea:focus-visible{outline:3px solid var(--teal);outline-offset:2px;}
+  #app{max-width:560px;margin:0 auto;padding:0 0 64px;min-height:100vh;position:relative;}
+
+  .brandbar{padding:28px 20px 18px;text-align:center;}
+  .brand-mark{display:inline-flex;align-items:center;justify-content:center;height:44px;padding:0 16px;border-radius:14px;background:var(--teal);color:#fff;font-family:var(--font-display);font-weight:900;font-size:16px;letter-spacing:.04em;transform:rotate(-4deg);box-shadow:var(--shadow);margin-bottom:10px;}
+  .brand-title{font-family:var(--font-display);font-weight:900;font-size:26px;letter-spacing:.02em;margin:0;}
+  .brand-sub{color:var(--ink-soft);font-size:13.5px;margin:6px 0 0;}
+
+  .topbar{display:flex;align-items:center;gap:10px;padding:14px 18px;background:var(--surface);border-bottom:1px solid var(--line);position:sticky;top:0;z-index:20;}
+  .topbar .backbtn{background:none;border:none;color:var(--teal-dark);font-family:var(--font-body);font-weight:700;font-size:14.5px;padding:6px 4px;cursor:pointer;display:flex;align-items:center;gap:4px;}
+  .topbar .who{margin-left:auto;font-size:13px;color:var(--ink-soft);display:flex;align-items:center;gap:8px;}
+  .who .name-badge{background:var(--teal-bg);color:var(--teal-dark);padding:4px 10px;border-radius:999px;font-weight:700;font-size:12.5px;}
+  .conn-dot{width:8px;height:8px;border-radius:50%;background:#3E8A5A;display:inline-block;}
+
+  .section{padding:18px 18px 6px;}
+  .section-title{font-family:var(--font-display);font-weight:700;font-size:16px;margin:0 0 10px;}
+
+  .mode-stack{padding:6px 18px 18px;display:flex;flex-direction:column;gap:14px;}
+  .mode-card{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius-l);padding:20px 20px;display:flex;align-items:center;gap:16px;cursor:pointer;text-align:left;width:100%;box-shadow:var(--shadow);}
+  .mode-card:active{transform:scale(0.98);}
+  .mode-card-icon{flex:0 0 auto;width:48px;height:48px;border-radius:14px;display:flex;align-items:center;justify-content:center;font-size:22px;}
+  .mode-card.staff .mode-card-icon{background:var(--teal-bg);}
+  .mode-card.admin .mode-card-icon{background:var(--mustard-bg);}
+  .mode-card-title{font-family:var(--font-display);font-weight:700;font-size:16.5px;margin:0 0 3px;}
+  .mode-card-desc{font-size:13px;color:var(--ink-soft);margin:0;}
+
+  .footnote{padding:8px 24px 30px;text-align:center;font-size:12px;color:var(--ink-faint);line-height:1.7;}
+
+  .btn{border-radius:999px;border:none;cursor:pointer;font-weight:700;font-size:14.5px;padding:12px 20px;font-family:var(--font-body);display:inline-flex;align-items:center;justify-content:center;gap:6px;}
+  .btn-primary{background:var(--teal);color:#fff;}
+  .btn-secondary{background:var(--surface-alt);color:var(--ink);}
+  .btn-ghost{background:transparent;color:var(--teal-dark);padding:10px 8px;}
+  .btn-danger{background:var(--danger-bg);color:var(--danger);}
+  .btn-block{width:100%;}
+  .btn:disabled{opacity:.45;cursor:not-allowed;}
+  .btn-sm{padding:8px 14px;font-size:13px;}
+
+  .field-row{display:flex;gap:8px;}
+  .field-row input[type=text]{flex:1;padding:11px 14px;border-radius:999px;border:1.5px solid var(--line);font-family:inherit;font-size:14px;background:var(--surface);color:var(--ink);}
+
+  .month-nav{display:flex;align-items:center;justify-content:center;gap:18px;padding:16px 18px 4px;}
+  .month-nav button{background:var(--surface);border:1px solid var(--line);width:38px;height:38px;border-radius:50%;font-size:16px;cursor:pointer;color:var(--teal-dark);}
+  .month-label{font-family:var(--font-display);font-weight:700;font-size:17px;min-width:118px;text-align:center;}
+
+  .tabs{display:flex;gap:6px;padding:14px 14px 4px;flex-wrap:wrap;}
+  .tab{flex:1 1 auto;text-align:center;padding:10px 8px;border-radius:999px;border:1.5px solid var(--line);background:var(--surface);font-weight:700;font-size:12.5px;color:var(--ink-soft);cursor:pointer;min-width:80px;}
+  .tab.active{background:var(--teal);border-color:var(--teal);color:#fff;}
+
+  .legend-wrap{padding:14px 18px 2px;}
+  .legend-toggle{display:flex;align-items:center;justify-content:space-between;cursor:pointer;font-size:13px;color:var(--teal-dark);font-weight:700;padding:6px 2px;}
+  .legend-chips{display:flex;flex-wrap:wrap;gap:7px;padding:10px 2px 2px;}
+  .legend-edit-row{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap;justify-content:space-between;align-items:center;}
+  .legend-edit-chip{display:inline-flex;align-items:center;gap:4px;}
+  .chip-remove{width:20px;height:20px;border-radius:50%;border:none;background:var(--danger-bg);color:var(--danger);font-size:13px;font-weight:700;cursor:pointer;line-height:1;padding:0;}
+
+  .code-chip{display:inline-flex;align-items:center;justify-content:center;min-width:44px;height:30px;padding:0 10px;border-radius:8px;font-family:var(--font-display);font-weight:700;font-size:12.5px;color:#fff;letter-spacing:.01em;white-space:nowrap;}
+  .code-chip.empty{background:var(--surface-alt);color:var(--ink-faint);border:1.5px dashed var(--ink-faint);font-family:var(--font-body);font-weight:500;}
+
+  .date-list{padding:6px 12px 10px;}
+  .cal-weekday-row{display:grid;grid-template-columns:repeat(7,1fr);padding:10px 12px 0;text-align:center;font-size:11px;font-weight:700;color:var(--ink-soft);}
+  .cal-weekday-row .sun{color:var(--danger);}
+  .cal-weekday-row .sat{color:#3A5C8C;}
+  .cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:6px;padding:8px 12px 4px;}
+  .cal-cell{min-height:56px;border-radius:10px;border:1px solid var(--line);background:var(--surface);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;cursor:pointer;padding:4px 2px;}
+  .cal-cell.empty-slot{border:none;background:transparent;cursor:default;}
+  .cal-cell .cal-day-num{font-family:var(--font-display);font-weight:700;font-size:12px;color:var(--ink);}
+  .cal-cell .cal-code-label{font-family:var(--font-display);font-weight:700;font-size:10.5px;white-space:nowrap;}
+  .cal-cell.sun .cal-day-num{color:var(--danger);}
+  .cal-cell.sat .cal-day-num{color:#3A5C8C;}
+  .cal-cell.is-today{outline:2px solid var(--teal);outline-offset:-2px;}
+  .cal-cell.has-code{border-color:transparent;}
+  .cal-cell.has-code .cal-day-num, .cal-cell.has-code .cal-code-label{color:#fff;}
+  .cal-cell.multi{justify-content:flex-start;padding-top:7px;gap:4px;}
+  .cal-dots{display:flex;flex-wrap:wrap;gap:2px;justify-content:center;max-width:100%;}
+  .cal-dot{width:7px;height:7px;border-radius:50%;display:inline-block;}
+  .cal-more{font-size:8px;color:var(--ink-faint);}
+  .day-detail-list{display:flex;flex-direction:column;gap:8px;margin-bottom:14px;max-height:48vh;overflow-y:auto;}
+  .day-detail-row{display:flex;align-items:center;justify-content:space-between;background:var(--surface-alt);border:none;border-radius:10px;padding:9px 12px;width:100%;text-align:left;font-size:14px;font-weight:600;font-family:inherit;color:var(--ink);}
+  button.day-detail-row{cursor:pointer;}
+  .date-row{display:flex;align-items:center;gap:12px;background:var(--surface);border:1px solid var(--line);border-radius:var(--radius-m);padding:11px 14px;margin-bottom:8px;cursor:pointer;width:100%;text-align:left;}
+  .date-row:active{background:var(--teal-bg);}
+  .date-row.is-today{border-color:var(--teal);border-width:1.5px;}
+  .date-info{display:flex;flex-direction:column;flex:1;}
+  .date-num{font-family:var(--font-display);font-weight:700;font-size:15.5px;}
+  .date-weekday{font-size:11.5px;color:var(--ink-soft);}
+  .date-row.sun .date-weekday, .date-row.sun .date-num{color:var(--danger);}
+  .date-row.sat .date-weekday, .date-row.sat .date-num{color:#3A5C8C;}
+
+  .sheet-overlay{position:fixed;inset:0;background:rgba(20,20,14,0.42);display:flex;align-items:flex-end;justify-content:center;z-index:100;}
+  .sheet{background:var(--surface);width:100%;max-width:560px;border-radius:22px 22px 0 0;padding:10px 18px 26px;box-shadow:0 -6px 24px rgba(0,0,0,0.18);max-height:80vh;overflow-y:auto;}
+  .sheet-handle{width:36px;height:4px;background:var(--line);border-radius:2px;margin:6px auto 14px;}
+  .sheet-title{font-family:var(--font-display);font-weight:700;font-size:15.5px;margin:0 0 4px;}
+  .sheet-sub{font-size:12.5px;color:var(--ink-soft);margin:0 0 14px;}
+  .sheet-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:9px;margin-bottom:14px;}
+  .sheet-option{border:1.5px solid var(--line);background:var(--surface);border-radius:12px;padding:13px 6px;cursor:pointer;text-align:center;}
+  .sheet-option .code-chip{width:100%;}
+  .sheet-clear{width:100%;text-align:center;padding:11px;border-radius:12px;border:1.5px dashed var(--ink-faint);background:none;color:var(--ink-soft);font-weight:700;font-size:13.5px;cursor:pointer;margin-bottom:8px;}
+  .sheet-cancel{width:100%;text-align:center;padding:11px;border-radius:12px;border:none;background:var(--surface-alt);color:var(--ink);font-weight:700;font-size:13.5px;cursor:pointer;}
+
+  .toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:var(--ink);color:#fff;padding:11px 20px;border-radius:999px;font-size:13.5px;font-weight:700;box-shadow:var(--shadow);z-index:200;opacity:0;transition:opacity .25s ease;}
+  .toast.show{opacity:1;}
+
+  .empty-state{text-align:center;padding:36px 24px;color:var(--ink-soft);}
+  .empty-state .emoji{font-size:28px;display:block;margin-bottom:10px;}
+  .empty-state p{margin:0 0 4px;font-size:13.5px;}
+
+  .card-block{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius-m);padding:16px;margin:0 18px 16px;}
+  .card-block h3{font-family:var(--font-display);font-size:14.5px;margin:0 0 8px;}
+  .hint-text{font-size:12px;color:var(--ink-soft);margin:8px 0 0;line-height:1.6;}
+  .msg-error{color:var(--danger);font-size:12.5px;font-weight:700;margin:8px 0 0;}
+  .msg-success{color:var(--teal-dark);font-size:12.5px;font-weight:700;margin:8px 0 0;}
+
+  .manage-list{padding:4px 18px 10px;}
+  .manage-item{display:flex;align-items:center;justify-content:space-between;background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:11px 14px;margin-bottom:8px;}
+  .manage-item span{font-weight:700;font-size:14px;}
+  .manage-item .count{font-weight:500;color:var(--ink-soft);font-size:12px;margin-left:6px;}
+  .manage-item button{background:var(--danger-bg);color:var(--danger);border:none;border-radius:999px;padding:6px 13px;font-size:12px;font-weight:700;cursor:pointer;}
+
+  .table-wrap{padding:4px 10px 20px;overflow-x:auto;-webkit-overflow-scrolling:touch;}
+  table.agg-table{border-collapse:separate;border-spacing:0;font-size:12.5px;}
+  table.agg-table th, table.agg-table td{padding:7px 6px;text-align:center;border-bottom:1px solid var(--line);white-space:nowrap;}
+  table.agg-table th{font-family:var(--font-display);font-weight:700;color:var(--ink-soft);font-size:11.5px;}
+  table.agg-table td.name-col, table.agg-table th.name-col{position:sticky;left:0;background:var(--bg);text-align:left;font-weight:700;padding-right:12px;z-index:2;}
+  table.agg-table td.cell-btn{cursor:pointer;}
+
+  .helper-row{padding:2px 18px 10px;display:flex;justify-content:flex-end;flex-wrap:wrap;gap:8px;}
+
+  .loading-wrap{padding:60px 24px;text-align:center;color:var(--ink-faint);font-size:13px;}
+  .koukyu-banner{margin:12px 18px 0;padding:12px 16px;border-radius:var(--radius-m);font-size:13px;font-weight:700;display:flex;align-items:center;justify-content:space-between;gap:10px;}
+  .koukyu-banner.ok{background:var(--teal-bg);color:var(--teal-dark);}
+  .koukyu-banner.under{background:var(--danger-bg);color:var(--danger);}
+  .koukyu-banner.over{background:var(--mustard-bg);color:var(--mustard-dark);}
+  .koukyu-banner .sub{font-weight:500;font-size:12px;display:block;margin-top:2px;}
+  .koukyu-badge{display:inline-block;padding:3px 8px;border-radius:999px;font-size:11px;font-weight:700;white-space:nowrap;}
+  .koukyu-badge.ok{background:var(--teal-bg);color:var(--teal-dark);}
+  .koukyu-badge.under{background:var(--danger-bg);color:var(--danger);}
+  .koukyu-badge.over{background:var(--mustard-bg);color:var(--mustard-dark);}
+
+  .pin-wrap{padding:40px 24px;text-align:center;}
+  .pin-icon{width:56px;height:56px;border-radius:16px;background:var(--mustard-bg);display:flex;align-items:center;justify-content:center;margin:0 auto 16px;font-size:24px;}
+  .pin-dots{width:180px;margin:18px auto 6px;text-align:center;font-size:24px;letter-spacing:10px;padding:12px 10px;border-radius:12px;border:1.5px solid var(--line);font-family:var(--font-display);background:var(--surface);}
+  .pin-error{color:var(--danger);font-size:13px;font-weight:700;min-height:18px;}
+  .pin-pad{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;max-width:260px;margin:14px auto;}
+  .pin-pad button{height:52px;font-size:18px;}
+</style>
+</head>
+<body>
+<div id="app"></div>
+
+<script type="module">
+/* ============================================================
+   Firebase setup — このブロックだけ、あなたのFirebaseプロジェクトの値に置き換えてください。
+   Firebaseコンソール → プロジェクトの設定 → マイアプリ → firebaseConfig をコピーして貼り付け。
+   ============================================================ */
+import { initializeApp } from 'https://www.gstatic.com/firebasejs/12.17.1/firebase-app.js';
+import { getAuth, signInAnonymously, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/12.17.1/firebase-auth.js';
+import { getFirestore, doc, setDoc, deleteDoc, onSnapshot, collection, query, where } from 'https://www.gstatic.com/firebasejs/12.17.1/firebase-firestore.js';
+
+// ▼▼▼ ここを置き換え ▼▼▼
+const firebaseConfig = {
+  apiKey: "AIzaSyDyWDrzX7-kewNIYTTGrpws3RpSJN0TdDQ",
+  authDomain: "shift-stamp.firebaseapp.com",
+  projectId: "shift-stamp",
+  storageBucket: "shift-stamp.firebasestorage.app",
+  messagingSenderId: "75973119685",
+  appId: "1:75973119685:web:4cefe9ec38a4a3b1caaaac"
+};
+// ▲▲▲ ここまで ▲▲▲
+
+const fbApp = initializeApp(firebaseConfig);
+const fbAuth = getAuth(fbApp);
+const db = getFirestore(fbApp);
+
+(function(){
+
+  /* ================= constants ================= */
+  var CODES = ["B","G","C","L","公","有","B/有","G/有","C/有","特別休","忌引き"];
+  var CODE_COLORS = { "B":"#3F7C77", "G":"#4C8D63", "C":"#3D6E91", "L":"#4A5F8C", "公":"#9C9885", "有":"#DFA23B", "特別休":"#8C6E97", "忌引き":"#5B5B52" };
+  var FALLBACK_PALETTE = ["#5C7A99","#7D6E9C","#B4713F","#5E8F72","#9C6B87","#7A8C4E"];
+  function fallbackColor(str){
+    var h = 0;
+    for(var i=0;i<str.length;i++){ h = (h*31 + str.charCodeAt(i)) >>> 0; }
+    return FALLBACK_PALETTE[h % FALLBACK_PALETTE.length];
+  }
+  var WEEKDAY_JP = ["日","月","火","水","木","金","土"];
+  var ADMIN_PIN = "2930"; // 管理者用PIN。自由に変更してください（簡易的な制限です）。
+
+  /* ================= state ================= */
+  var state = {
+    connStatus: "connecting",  // connecting | ready | error
+    connError: "",
+    screen: "landing",         // landing | staffName | staffMain | adminPinGate | adminMain
+    staffName: "",
+    nameDraft: "",
+    yearMonth: defaultYearMonth(),
+    staffTab: "input",         // input | viewFinal
+    adminTab: "agg",           // agg | final
+    legendOpen: false,
+    codesEditing: false,
+    codes: CODES.slice(),
+    newCodeDraft: "",
+    adminAuthed: false,
+    pinDraft: "",
+    pinError: "",
+
+    workingByMonth: {},   // ym -> {day:code}   staff's own request (live from Firestore)
+    workingReady: false,
+    aggByMonth: {},        // ym -> {name:{day:code}}  admin: all staff requests (live)
+    aggReady: false,
+    finalByMonth: {},      // ym -> {name:{day:code}}  confirmed shift (live)
+    finalReady: false,
+
+    sheet: null,           // {mode:'staff', day} | {mode:'admin', day, name}
+    dayDetail: null        // {context: 'agg'|'final'|'viewFinal', day}
+  };
+
+  function getWorking(ym){ return state.workingByMonth[ym] || {}; }
+  function getAgg(ym){ return state.aggByMonth[ym] || {}; }
+  function getFinal(ym){ return state.finalByMonth[ym] || {}; }
+
+  function defaultYearMonth(){
+    var d = new Date(); var y = d.getFullYear(), m = d.getMonth() + 2;
+    if(m > 12){ m -= 12; y += 1; }
+    return y + "-" + String(m).padStart(2,"0");
+  }
+  function shiftYearMonth(ym, delta){
+    var parts = ym.split("-"); var y = parseInt(parts[0],10); var m = parseInt(parts[1],10);
+    m += delta;
+    while(m > 12){ m -= 12; y += 1; }
+    while(m < 1){ m += 12; y -= 1; }
+    return y + "-" + String(m).padStart(2,"0");
+  }
+  function monthLabel(ym){ var p = ym.split("-"); return p[0] + "年" + parseInt(p[1],10) + "月"; }
+  function daysInMonth(ym){
+    var p = ym.split("-"); var y = parseInt(p[0],10); var m = parseInt(p[1],10);
+    var count = new Date(y, m, 0).getDate(); var out = [];
+    for(var d=1; d<=count; d++){
+      out.push({ day:d, weekday:new Date(y, m-1, d).getDay() });
+    }
+    return out;
+  }
+  function todayDayNum(ym){
+    var d = new Date();
+    var cur = d.getFullYear() + "-" + String(d.getMonth()+1).padStart(2,"0");
+    return cur === ym ? d.getDate() : -1;
+  }
+  function sundayDefaults(ym){
+    var out = {};
+    daysInMonth(ym).forEach(function(d){ if(d.weekday === 0){ out[d.day] = "公"; } });
+    return out;
+  }
+
+  /* ================= koukyu (公休) rules ================= */
+  // 公休は月9回が基準。2月は日数が少ないため8回を基準にしている（要調整であれば変更可能）。
+  function koukyuTarget(ym){
+    var month = parseInt(ym.split("-")[1], 10);
+    return month === 2 ? 8 : 9;
+  }
+  function countKoukyu(bucket){
+    var n = 0;
+    Object.keys(bucket).forEach(function(day){ if(bucket[day] === "公") n++; });
+    return n;
+  }
+  function koukyuStatus(bucket, ym){
+    var target = koukyuTarget(ym), count = countKoukyu(bucket), diff = count - target;
+    var flag = diff === 0 ? "ok" : (diff < 0 ? "under" : "over");
+    return { target: target, count: count, diff: diff, state: flag };
+  }
+  function koukyuBanner(bucket, ym){
+    var s = koukyuStatus(bucket, ym);
+    var msg = "公休 " + s.count + " / " + s.target + "回";
+    var sub = s.state === "ok" ? "基準どおりです" : (s.state === "under" ? "あと" + (-s.diff) + "回足りません" : (s.diff) + "回多くなっています");
+    return '<div class="koukyu-banner ' + s.state + '"><span>' + msg + '<span class="sub">' + sub + '</span></span></div>';
+  }
+  function koukyuBadge(bucket, ym){
+    var s = koukyuStatus(bucket, ym);
+    return '<span class="koukyu-badge ' + s.state + '">' + s.count + '/' + s.target + '</span>';
+  }
+
+  /* ================= chip rendering ================= */
+  function chipStyle(code){
+    if(!code) return "";
+    if(CODE_COLORS[code]) return "background:" + CODE_COLORS[code] + ";";
+    if(code.indexOf("/") !== -1){
+      var parts = code.split("/");
+      var c1 = CODE_COLORS[parts[0]] || fallbackColor(parts[0]), c2 = CODE_COLORS[parts[1]] || fallbackColor(parts[1]);
+      return "background:linear-gradient(135deg," + c1 + " 49%," + c2 + " 51%);";
+    }
+    return "background:" + fallbackColor(code) + ";";
+  }
+  function renderChip(code){
+    if(!code) return '<span class="code-chip empty">未入力</span>';
+    return '<span class="code-chip" style="' + chipStyle(code) + '">' + escapeHtml(code) + "</span>";
+  }
+  function escapeHtml(s){
+    return String(s).replace(/[&<>"']/g, function(c){ return {"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c]; });
+  }
+  function attrArg(v){
+    return JSON.stringify(v).replace(/&/g,"&amp;").replace(/"/g,"&quot;").replace(/</g,"&lt;");
+  }
+  function renderCalendarGrid(ym, bucket, todayNum, onTapFn){
+    var days = daysInMonth(ym);
+    var leadBlanks = days[0].weekday;
+    var head = WEEKDAY_JP.map(function(w,i){
+      var cls = i===0?"sun":(i===6?"sat":"");
+      return '<div' + (cls?' class="'+cls+'"':'') + '>' + w + '</div>';
+    }).join("");
+    var blanks = "";
+    for(var i=0;i<leadBlanks;i++){ blanks += '<div class="cal-cell empty-slot"></div>'; }
+    var cells = days.map(function(dInfo){
+      var code = bucket[dInfo.day];
+      var wcls = dInfo.weekday===0?"sun":(dInfo.weekday===6?"sat":"");
+      var cls = "cal-cell" + (code?" has-code":"") + (wcls?" "+wcls:"") + (dInfo.day===todayNum?" is-today":"");
+      var style = code ? (' style="' + chipStyle(code) + '"') : "";
+      return '<button class="' + cls + '"' + style + ' onclick="' + onTapFn + '(' + dInfo.day + ')">'
+        + '<span class="cal-day-num">' + dInfo.day + '</span>'
+        + (code ? '<span class="cal-code-label">' + escapeHtml(code) + '</span>' : '')
+        + '</button>';
+    }).join("");
+    return '<div class="cal-weekday-row">' + head + '</div>'
+      + '<div class="cal-grid">' + blanks + cells + '</div>';
+  }
+
+  /* ================= Firestore refs & sync ================= */
+  function safeId(s){ return String(s).replace(/[\/\.\#\$\[\]]/g, "_").trim() || "unnamed"; }
+  function reqRef(ym, name){ return doc(db, "staff_requests", ym + "__" + safeId(name)); }
+  function finalRef(ym){ return doc(db, "final_shifts", ym); }
+  function codesRef(){ return doc(db, "settings", "codes"); }
+
+  var unsubWorking = null, unsubAgg = null, unsubFinal = null, unsubCodes = null;
+
+  function watchCodes(){
+    if(unsubCodes) unsubCodes();
+    unsubCodes = onSnapshot(codesRef(), function(snap){
+      var data = snap.exists() ? snap.data() : null;
+      state.codes = (data && Array.isArray(data.list) && data.list.length) ? data.list : CODES.slice();
+      render();
+    }, function(){ state.codes = CODES.slice(); render(); });
+  }
+  function saveCodes(){
+    setDoc(codesRef(), { list: state.codes }).catch(function(e){ showToast("シフト一覧の保存に失敗：" + e.message); });
+  }
+
+  var seenOnce = {};
+  function watchMyRequest(ym, name){
+    if(unsubWorking) unsubWorking();
+    state.workingReady = false; render();
+    var initKey = ym + "__" + name;
+    unsubWorking = onSnapshot(reqRef(ym, name), function(snap){
+      if(snap.exists() && snap.data().days){
+        state.workingByMonth[ym] = snap.data().days;
+      } else if(!seenOnce[initKey]){
+        // genuinely first time we've ever seen this staff+month: seed Sunday defaults
+        var defaults = sundayDefaults(ym);
+        state.workingByMonth[ym] = defaults;
+        setDoc(reqRef(ym, name), { name: name, yearMonth: ym, days: defaults, updatedAt: Date.now() }).catch(function(e){ console.error(e); });
+      } else {
+        // the doc existed before and is now gone (e.g. an admin deleted it) - respect that,
+        // don't silently resurrect it with defaults
+        state.workingByMonth[ym] = {};
+      }
+      seenOnce[initKey] = true;
+      state.workingReady = true;
+      render();
+    }, function(err){ state.workingReady = true; showToast("読み込みエラー：" + err.message); render(); });
+  }
+  function saveMyRequest(ym, name, bucket){
+    setDoc(reqRef(ym, name), { name: name, yearMonth: ym, days: bucket, updatedAt: Date.now() })
+      .catch(function(e){ showToast("保存に失敗しました：" + e.message); });
+  }
+
+  function watchAgg(ym){
+    if(unsubAgg) unsubAgg();
+    state.aggReady = false; render();
+    var q = query(collection(db, "staff_requests"), where("yearMonth", "==", ym));
+    unsubAgg = onSnapshot(q, function(snap){
+      var out = {};
+      snap.forEach(function(docSnap){
+        var data = docSnap.data();
+        if(data && data.name){ out[data.name] = data.days || {}; }
+      });
+      state.aggByMonth[ym] = out;
+      state.aggReady = true;
+      render();
+    }, function(err){ state.aggReady = true; showToast("読み込みエラー：" + err.message); render(); });
+  }
+  function removeAggDoc(ym, name){
+    deleteDoc(reqRef(ym, name)).catch(function(e){ showToast("削除に失敗しました：" + e.message); });
+  }
+
+  function watchFinal(ym){
+    if(unsubFinal) unsubFinal();
+    state.finalReady = false; render();
+    unsubFinal = onSnapshot(finalRef(ym), function(snap){
+      state.finalByMonth[ym] = (snap.exists() && snap.data().assignments) ? snap.data().assignments : {};
+      state.finalReady = true;
+      render();
+    }, function(err){ state.finalReady = true; showToast("読み込みエラー：" + err.message); render(); });
+  }
+  function saveFinal(ym, assignments){
+    setDoc(finalRef(ym), { assignments: assignments, updatedAt: Date.now() })
+      .catch(function(e){ showToast("保存に失敗しました：" + e.message); });
+  }
+
+  function enterStaffMonth(ym, name){ watchMyRequest(ym, name); watchFinal(ym); }
+  function enterAdminMonth(ym){ watchAgg(ym); watchFinal(ym); }
+
+  /* ================= toast ================= */
+  var toastTimer = null;
+  function showToast(msg){
+    var existing = document.querySelector(".toast");
+    if(existing) existing.remove();
+    var t = document.createElement("div");
+    t.className = "toast"; t.textContent = msg;
+    document.body.appendChild(t);
+    requestAnimationFrame(function(){ t.classList.add("show"); });
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(function(){ t.classList.remove("show"); setTimeout(function(){ t.remove(); }, 250); }, 1800);
+  }
+
+  /* ================= confirm modal (native confirm() is blocked in sandboxed previews) ================= */
+  function askConfirm(message, callback){ state.confirmState = { message: message, callback: callback }; render(); }
+
+  window.App = {};
+  App.confirmYes = function(){
+    var cb = state.confirmState && state.confirmState.callback;
+    state.confirmState = null; render();
+    if(cb) cb();
+  };
+  App.confirmNo = function(){ state.confirmState = null; render(); };
+
+  /* ================= nav ================= */
+  function go(screen){ state.screen = screen; render(); }
+  App.goLanding = function(){ state.screen = "landing"; state.sheet = null; render(); };
+  App.enterStaff = function(){ state.nameDraft = state.staffName; go("staffName"); };
+  App.goStaffName = function(){ state.nameDraft = state.staffName; go("staffName"); };
+  App.updateNameDraft = function(v){ state.nameDraft = v; };
+  App.confirmStaffName = function(){
+    var name = (state.nameDraft || "").trim();
+    if(!name) return;
+    state.staffName = name; state.staffTab = "input";
+    enterStaffMonth(state.yearMonth, name);
+    go("staffMain");
+  };
+
+  /* ================= staff actions ================= */
+  App.staffChangeMonth = function(delta){
+    state.yearMonth = shiftYearMonth(state.yearMonth, delta);
+    enterStaffMonth(state.yearMonth, state.staffName);
+  };
+  App.setStaffTab = function(t){ state.staffTab = t; render(); };
+  App.toggleLegend = function(){ state.legendOpen = !state.legendOpen; render(); };
+  App.toggleCodesEditing = function(){ state.codesEditing = !state.codesEditing; render(); };
+  App.updateNewCodeDraft = function(v){ state.newCodeDraft = v; };
+  App.addCustomCode = function(){
+    var v = (state.newCodeDraft || "").trim();
+    if(!v) return;
+    if(state.codes.indexOf(v) === -1){ state.codes.push(v); saveCodes(); }
+    state.newCodeDraft = "";
+    render();
+  };
+  App.removeCustomCode = function(code){
+    state.codes = state.codes.filter(function(c){ return c !== code; });
+    saveCodes();
+    render();
+  };
+  App.resetCodesToDefault = function(){
+    askConfirm("シフト一覧を初期状態（B・G・C・L・公・有など）に戻します。よろしいですか？", function(){
+      state.codes = CODES.slice();
+      saveCodes();
+      render();
+    });
+  };
+  App.openStaffSheet = function(day){ state.sheet = { mode:"staff", day: day }; render(); };
+  App.closeSheet = function(){ state.sheet = null; render(); };
+  App.openDayDetail = function(context, day){ state.dayDetail = { context: context, day: day }; render(); };
+  App.closeDayDetail = function(){ state.dayDetail = null; render(); };
+  App.pickCodeStaff = function(code){
+    var day = state.sheet.day;
+    var bucket = Object.assign({}, getWorking(state.yearMonth));
+    if(code === null) delete bucket[day]; else bucket[day] = code;
+    state.workingByMonth[state.yearMonth] = bucket;
+    state.sheet = null; render();
+    saveMyRequest(state.yearMonth, state.staffName, bucket);
+  };
+
+  /* ================= admin actions ================= */
+  App.enterAdmin = function(){
+    if(state.adminAuthed){ enterAdminMonth(state.yearMonth); go("adminMain"); return; }
+    state.pinDraft = ""; state.pinError = "";
+    go("adminPinGate");
+  };
+  App.pinKeypress = function(val){
+    if(val === "back"){ state.pinDraft = state.pinDraft.slice(0,-1); }
+    else if(state.pinDraft.length < 6){ state.pinDraft += val; }
+    state.pinError = "";
+    render();
+  };
+  App.submitPin = function(){
+    if(state.pinDraft === ADMIN_PIN){
+      state.adminAuthed = true;
+      state.pinDraft = "";
+      enterAdminMonth(state.yearMonth);
+      go("adminMain");
+    } else {
+      state.pinError = "PINが違います";
+      state.pinDraft = "";
+      render();
+    }
+  };
+  App.exitAdmin = function(){
+    state.adminAuthed = false;
+    App.goLanding();
+  };
+  App.setAdminTab = function(t){ state.adminTab = t; render(); };
+  App.adminChangeMonth = function(delta){
+    state.yearMonth = shiftYearMonth(state.yearMonth, delta);
+    enterAdminMonth(state.yearMonth);
+  };
+  App.removeAggStaff = function(name){
+    askConfirm(name + " さんの入力データを削除しますか？", function(){
+      removeAggDoc(state.yearMonth, name);
+    });
+  };
+  App.copyAggToFinal = function(){
+    var agg = getAgg(state.yearMonth);
+    if(Object.keys(agg).length === 0) return;
+    askConfirm("取り込み済みの希望を確定シフトにコピーします。現在の確定シフトの内容は上書きされます。よろしいですか？", function(){
+      var copy = {};
+      Object.keys(agg).forEach(function(name){ copy[name] = Object.assign({}, agg[name]); });
+      state.finalByMonth[state.yearMonth] = copy;
+      render();
+      saveFinal(state.yearMonth, copy);
+    });
+  };
+  App.openAdminFinalSheet = function(name, day){ state.dayDetail = null; state.sheet = { mode:"admin", day: day, name: name }; render(); };
+  App.pickCodeAdmin = function(code){
+    var name = state.sheet.name, day = state.sheet.day;
+    var bucket = Object.assign({}, getFinal(state.yearMonth));
+    var row = Object.assign({}, bucket[name] || {});
+    if(code === null) delete row[day]; else row[day] = code;
+    bucket[name] = row;
+    state.finalByMonth[state.yearMonth] = bucket;
+    state.sheet = null; render();
+    saveFinal(state.yearMonth, bucket);
+  };
+
+  /* ================= render ================= */
+  function render(){
+    var html = renderScreen();
+    if(state.confirmState){ html += renderConfirmModal(); }
+    document.getElementById("app").innerHTML = html;
+  }
+  function renderScreen(){
+    if(state.connStatus !== "ready") return renderConnScreen();
+    switch(state.screen){
+      case "landing": return renderLanding();
+      case "staffName": return renderStaffName();
+      case "staffMain": return renderStaffMain();
+      case "adminPinGate": return renderAdminPinGate();
+      case "adminMain": return renderAdminMain();
+      default: return renderLanding();
+    }
+  }
+
+  function renderConnScreen(){
+    if(state.connStatus === "error"){
+      return '<div class="loading-wrap"><p style="color:var(--danger);font-weight:700;">接続に失敗しました</p><p>' + escapeHtml(state.connError) + '</p><p>firebaseConfig の値を確認してください。</p></div>';
+    }
+    return '<div class="loading-wrap">接続中…</div>';
+  }
+
+  function renderConfirmModal(){
+    return '<div class="sheet-overlay" onclick="if(event.target===this)App.confirmNo()"><div class="sheet">'
+      +   '<div class="sheet-handle"></div>'
+      +   '<p class="sheet-title">確認</p>'
+      +   '<p class="sheet-sub">' + escapeHtml(state.confirmState.message) + '</p>'
+      +   '<div style="margin-bottom:10px;"><button class="btn btn-primary btn-block" onclick="App.confirmYes()">はい</button></div>'
+      +   '<button class="sheet-cancel" onclick="App.confirmNo()">キャンセル</button>'
+      + '</div></div>';
+  }
+
+  function renderLanding(){
+    return ''
+    + '<div class="brandbar">'
+    +   '<div class="brand-mark">シフト</div>'
+    +   '<h1 class="brand-title">シフトすたんぷ</h1>'
+    +   '<p class="brand-sub">タップして希望シフトを入力・確認します</p>'
+    + '</div>'
+    + '<div class="mode-stack">'
+    +   '<button class="mode-card staff" onclick="App.enterStaff()">'
+    +     '<div class="mode-card-icon">👤</div>'
+    +     '<div><p class="mode-card-title">職員として入力する</p><p class="mode-card-desc">自分の希望シフトをタップで入力します</p></div>'
+    +   '</button>'
+    +   '<button class="mode-card admin" onclick="App.enterAdmin()">'
+    +     '<div class="mode-card-icon">🔑</div>'
+    +     '<div><p class="mode-card-title">管理者として使う</p><p class="mode-card-desc">全員の希望を確認し、確定シフトを作成・共有</p></div>'
+    +   '</button>'
+    + '</div>'
+    + '<p class="footnote">入力すると自動で保存され、すぐに他の端末にも反映されます。コードのコピーや送信は不要です。</p>';
+  }
+
+  function topbarHtml(backAction, whoLabel, label){
+    return '<div class="topbar"><button class="backbtn" onclick="' + backAction + '">← ' + (label || "戻る") + '</button>' + (whoLabel ? '<div class="who">' + whoLabel + '</div>' : '') + '</div>';
+  }
+
+  function renderStaffName(){
+    return topbarHtml("App.goLanding()", "")
+      + '<div class="section">'
+      +   '<h2 class="section-title">お名前を入力してください</h2>'
+      +   '<div class="field-row">'
+      +     '<input type="text" placeholder="例：山田 太郎" value="' + escapeHtml(state.nameDraft) + '" oninput="App.updateNameDraft(this.value)" onkeydown="if(event.key===\'Enter\')App.confirmStaffName()">'
+      +     '<button class="btn btn-primary" onclick="App.confirmStaffName()">次へ</button>'
+      +   '</div>'
+      +   '<p class="hint-text">この名前で入力内容が保存され、管理者にも同じ名前で表示されます。</p>'
+      + '</div>';
+  }
+
+  function renderMonthNav(prevAction, nextAction){
+    return '<div class="month-nav"><button onclick="' + prevAction + '">‹</button><div class="month-label">' + monthLabel(state.yearMonth) + '</div><button onclick="' + nextAction + '">›</button></div>';
+  }
+
+  function renderLegend(){
+    var html = '<div class="legend-wrap">'
+      + '<div class="legend-toggle" onclick="App.toggleLegend()"><span>シフト一覧</span><span>' + (state.legendOpen ? "閉じる ▲" : "見る ▼") + '</span></div>';
+    if(state.legendOpen){
+      if(!state.codesEditing){
+        html += '<div class="legend-chips">' + state.codes.map(renderChip).join("") + '</div>'
+          + '<div class="legend-edit-row"><span></span><button class="btn btn-ghost btn-sm" onclick="App.toggleCodesEditing()">編集する</button></div>';
+      } else {
+        html += '<div class="legend-chips">' + state.codes.map(function(c){
+            return '<span class="legend-edit-chip">' + renderChip(c) + '<button class="chip-remove" onclick="App.removeCustomCode(' + attrArg(c) + ')">×</button></span>';
+          }).join("") + '</div>'
+          + '<div class="field-row" style="margin-top:10px;">'
+          +   '<input type="text" placeholder="新しいシフトの名前" value="' + escapeHtml(state.newCodeDraft) + '" oninput="App.updateNewCodeDraft(this.value)" onkeydown="if(event.key===\'Enter\')App.addCustomCode()">'
+          +   '<button class="btn btn-primary btn-sm" onclick="App.addCustomCode()">追加</button>'
+          + '</div>'
+          + '<div class="legend-edit-row">'
+          +   '<button class="btn btn-ghost btn-sm" onclick="App.resetCodesToDefault()">初期状態に戻す</button>'
+          +   '<button class="btn btn-secondary btn-sm" onclick="App.toggleCodesEditing()">完了</button>'
+          + '</div>'
+          + '<p class="hint-text">この一覧は全員で共有されます。追加・削除するとすぐに他の端末にも反映されます。</p>';
+      }
+    }
+    html += '</div>';
+    return html;
+  }
+
+  function renderCodeSheet(opts){
+    var options = state.codes.map(function(c){
+      return '<button class="sheet-option" onclick="' + opts.onPick + '(' + attrArg(c) + ')">' + renderChip(c) + '</button>';
+    }).join("");
+    return '<div class="sheet-overlay" onclick="if(event.target===this)App.closeSheet()"><div class="sheet">'
+      +   '<div class="sheet-handle"></div>'
+      +   '<p class="sheet-title">' + escapeHtml(opts.title) + '</p>'
+      +   '<p class="sheet-sub">' + escapeHtml(opts.sub) + '</p>'
+      +   '<div class="sheet-grid">' + options + '</div>'
+      +   '<button class="sheet-clear" onclick="' + opts.onPick + '(null)">未入力にする</button>'
+      +   '<button class="sheet-cancel" onclick="App.closeSheet()">キャンセル</button>'
+      + '</div></div>';
+  }
+
+  function renderStaffMain(){
+    var who = '<span class="name-badge">' + escapeHtml(state.staffName) + '</span>';
+    var html = topbarHtml("App.goStaffName()", who);
+    html += renderMonthNav("App.staffChangeMonth(-1)", "App.staffChangeMonth(1)");
+    html += '<div class="tabs">'
+      + '<div class="tab' + (state.staffTab==="input"?" active":"") + '" onclick="App.setStaffTab(\'input\')">希望を入力</div>'
+      + '<div class="tab' + (state.staffTab==="viewFinal"?" active":"") + '" onclick="App.setStaffTab(\'viewFinal\')">確定シフトを見る</div>'
+      + '</div>';
+
+    if(!state.workingReady){
+      html += '<div class="loading-wrap">読み込み中…</div>';
+    } else if(state.staffTab === "input"){
+      var bucket = getWorking(state.yearMonth);
+      html += koukyuBanner(bucket, state.yearMonth);
+      html += renderLegend();
+      var today = todayDayNum(state.yearMonth);
+      html += renderCalendarGrid(state.yearMonth, bucket, today, "App.openStaffSheet")
+      + '<p class="footnote" style="padding-top:0;">タップすると自動で保存されます。</p>';
+    } else {
+      html += renderStaffViewFinal();
+    }
+
+    if(state.sheet && state.sheet.mode === "staff"){
+      html += renderCodeSheet({ title: state.sheet.day + "日の希望", sub: "この日の希望シフトを選んでください", onPick: "App.pickCodeStaff" });
+    }
+    if(state.dayDetail){ html += renderDayDetailSheet(); }
+    return html;
+  }
+
+  function renderStaffViewFinal(){
+    if(!state.finalReady){ return '<div class="loading-wrap">読み込み中…</div>'; }
+    var fin = getFinal(state.yearMonth);
+    var today = todayDayNum(state.yearMonth);
+    if(Object.keys(fin).length === 0){
+      return '<div class="empty-state"><span class="emoji">🗓️</span><p>この月の確定シフトはまだ公開されていません。</p></div>';
+    }
+    return '<div class="section" style="padding-bottom:0;"><h2 class="section-title">' + monthLabel(state.yearMonth) + ' の確定シフト</h2><p class="hint-text">日付をタップすると、その日の担当が見られます。</p></div>'
+      + renderMultiCalendarGrid(state.yearMonth, fin, today, "viewFinal");
+  }
+
+  function sheetDateLabel(ym, day){
+    var p = ym.split("-");
+    var d = new Date(parseInt(p[0],10), parseInt(p[1],10)-1, day);
+    return parseInt(p[1],10) + "月" + day + "日（" + WEEKDAY_JP[d.getDay()] + "）";
+  }
+  function renderMultiCalendarGrid(ym, dataByName, todayNum, context){
+    var days = daysInMonth(ym);
+    var leadBlanks = days[0].weekday;
+    var head = WEEKDAY_JP.map(function(w,i){
+      var cls = i===0?"sun":(i===6?"sat":"");
+      return '<div' + (cls?' class="'+cls+'"':'') + '>' + w + '</div>';
+    }).join("");
+    var blanks = "";
+    for(var i=0;i<leadBlanks;i++){ blanks += '<div class="cal-cell empty-slot"></div>'; }
+    var names = Object.keys(dataByName);
+    var cells = days.map(function(dInfo){
+      var entries = [];
+      names.forEach(function(name){
+        var code = (dataByName[name]||{})[dInfo.day];
+        if(code){ entries.push(code); }
+      });
+      var wcls = dInfo.weekday===0?"sun":(dInfo.weekday===6?"sat":"");
+      var cls = "cal-cell multi" + (wcls?" "+wcls:"") + (dInfo.day===todayNum?" is-today":"") + (entries.length?" has-entries":"");
+      var dots = entries.slice(0,6).map(function(code){
+        return '<span class="cal-dot" style="' + chipStyle(code) + '"></span>';
+      }).join("");
+      var overflow = entries.length > 6 ? '<span class="cal-more">+' + (entries.length-6) + '</span>' : "";
+      return '<button class="' + cls + '" onclick="App.openDayDetail(' + attrArg(context) + ',' + dInfo.day + ')">'
+        + '<span class="cal-day-num">' + dInfo.day + '</span>'
+        + '<span class="cal-dots">' + dots + overflow + '</span>'
+        + '</button>';
+    }).join("");
+    return '<div class="cal-weekday-row">' + head + '</div>'
+      + '<div class="cal-grid">' + blanks + cells + '</div>';
+  }
+  function renderDayDetailSheet(){
+    var ctx = state.dayDetail.context, day = state.dayDetail.day, ym = state.yearMonth;
+    var dataByName = ctx === "agg" ? getAgg(ym) : getFinal(ym);
+    var editable = ctx === "final";
+    var names = Object.keys(dataByName).filter(function(n){ return (dataByName[n]||{})[day]; }).sort();
+    var rows = names.length ? names.map(function(name){
+      var code = dataByName[name][day];
+      if(editable){
+        return '<button class="day-detail-row" onclick="App.openAdminFinalSheet(' + attrArg(name) + ',' + day + ')"><span>' + escapeHtml(name) + '</span>' + renderChip(code) + '</button>';
+      }
+      return '<div class="day-detail-row"><span>' + escapeHtml(name) + '</span>' + renderChip(code) + '</div>';
+    }).join("") : '<p class="hint-text" style="text-align:center;">この日はまだ誰もいません。</p>';
+    return '<div class="sheet-overlay" onclick="if(event.target===this)App.closeDayDetail()"><div class="sheet">'
+      +   '<div class="sheet-handle"></div>'
+      +   '<p class="sheet-title">' + escapeHtml(sheetDateLabel(ym, day)) + '</p>'
+      +   (editable ? '<p class="sheet-sub">タップして編集できます</p>' : '')
+      +   '<div class="day-detail-list">' + rows + '</div>'
+      +   '<button class="sheet-cancel" onclick="App.closeDayDetail()">閉じる</button>'
+      + '</div></div>';
+  }
+
+  function renderAdminPinGate(){
+    var dots = "●".repeat(state.pinDraft.length) + "○".repeat(Math.max(0,4-state.pinDraft.length));
+    var keys = ["1","2","3","4","5","6","7","8","9","","0","back"];
+    var pad = keys.map(function(k){
+      if(k === "") return '<div></div>';
+      var label = k === "back" ? "⌫" : k;
+      return '<button class="btn btn-secondary" onclick="App.pinKeypress(' + attrArg(k) + ')">' + label + '</button>';
+    }).join("");
+    return topbarHtml("App.goLanding()", "")
+      + '<div class="pin-wrap">'
+      +   '<div class="pin-icon">🔑</div>'
+      +   '<p style="color:var(--ink-soft);font-size:13.5px;">管理者PINを入力してください。</p>'
+      +   '<div class="pin-dots">' + dots + '</div>'
+      +   '<div class="pin-pad">' + pad + '</div>'
+      +   '<p class="pin-error">' + escapeHtml(state.pinError) + '</p>'
+      +   '<button class="btn btn-primary btn-block" onclick="App.submitPin()" ' + (state.pinDraft.length<4?"disabled":"") + '>ログイン</button>'
+      + '</div>';
+  }
+
+  function renderAdminMain(){
+    var html = topbarHtml("App.exitAdmin()", '<span style="font-weight:700;">管理者</span>', "ログアウト");
+    html += renderMonthNav("App.adminChangeMonth(-1)", "App.adminChangeMonth(1)");
+    html += '<div class="tabs">'
+      + '<div class="tab' + (state.adminTab==="agg"?" active":"") + '" onclick="App.setAdminTab(\'agg\')">希望の一覧</div>'
+      + '<div class="tab' + (state.adminTab==="final"?" active":"") + '" onclick="App.setAdminTab(\'final\')">確定シフト作成</div>'
+      + '</div>';
+    if(state.adminTab === "agg") html += renderAggTab();
+    else html += renderFinalTab();
+
+    if(state.sheet && state.sheet.mode === "admin"){
+      html += renderCodeSheet({ title: escapeHtml(state.sheet.name) + " ／ " + state.sheet.day + "日", sub: "確定シフトのコードを選んでください", onPick: "App.pickCodeAdmin" });
+    }
+    if(state.dayDetail){ html += renderDayDetailSheet(); }
+    return html;
+  }
+
+  function renderAggTab(){
+    if(!state.aggReady){ return '<div class="loading-wrap">読み込み中…</div>'; }
+    var agg = getAgg(state.yearMonth);
+    var names = Object.keys(agg);
+    if(names.length === 0){
+      return '<div class="empty-state"><span class="emoji">🧑‍🤝‍🧑</span><p>まだ誰も入力していません。</p><p>職員がシフトを入力すると、ここに自動で表示されます。</p></div>';
+    }
+    var today = todayDayNum(state.yearMonth);
+    var manage = '<div class="manage-list">' + names.sort().map(function(name){
+      return '<div class="manage-item"><span>' + escapeHtml(name) + ' ' + koukyuBadge(agg[name]||{}, state.yearMonth) + '</span><button onclick="App.removeAggStaff(' + attrArg(name) + ')">削除</button></div>';
+    }).join("") + '</div>';
+    return '<div class="section" style="padding-bottom:2px;"><p class="hint-text">全員の入力がリアルタイムで反映されます。日付をタップすると、その日の希望者が見られます。</p></div>'
+      + renderMultiCalendarGrid(state.yearMonth, agg, today, "agg")
+      + '<div class="section" style="padding-bottom:4px;"><h2 class="section-title">職員ごとの公休</h2></div>'
+      + manage;
+  }
+
+  function renderFinalTab(){
+    if(!state.aggReady || !state.finalReady){ return '<div class="loading-wrap">読み込み中…</div>'; }
+    var agg = getAgg(state.yearMonth);
+    var fin = getFinal(state.yearMonth);
+    var names = Array.from(new Set(Object.keys(agg).concat(Object.keys(fin))));
+    var helper = '<div class="helper-row">' + (Object.keys(agg).length ? '<button class="btn btn-ghost" onclick="App.copyAggToFinal()">希望をコピーする</button>' : '') + '</div>';
+
+    if(names.length === 0){
+      return helper + renderLegend() + '<div class="empty-state"><span class="emoji">🗓️</span><p>まだ職員のデータがありません。</p></div>';
+    }
+
+    var today = todayDayNum(state.yearMonth);
+    var koukyuList = '<div class="manage-list">' + names.sort().map(function(name){
+      return '<div class="manage-item"><span>' + escapeHtml(name) + ' ' + koukyuBadge(fin[name]||{}, state.yearMonth) + '</span></div>';
+    }).join("") + '</div>';
+
+    return helper + renderLegend()
+      + '<div class="section" style="padding-bottom:0;"><p class="hint-text">日付をタップすると、その日の担当を確認・編集できます。</p></div>'
+      + renderMultiCalendarGrid(state.yearMonth, fin, today, "final")
+      + '<div class="section" style="padding-bottom:4px;"><h2 class="section-title">職員ごとの公休</h2></div>'
+      + koukyuList
+      + '<p class="footnote">ここで編集すると、職員側の「確定シフトを見る」画面に自動で反映されます。</p>';
+  }
+
+  /* ================= init ================= */
+  render(); // show "接続中…" immediately
+
+  signInAnonymously(fbAuth).catch(function(e){
+    state.connStatus = "error"; state.connError = e.message; render();
+  });
+  onAuthStateChanged(fbAuth, function(user){
+    if(user){
+      state.connStatus = "ready";
+      watchCodes();
+      render();
+    }
+  });
+
+  window.__shiftStampInternal = { state: state, App: App }; // for testing only
+})();
+</script>
+</body>
+</html>
