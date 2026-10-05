@@ -1,0 +1,610 @@
+[
+ {
+  "page": 1,
+  "dur": 2.5,
+  "title": "「やあ！ みんな、こんにちはー！」",
+  "transition": null
+ },
+ {
+  "page": 2,
+  "dur": 2.5,
+  "title": "（返事待ち）",
+  "transition": null
+ },
+ {
+  "page": 3,
+  "dur": 5.0,
+  "title": "「げんきな こえ…ぼくは たんていみならいの、モフティだよ！」",
+  "transition": null
+ },
+ {
+  "page": 4,
+  "dur": 4.0,
+  "title": "「きょうも げんきに パトロール…わわっ！」",
+  "transition": null
+ },
+ {
+  "page": 5,
+  "dur": 2.0,
+  "title": "（転ぶ）",
+  "transition": {
+   "kind": "マッチ&ムーブ",
+   "xfade": "fade",
+   "dur": 0.4
+  }
+ },
+ {
+  "page": 6,
+  "dur": 2.5,
+  "title": "「えへへ…だいじょうぶ、だいじょうぶ！」",
+  "transition": null
+ },
+ {
+  "page": 7,
+  "dur": 3.0,
+  "title": "（手紙が落ちてくる）",
+  "transition": null
+ },
+ {
+  "page": 8,
+  "dur": 5.0,
+  "title": "「あれ？ おてがみだ！ なになに…『あかちゃんたちが…』」",
+  "transition": {
+   "kind": "マッチ&ムーブ",
+   "xfade": "zoomin",
+   "dur": 0.8
+  }
+ },
+ {
+  "page": 9,
+  "dur": 4.0,
+  "title": "「たいへんだ！ あかちゃん恐竜たちが、まいごに…」",
+  "transition": null
+ },
+ {
+  "page": 10,
+  "dur": 6.0,
+  "title": "「ぼく ひとりじゃ…いっしょに さがしてくれる？」",
+  "transition": {
+   "kind": "マッチ&ムーブ",
+   "xfade": "zoomin",
+   "dur": 1.0
+  }
+ },
+ {
+  "page": 11,
+  "dur": 2.0,
+  "title": "（返事待ち）",
+  "transition": null
+ },
+ {
+  "page": 12,
+  "dur": 4.5,
+  "title": "「ありがとう！…いくよー！」",
+  "transition": {
+   "kind": "マッチ&ムーブ",
+   "xfade": "fade",
+   "dur": 0.6
+  }
+ },
+ {
+  "page": 13,
+  "dur": 4.0,
+  "title": "タイトル（モフティがタイトルコール）",
+  "transition": {
+   "kind": "サークルワイプ",
+   "xfade": "circleopen",
+   "dur": 0.8
+  }
+ },
+ {
+  "page": 14,
+  "dur": 3.0,
+  "title": "だい1もん",
+  "transition": {
+   "kind": "カラーワイプ",
+   "xfade": "wipeleft",
+   "dur": 0.8
+  }
+ },
+ {
+  "page": 15,
+  "dur": 7.0,
+  "title": "「さいしょは、くさむらだよ！…かくれているんだって」",
+  "transition": null
+ },
+ {
+  "page": 16,
+  "dur": 7.0,
+  "title": "「ツノが ある恐竜なんだ…よーい、スタート！」",
+  "transition": null
+ },
+ {
+  "page": 17,
+  "dur": 5.0,
+  "title": "探索タイム（前半）",
+  "transition": null
+ },
+ {
+  "page": 18,
+  "dur": 1.0,
+  "title": "探索タイム（草がゆれる）",
+  "transition": null
+ },
+ {
+  "page": 19,
+  "dur": 4.0,
+  "title": "探索タイム（後半）",
+  "transition": null
+ },
+ {
+  "page": 20,
+  "dur": 3.0,
+  "title": "「わかったかな？ せーのっ…ここだー！」",
+  "transition": null
+ },
+ {
+  "page": 21,
+  "dur": 3.0,
+  "title": "正解（ズーム＋草が開く）",
+  "transition": {
+   "kind": "マッチ&ムーブ",
+   "xfade": "zoomin",
+   "dur": 0.8
+  }
+ },
+ {
+  "page": 22,
+  "dur": 5.0,
+  "title": "「いたー！ トリケラトプスの あかちゃん、みーつけた！」",
+  "transition": null
+ },
+ {
+  "page": 23,
+  "dur": 5.0,
+  "title": "「みんな、ゆびさせたかな？ すごいな！」",
+  "transition": null
+ },
+ {
+  "page": 24,
+  "dur": 6.0,
+  "title": "「まめちしき！ ツノが なんぼん あるかな？」",
+  "transition": {
+   "kind": "ディゾルブ",
+   "xfade": "dissolve",
+   "dur": 0.8
+  }
+ },
+ {
+  "page": 25,
+  "dur": 2.0,
+  "title": "「いち！」",
+  "transition": null
+ },
+ {
+  "page": 26,
+  "dur": 2.0,
+  "title": "「にー！」",
+  "transition": null
+ },
+ {
+  "page": 27,
+  "dur": 2.0,
+  "title": "「さん！」",
+  "transition": null
+ },
+ {
+  "page": 28,
+  "dur": 4.0,
+  "title": "「3ぼん！ ツノが 3ぼん あるんだよ！」",
+  "transition": null
+ },
+ {
+  "page": 29,
+  "dur": 3.0,
+  "title": "（トリケラがモフティについていく）",
+  "transition": null
+ },
+ {
+  "page": 30,
+  "dur": 3.0,
+  "title": "「のこりは あと 2ひき！ つぎへ しゅっぱーつ！」",
+  "transition": {
+   "kind": "マッチ&ムーブ",
+   "xfade": "slideleft",
+   "dur": 1.0
+  }
+ },
+ {
+  "page": 31,
+  "dur": 3.0,
+  "title": "だい2もん",
+  "transition": {
+   "kind": "カラーワイプ",
+   "xfade": "wipeleft",
+   "dur": 0.8
+  }
+ },
+ {
+  "page": 32,
+  "dur": 7.0,
+  "title": "「つぎは、いわと 木が いっぱいの ばしょだよ…」",
+  "transition": null
+ },
+ {
+  "page": 33,
+  "dur": 6.0,
+  "title": "「こんどは ちょっと むずかしいぞ〜…よーい、スタート！」",
+  "transition": null
+ },
+ {
+  "page": 34,
+  "dur": 5.0,
+  "title": "探索タイム①（左を見る）",
+  "transition": {
+   "kind": "マッチ&ムーブ",
+   "xfade": "fade",
+   "dur": 1.5
+  }
+ },
+ {
+  "page": 35,
+  "dur": 5.0,
+  "title": "探索タイム②（右を見る）",
+  "transition": {
+   "kind": "マッチ&ムーブ",
+   "xfade": "slideleft",
+   "dur": 2.0
+  }
+ },
+ {
+  "page": 36,
+  "dur": 5.0,
+  "title": "探索タイム③（全体に戻す）",
+  "transition": {
+   "kind": "マッチ&ムーブ",
+   "xfade": "slideright",
+   "dur": 1.5
+  }
+ },
+ {
+  "page": 37,
+  "dur": 4.0,
+  "title": "「うーん、どこかな〜。…あっ、わかった！ ここだっ！」",
+  "transition": null
+ },
+ {
+  "page": 38,
+  "dur": 3.0,
+  "title": "（ギザギザ岩に飛びつく）",
+  "transition": {
+   "kind": "マッチ&ムーブ",
+   "xfade": "fade",
+   "dur": 0.5
+  }
+ },
+ {
+  "page": 39,
+  "dur": 4.0,
+  "title": "「…あれ？ ただの いわだった〜！」",
+  "transition": null
+ },
+ {
+  "page": 40,
+  "dur": 7.0,
+  "title": "「ヒントを だすね！…いたが ならんでいるんだ」",
+  "transition": null
+ },
+ {
+  "page": 41,
+  "dur": 3.0,
+  "title": "「もういちど さがしてみよう！ いくよー！」",
+  "transition": null
+ },
+ {
+  "page": 42,
+  "dur": 10.0,
+  "title": "探索タイム（ヒント後）",
+  "transition": null
+ },
+ {
+  "page": 43,
+  "dur": 3.0,
+  "title": "「みつけられたかな？ せーのっ…ここだー！」",
+  "transition": null
+ },
+ {
+  "page": 44,
+  "dur": 3.0,
+  "title": "正解（ズーム＋ステゴが出てくる）",
+  "transition": {
+   "kind": "マッチ&ムーブ",
+   "xfade": "zoomin",
+   "dur": 0.8
+  }
+ },
+ {
+  "page": 45,
+  "dur": 5.0,
+  "title": "「いたいた！ ステゴサウルスの あかちゃん、みーつけた！」",
+  "transition": null
+ },
+ {
+  "page": 46,
+  "dur": 4.0,
+  "title": "「さんかくの いたが ヒントだったね…めいたんていの めだな！」",
+  "transition": null
+ },
+ {
+  "page": 47,
+  "dur": 4.0,
+  "title": "「まめちしき！ ステゴサウルスの しっぽにはね…」",
+  "transition": {
+   "kind": "ディゾルブ",
+   "xfade": "dissolve",
+   "dur": 0.8
+  }
+ },
+ {
+  "page": 48,
+  "dur": 4.0,
+  "title": "「…とがった トゲが ついているんだ」",
+  "transition": {
+   "kind": "マッチ&ムーブ",
+   "xfade": "zoomin",
+   "dur": 1.0
+  }
+ },
+ {
+  "page": 49,
+  "dur": 5.0,
+  "title": "「この しっぽを ぶんぶん ふって、みを まもったんだよ！」",
+  "transition": {
+   "kind": "マッチ&ムーブ",
+   "xfade": "fade",
+   "dur": 0.8
+  }
+ },
+ {
+  "page": 50,
+  "dur": 3.0,
+  "title": "「みんなも いっしょに、しっぽ ふりふり〜！」",
+  "transition": null
+ },
+ {
+  "page": 51,
+  "dur": 0.75,
+  "title": "（ふりふりタイム・セリフなし）",
+  "transition": null
+ },
+ {
+  "page": 52,
+  "dur": 0.75,
+  "title": "（ふりふりタイム・セリフなし）",
+  "transition": null
+ },
+ {
+  "page": 53,
+  "dur": 0.75,
+  "title": "（ふりふりタイム・セリフなし）",
+  "transition": null
+ },
+ {
+  "page": 54,
+  "dur": 0.75,
+  "title": "（ふりふりタイム・セリフなし）",
+  "transition": null
+ },
+ {
+  "page": 55,
+  "dur": 4.0,
+  "title": "「じょうずー！ さあ、さいごの 1ぴきを さがしにいこう！」",
+  "transition": null
+ },
+ {
+  "page": 56,
+  "dur": 3.0,
+  "title": "だい3もん",
+  "transition": {
+   "kind": "カラーワイプ",
+   "xfade": "wipeleft",
+   "dur": 0.8
+  }
+ },
+ {
+  "page": 57,
+  "dur": 7.0,
+  "title": "「さいごは、この もりだよ…プテラノドンの あかちゃんが いるんだって」",
+  "transition": null
+ },
+ {
+  "page": 58,
+  "dur": 7.0,
+  "title": "「じめんには…いない。…よーい、スタート！」",
+  "transition": null
+ },
+ {
+  "page": 59,
+  "dur": 8.0,
+  "title": "探索タイム①",
+  "transition": null
+ },
+ {
+  "page": 60,
+  "dur": 7.0,
+  "title": "探索タイム②（小鳥が横切る）",
+  "transition": {
+   "kind": "マッチ&ムーブ",
+   "xfade": "fade",
+   "dur": 2.0
+  }
+ },
+ {
+  "page": 61,
+  "dur": 5.0,
+  "title": "「うーん、みつからないな〜…そらを とべるんだった！」",
+  "transition": null
+ },
+ {
+  "page": 62,
+  "dur": 3.0,
+  "title": "「ヒント！ みんな、うえを みあげてみて！」",
+  "transition": null
+ },
+ {
+  "page": 63,
+  "dur": 4.0,
+  "title": "（カメラが上を見上げる）",
+  "transition": {
+   "kind": "マッチ&ムーブ",
+   "xfade": "slidedown",
+   "dur": 2.0
+  }
+ },
+ {
+  "page": 64,
+  "dur": 4.0,
+  "title": "「たかーい 木の うえに、とがった くちばしが…いくよー！」",
+  "transition": null
+ },
+ {
+  "page": 65,
+  "dur": 5.0,
+  "title": "探索タイム①",
+  "transition": null
+ },
+ {
+  "page": 66,
+  "dur": 5.0,
+  "title": "探索タイム②（葉っぱが落ちる）",
+  "transition": {
+   "kind": "マッチ&ムーブ",
+   "xfade": "fade",
+   "dur": 2.0
+  }
+ },
+ {
+  "page": 67,
+  "dur": 4.0,
+  "title": "「さいごは みんなで いっしょに いうよ！ せーのっ…ここだー！」",
+  "transition": null
+ },
+ {
+  "page": 68,
+  "dur": 3.0,
+  "title": "正解（ズーム＋プテラが顔を出す）",
+  "transition": {
+   "kind": "マッチ&ムーブ",
+   "xfade": "zoomin",
+   "dur": 0.8
+  }
+ },
+ {
+  "page": 69,
+  "dur": 3.0,
+  "title": "（プテラがモフティの頭に飛び降りる）",
+  "transition": {
+   "kind": "マッチ&ムーブ",
+   "xfade": "fade",
+   "dur": 1.0
+  }
+ },
+ {
+  "page": 70,
+  "dur": 5.0,
+  "title": "「わわっ！ プテラノドンの あかちゃん、みーつけた！」",
+  "transition": null
+ },
+ {
+  "page": 71,
+  "dur": 4.0,
+  "title": "「いちばん むずかしい もんだいだったのに…」",
+  "transition": null
+ },
+ {
+  "page": 72,
+  "dur": 6.0,
+  "title": "「まめちしき！ じつはね…プテラノドンは、恐竜じゃ ないんだ！」",
+  "transition": {
+   "kind": "ディゾルブ",
+   "xfade": "dissolve",
+   "dur": 0.8
+  }
+ },
+ {
+  "page": 73,
+  "dur": 8.0,
+  "title": "「『よくりゅう』っていう…いとこみたいな なかまなんだ！」",
+  "transition": null
+ },
+ {
+  "page": 74,
+  "dur": 4.0,
+  "title": "「だから、恐竜の みんなとも なかよしなんだね！」",
+  "transition": null
+ },
+ {
+  "page": 75,
+  "dur": 5.0,
+  "title": "「トリケラトプス、ステゴサウルス、プテラノドン…みーんな そろった！」",
+  "transition": {
+   "kind": "サークルワイプ",
+   "xfade": "circleopen",
+   "dur": 0.8
+  }
+ },
+ {
+  "page": 76,
+  "dur": 4.0,
+  "title": "（3匹が鳴く）",
+  "transition": null
+ },
+ {
+  "page": 77,
+  "dur": 5.0,
+  "title": "「みんなの おかげで みつかったよ！ ほんとうに ありがとう！」",
+  "transition": null
+ },
+ {
+  "page": 78,
+  "dur": 5.0,
+  "title": "「さいごに クイズ！ トリケラトプスの ツノは、なんぼん だったかな？」",
+  "transition": null
+ },
+ {
+  "page": 79,
+  "dur": 3.0,
+  "title": "「そう！ 3ぼん！ よく おぼえていたね！」",
+  "transition": null
+ },
+ {
+  "page": 80,
+  "dur": 7.0,
+  "title": "「きょうは、くさむらも…きみも、きょうから めいたんていだな！」",
+  "transition": null
+ },
+ {
+  "page": 81,
+  "dur": 4.0,
+  "title": "めいたんてい にんていしょう",
+  "transition": null
+ },
+ {
+  "page": 82,
+  "dur": 7.0,
+  "title": "「おうちの ひとと いっしょに、チャンネルとうろくと グッドボタンを…」",
+  "transition": null
+ },
+ {
+  "page": 83,
+  "dur": 4.0,
+  "title": "「つぎも いっしょに たんていしようね！ みんな、ばいばーい！」",
+  "transition": null
+ },
+ {
+  "page": 84,
+  "dur": 10.0,
+  "title": "エンドカード用の余白",
+  "transition": null
+ }
+]
