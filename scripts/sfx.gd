@@ -181,6 +181,10 @@ func _make(dur: float, generator: Callable, loop: bool = false) -> AudioStreamWA
 		g[i] = generator.call(float(i) / RATE, dur)
 	for i in fade:
 		g[i] = lerpf(g[n + i], g[i], float(i) / fade)
+	# 全体にやわらかいサチュレーションをかけ、ノイズ成分の角を丸めて耳当たりをやさしくする
+	# （ピークだけが自然に丸まる程度のかかり方で、音量感はほぼ変わらない）
+	for i in g.size():
+		g[i] = tanh(g[i])
 	if not loop:
 		# 単発の音は最後を短くフェードアウトして、切れ目のプチッを防ぐ
 		var tail := mini(n, int(0.015 * RATE))
@@ -216,36 +220,46 @@ func _noise() -> float:
 # ================================================================ 各効果音
 
 func _cut(t: float, _d: float) -> float:
-	# 繊維を断つシャリシャリ音 ＋ 最後にまな板に当たるトン
-	var n := _noise()
-	var crackle := n if _rng.randf() < 0.35 else n * 0.25
-	var bright := crackle - _lp(0, crackle, 1800.0)
-	var crunch := bright * exp(-t * 28.0) * 0.9
+	# 繊維がプチプチと断たれる質感：噛み合わない間隔で短いノイズの粒を重ね、
+	# 1本の長いシャーッではなく粒立った質感にする。ハイパス＋ローパスで
+	# 刺さるような高域を削り、やわらかい帯域だけ残す ＋ 最後にまな板に当たるトン
+	var crackle := 0.0
+	for start in [0.0, 0.012, 0.022, 0.035, 0.05]:
+		var tt_c: float = t - start
+		if tt_c >= 0.0:
+			crackle += _noise() * exp(-tt_c * 150.0)
+	var bright := crackle - _lp(0, crackle, 2400.0)
+	var soft := _lp(1, bright, 1400.0)
+	var crunch := soft * 0.95
 	var tt := t - 0.055
 	var thump := 0.0
 	if tt > 0.0:
-		thump = sin(TAU * 150.0 * tt) * exp(-tt * 45.0) * 0.7
+		var body := sin(TAU * 150.0 * tt) + sin(TAU * 227.0 * tt) * 0.3
+		thump = body * exp(-tt * 42.0) * 0.6
 	return crunch + thump
 
 
 func _mince(t: float, _d: float) -> float:
-	# 低いトン ＋ 水気のある小さなシャク
-	var f := 140.0 + 90.0 * exp(-t * 60.0)
-	var body := sin(TAU * f * t) * exp(-t * 42.0) * 0.6
-	var click := _lp(0, _noise(), 3500.0) * exp(-t * 220.0) * 0.6
+	# まな板に当たる丸いトン（低いサブを足して芯を太くする）＋ やわらかい粒の軽いシャク
+	var f := 132.0 + 80.0 * exp(-t * 55.0)
+	var body := sin(TAU * f * t) * exp(-t * 40.0) * 0.55
+	body += sin(TAU * f * 0.5 * t) * exp(-t * 50.0) * 0.18
+	var click := _lp(1, _lp(0, _noise(), 2200.0), 1400.0) * exp(-t * 200.0) * 0.5
 	var n := _noise()
-	var wet := (n - _lp(1, n, 2500.0)) * exp(-t * 55.0) * 0.25
+	var wet := (_lp(2, n, 2200.0) - _lp(3, n, 500.0)) * exp(-t * 55.0) * 0.22
 	return body + click + wet
 
 
 func _knock(t: float, _d: float) -> float:
-	var tone := sin(TAU * 260.0 * t) + sin(TAU * 610.0 * t) * 0.3
-	return tone * exp(-t * 55.0) * 0.6 + _lp(0, _noise(), 3000.0) * exp(-t * 300.0) * 0.4
+	var tone := sin(TAU * 240.0 * t) + sin(TAU * 580.0 * t) * 0.25
+	var body := tone * exp(-t * 50.0) * 0.55
+	var click := _lp(1, _lp(0, _noise(), 2400.0), 1600.0) * exp(-t * 260.0) * 0.35
+	return body + click
 
 
 func _whoosh(t: float, d: float) -> float:
 	var x := t / d
-	var cutoff := 400.0 + 2400.0 * sin(PI * x)
+	var cutoff := 350.0 + 1900.0 * sin(PI * x)
 	var n := _noise()
 	var band := _lp(0, n, cutoff) - _lp(1, n, cutoff * 0.3)
 	return band * pow(sin(PI * x), 2.0) * 1.6
@@ -254,7 +268,7 @@ func _whoosh(t: float, d: float) -> float:
 func _plop(t: float, _d: float) -> float:
 	var f := 180.0 + 480.0 * exp(-t * 30.0)
 	var drop := sin(TAU * f * t) * exp(-t * 20.0) * 0.55
-	var shh := _lp(0, _noise(), 1200.0) * exp(-t * 14.0) * 0.5
+	var shh := _lp(1, _lp(0, _noise(), 1000.0), 900.0) * exp(-t * 14.0) * 0.55
 	return drop + shh
 
 
