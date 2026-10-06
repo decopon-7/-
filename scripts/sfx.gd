@@ -217,6 +217,16 @@ func _noise() -> float:
 	return _rng.randf_range(-1.0, 1.0)
 
 
+## 木のまな板を思わせる「コンッ」という短い響き。整数比からわずかにずらした
+## 倍音を重ねて木質の響きを作り、すぐに減衰させる（長く伸びると金属的に聞こえるため）。
+## cut・mince・knock で共通して使い、「同じまな板」の手触りに揃える。
+func _wood(t: float, f0: float, decay: float) -> float:
+	var v := sin(TAU * f0 * t)
+	v += sin(TAU * f0 * 2.76 * t) * 0.32
+	v += sin(TAU * f0 * 4.35 * t) * 0.14
+	return v * exp(-t * decay)
+
+
 # ================================================================ 各効果音
 
 func _cut(t: float, _d: float) -> float:
@@ -234,26 +244,23 @@ func _cut(t: float, _d: float) -> float:
 	var tt := t - 0.055
 	var thump := 0.0
 	if tt > 0.0:
-		var body := sin(TAU * 150.0 * tt) + sin(TAU * 227.0 * tt) * 0.3
-		thump = body * exp(-tt * 42.0) * 0.6
+		thump = _wood(tt, 165.0, 40.0) * 0.6
 	return crunch + thump
 
 
 func _mince(t: float, _d: float) -> float:
-	# まな板に当たる丸いトン（低いサブを足して芯を太くする）＋ やわらかい粒の軽いシャク
-	var f := 132.0 + 80.0 * exp(-t * 55.0)
-	var body := sin(TAU * f * t) * exp(-t * 40.0) * 0.55
-	body += sin(TAU * f * 0.5 * t) * exp(-t * 50.0) * 0.18
-	var click := _lp(1, _lp(0, _noise(), 2200.0), 1400.0) * exp(-t * 200.0) * 0.5
+	# まな板に当たる木のコン（低いサブを足して芯を太くする）＋ やわらかい粒の軽いシャク
+	var body := _wood(t, 148.0, 34.0) * 0.6
+	body += sin(TAU * 74.0 * t) * exp(-t * 46.0) * 0.16
+	var click := _lp(1, _lp(0, _noise(), 1900.0), 1300.0) * exp(-t * 200.0) * 0.4
 	var n := _noise()
-	var wet := (_lp(2, n, 2200.0) - _lp(3, n, 500.0)) * exp(-t * 55.0) * 0.22
+	var wet := (_lp(2, n, 2200.0) - _lp(3, n, 500.0)) * exp(-t * 55.0) * 0.2
 	return body + click + wet
 
 
 func _knock(t: float, _d: float) -> float:
-	var tone := sin(TAU * 240.0 * t) + sin(TAU * 580.0 * t) * 0.25
-	var body := tone * exp(-t * 50.0) * 0.55
-	var click := _lp(1, _lp(0, _noise(), 2400.0), 1600.0) * exp(-t * 260.0) * 0.35
+	var body := _wood(t, 210.0, 48.0) * 0.6
+	var click := _lp(1, _lp(0, _noise(), 2000.0), 1400.0) * exp(-t * 260.0) * 0.3
 	return body + click
 
 
