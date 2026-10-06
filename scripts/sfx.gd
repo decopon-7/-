@@ -20,7 +20,7 @@ var _pool: Array[AudioStreamPlayer] = []
 var _next := 0
 var _loops := {}
 var _rng := RandomNumberGenerator.new()
-var _lp_state := [0.0, 0.0, 0.0, 0.0]
+var _lp_state := [0.0, 0.0, 0.0, 0.0, 0.0]
 var _music: AudioStreamPlayer
 var _music_lowpass: AudioEffectLowPassFilter
 var _music_pitch := 1.0
@@ -176,7 +176,7 @@ func _make(dur: float, generator: Callable, loop: bool = false) -> AudioStreamWA
 	var fade := int(0.1 * RATE) if loop else 0
 	var g := PackedFloat32Array()
 	g.resize(n + fade)
-	_lp_state = [0.0, 0.0, 0.0, 0.0]
+	_lp_state = [0.0, 0.0, 0.0, 0.0, 0.0]
 	for i in n + fade:
 		g[i] = generator.call(float(i) / RATE, dur)
 	for i in fade:
@@ -217,14 +217,16 @@ func _noise() -> float:
 	return _rng.randf_range(-1.0, 1.0)
 
 
-## 木のまな板を思わせる「コンッ」という短い響き。整数比からわずかにずらした
+## 木のまな板を思わせる、くぐもった短い「コッ」という響き。整数比からわずかにずらした
 ## 倍音を重ねて木質の響きを作り、すぐに減衰させる（長く伸びると金属的に聞こえるため）。
+## 上の倍音は控えめにし、さらにローパスで高域を削って厚みのある板のこもり方にする。
 ## cut・mince・knock で共通して使い、「同じまな板」の手触りに揃える。
 func _wood(t: float, f0: float, decay: float) -> float:
 	var v := sin(TAU * f0 * t)
-	v += sin(TAU * f0 * 2.76 * t) * 0.32
-	v += sin(TAU * f0 * 4.35 * t) * 0.14
-	return v * exp(-t * decay)
+	v += sin(TAU * f0 * 2.4 * t) * 0.2
+	v += sin(TAU * f0 * 3.6 * t) * 0.07
+	v *= exp(-t * decay)
+	return _lp(4, v, f0 * 2.6)
 
 
 # ================================================================ 各効果音
@@ -238,29 +240,29 @@ func _cut(t: float, _d: float) -> float:
 		var tt_c: float = t - start
 		if tt_c >= 0.0:
 			crackle += _noise() * exp(-tt_c * 150.0)
-	var bright := crackle - _lp(0, crackle, 2400.0)
-	var soft := _lp(1, bright, 1400.0)
+	var bright := crackle - _lp(0, crackle, 2000.0)
+	var soft := _lp(1, bright, 1000.0)
 	var crunch := soft * 0.95
 	var tt := t - 0.055
 	var thump := 0.0
 	if tt > 0.0:
-		thump = _wood(tt, 165.0, 40.0) * 0.6
+		thump = _wood(tt, 140.0, 38.0) * 0.6
 	return crunch + thump
 
 
 func _mince(t: float, _d: float) -> float:
-	# まな板に当たる木のコン（低いサブを足して芯を太くする）＋ やわらかい粒の軽いシャク
-	var body := _wood(t, 148.0, 34.0) * 0.6
-	body += sin(TAU * 74.0 * t) * exp(-t * 46.0) * 0.16
-	var click := _lp(1, _lp(0, _noise(), 1900.0), 1300.0) * exp(-t * 200.0) * 0.4
+	# まな板に当たる、くぐもった木のコン（低いサブを足して芯を太くする）＋ やわらかい粒の軽いシャク
+	var body := _wood(t, 125.0, 32.0) * 0.6
+	body += sin(TAU * 62.0 * t) * exp(-t * 44.0) * 0.16
+	var click := _lp(1, _lp(0, _noise(), 1400.0), 900.0) * exp(-t * 200.0) * 0.32
 	var n := _noise()
-	var wet := (_lp(2, n, 2200.0) - _lp(3, n, 500.0)) * exp(-t * 55.0) * 0.2
+	var wet := (_lp(2, n, 1800.0) - _lp(3, n, 500.0)) * exp(-t * 55.0) * 0.18
 	return body + click + wet
 
 
 func _knock(t: float, _d: float) -> float:
-	var body := _wood(t, 210.0, 48.0) * 0.6
-	var click := _lp(1, _lp(0, _noise(), 2000.0), 1400.0) * exp(-t * 260.0) * 0.3
+	var body := _wood(t, 175.0, 46.0) * 0.6
+	var click := _lp(1, _lp(0, _noise(), 1500.0), 1000.0) * exp(-t * 260.0) * 0.26
 	return body + click
 
 
