@@ -7,6 +7,7 @@
 | [docs/business-plan.md](docs/business-plan.md) | 事業計画・収益モデル・資金計画・リスク |
 | [docs/business-plan-jp.md](docs/business-plan-jp.md) | 日本版(国内ASP・円建て)の事業計画 |
 | [docs/niche-selection.md](docs/niche-selection.md) | 日本版のニッチ候補と絞り込み |
+| [docs/first-10-articles.md](docs/first-10-articles.md) | サブテーマと最初の10記事案 |
 | [docs/incorporation-checklist.md](docs/incorporation-checklist.md) | 会社設立・口座・税務の手順 |
 | [docs/operations-playbook.md](docs/operations-playbook.md) | サイト立ち上げから半自動運用までの実務 |
 | [docs/affiliate-programs.md](docs/affiliate-programs.md) | 候補プログラムとASP/ネットワーク |
