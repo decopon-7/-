@@ -28,9 +28,15 @@ const STRINGS := {
 	"STEP_MINCE": {"ja": "トントン細かく", "en": "Mince it fine"},
 	"STEP_DONE": {"ja": "できあがり！", "en": "Done!"},
 	"HUD_HINT": {
-		"ja": "マウス左右: 包丁の位置　左クリック / スペース（長押しOK）: 切る　Esc: メニュー",
-		"en": "Move mouse: knife position   LMB / Space (hold OK): chop   Esc: menu",
+		"ja": "マウス左右 / A・Dキー: 包丁の位置　左クリック / スペース（長押しOK）: 切る　E: 今日はここまで　Esc: メニュー",
+		"en": "Mouse or A/D: knife position   LMB / Space (hold OK): chop   E: finish for today   Esc: menu",
 	},
+	"HUD_HINT_PAD": {
+		"ja": "スティック / 十字キー: 包丁の位置　Aボタン（長押しOK）: 切る　Yボタン: 今日はここまで　Start: メニュー",
+		"en": "Stick / D-pad: knife position   A (hold OK): chop   Y: finish for today   Start: menu",
+	},
+	"HUD_TODAY_GOAL": {"ja": "本日 %d / %d g", "en": "%d / %d g today"},
+	"POP_GOAL_REACHED": {"ja": "今日の目安に届きました。いつでも終われます", "en": "Today's goal reached. Finish whenever you like"},
 	"HUD_GAP_HINT": {"ja": "赤い印のところの間隔が広すぎます", "en": "Cuts too far apart at the red marks"},
 	"HUD_END_SHIFT": {"ja": "今日はここまで", "en": "Finish for today"},
 	"HUD_END_SHIFT_LOCKED": {"ja": "あと %d g で終業できます", "en": "%d g more to finish for today"},

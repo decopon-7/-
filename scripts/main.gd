@@ -11,6 +11,7 @@ const PROCESSOR_POS := Vector3(-0.3, 0.94, -0.38)
 const GOGGLES_POS := Vector3(0.22, 0.941, -0.3)
 const KNIFE_LIFT := 0.09
 const KNIFE_X_LIMIT := 0.26
+const ControlsScript := preload("res://scripts/controls.gd")
 const CRATE_ONION_SHADER := preload("res://shaders/onion_whole.gdshader")
 ## ボウルに溜まる、みじん切りのかけら（見た目用）の最大個数と、満タン時の散らばり半径
 const BOWL_CHUNK_COUNT := 70
@@ -66,6 +67,9 @@ var order_queue: Array[String] = []
 var ticket_number := 0
 
 var _knife_x := 0.0
+## true なら包丁はスティック・十字キー・A/Dキーで動かす（false ならマウス）
+var _axis_mode := false
+var _goal_notified := false
 var _chop_t := 1.0
 var _cooldown := 0.0
 var _holding := false
@@ -82,6 +86,7 @@ var _hitstop_id := 0
 
 
 func _ready() -> void:
+	ControlsScript.register()
 	rng.randomize()
 	_build_environment()
 	_build_kitchen()
@@ -117,6 +122,7 @@ func _ready() -> void:
 func _set_state(s: State) -> void:
 	state = s
 	_holding = false
+	_update_cursor()
 	Sfx.set_music_muffled(s != State.PLAYING)
 	if s != State.PLAYING:
 		Sfx.set_music_tempo(1.0)
@@ -135,6 +141,7 @@ func _set_state(s: State) -> void:
 func _start_day() -> void:
 	grams_today = 0
 	earned_today = 0
+	_goal_notified = false
 	processor_timer = 0.0
 	tears = 0.0
 	stun = 0.0
@@ -197,11 +204,35 @@ func _process(delta: float) -> void:
 
 
 func _unhandled_input(event: InputEvent) -> void:
-	if event is InputEventKey and event.pressed and event.keycode == KEY_ESCAPE:
+	# 包丁の位置は、マウスを動かしたらマウス、スティック・十字キー・A/Dキーを使ったらそちらに切り替わる
+	if event is InputEventMouseMotion:
+		_set_axis_mode(false)
+	elif event is InputEventJoypadButton or (event is InputEventJoypadMotion and absf(event.axis_value) > 0.4):
+		_set_pad_hint(true)
+	elif event is InputEventKey or event is InputEventMouseButton:
+		_set_pad_hint(false)
+	# Esc / Startボタン：一時停止。サブ画面（実績・日記・確認）を開いているときは、まずそれを閉じる
+	if event.is_action_pressed("pause"):
+		if ui.go_back():
+			return
 		if state == State.PLAYING:
 			_set_state(State.PAUSED)
 		elif state == State.PAUSED:
 			_set_state(State.PLAYING)
+		return
+	# Bボタン：戻る。一時停止中に押したら再開する
+	if event.is_action_pressed("back"):
+		if ui.go_back():
+			return
+		if state == State.PAUSED:
+			_set_state(State.PLAYING)
+			return
+	if event.is_action_pressed("end_day") and state == State.PLAYING:
+		if grams_today < MIN_GRAMS_PER_DAY:
+			# ボタンが押せない理由を、メニューを開かなくても分かるように知らせる
+			ui.popup(tr("HUD_END_SHIFT_LOCKED") % (MIN_GRAMS_PER_DAY - grams_today),
+					get_viewport().get_visible_rect().size * Vector2(0.5, 0.4), GameUI.COL_DIM)
+		_end_day()
 		return
 	# 実況・配信用：文字要素を消して、映像だけのきれいな画を撮れるようにする
 	if event is InputEventKey and event.pressed and event.keycode == KEY_H and not event.echo:
@@ -216,15 +247,15 @@ func _unhandled_input(event: InputEvent) -> void:
 		return
 	if state != State.PLAYING:
 		return
-	var pressed := false
-	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT:
-		_holding = event.pressed
-		pressed = event.pressed
-	elif event is InputEventKey and event.keycode == KEY_SPACE and not event.echo:
-		_holding = event.pressed
-		pressed = event.pressed
-	if pressed and _cooldown <= 0.0:
-		_chop()
+	# 包丁を下ろす：スペース / 左クリック / A・X・RBボタン（長押しでみじん切りを連打）
+	if event.is_action("chop") and not event.is_echo():
+		_holding = event.is_pressed()
+		if _holding and _cooldown <= 0.0:
+			_chop()
+	# A/Dキーやスティックで動かし始めたら、包丁はマウスではなくそちらに従う
+	if event.is_action("knife_left") or event.is_action("knife_right"):
+		if event.is_pressed():
+			_set_axis_mode(true)
 
 
 # ================================================================ 包丁
@@ -241,9 +272,38 @@ func _step_text() -> String:
 	return "%d/%d %s" % [onion.steps.find(onion.phase) + 1, onion.steps.size(), tr(key)]
 
 
+## スティックの倒し具合で速さが変わる（まな板の端から端まで、フルに倒して約1秒）
+const KNIFE_AXIS_SPEED := 0.5
+
+
+func _set_axis_mode(on: bool) -> void:
+	if _axis_mode == on:
+		return
+	_axis_mode = on
+	_update_cursor()
+
+
+## 画面下の操作ヒントを、使っている入力（マウス/キーボード or ゲームパッド）に合わせる
+func _set_pad_hint(pad: bool) -> void:
+	if ui:
+		ui.set_hint_pad(pad)
+
+
+## スティックで遊んでいる間は、動かないマウスカーソルが画面に残らないよう隠す
+func _update_cursor() -> void:
+	var hide := _axis_mode and state == State.PLAYING
+	Input.mouse_mode = Input.MOUSE_MODE_HIDDEN if hide else Input.MOUSE_MODE_VISIBLE
+
+
 func _update_chopping(delta: float) -> void:
 	_cooldown -= delta
-	_knife_x = _mouse_board_x()
+	var axis := Input.get_axis("knife_left", "knife_right")
+	if absf(axis) > 0.25:
+		_set_axis_mode(true)
+	if _axis_mode:
+		_knife_x = clampf(_knife_x + axis * KNIFE_AXIS_SPEED * delta, -KNIFE_X_LIMIT, KNIFE_X_LIMIT)
+	else:
+		_knife_x = _mouse_board_x()
 	# みじん切り工程だけは押しっぱなしでトントン連打できる
 	var repeat := onion != null and onion.phase == Onion.Phase.MINCE
 	if _holding and repeat and _cooldown <= 0.0:
@@ -401,6 +461,11 @@ func _award(grams: int, pay: int) -> void:
 	GameState.money += pay
 	GameState.total_grams += grams
 	_update_bowl()
+	if not _goal_notified and grams_today >= MIN_GRAMS_PER_DAY:
+		# 今日の目安に届いた瞬間に一度だけ知らせる（ここから先はいつでも終われる）
+		_goal_notified = true
+		Sfx.play("bell", -10.0, 0.0, 1.4)
+		ui.popup(tr("POP_GOAL_REACHED"), get_viewport().get_visible_rect().size * Vector2(0.5, 0.22), GameUI.COL_GOOD)
 
 
 func _update_bowl() -> void:
@@ -592,6 +657,7 @@ func _hit_stop(duration: float, scale: float) -> void:
 
 func _exit_tree() -> void:
 	Engine.time_scale = 1.0
+	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 
 
 ## 地味だが実用的なQoL：他のウィンドウに切り替えたら自動で一時停止する

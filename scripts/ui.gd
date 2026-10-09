@@ -39,6 +39,9 @@ var _gap_hint: Label
 var _tears_bar: ProgressBar
 var _tears_label: Label
 var _hint_label: Label
+var _hint_pad := false
+var _ach_scroll: ScrollContainer
+var _diary_scroll: ScrollContainer
 var _end_shift_button: Button
 var _ticket_title: Label
 var _ticket_dish: Label
@@ -119,6 +122,50 @@ func show_only(screen: Control) -> void:
 	for s in [title_screen, day_end_screen, pause_screen, achievements_screen, diary_screen, confirm_new_game_screen]:
 		s.visible = s == screen
 	hud.visible = screen == null or screen == pause_screen
+	_focus_default(screen)
+
+
+## 画面を開いたとき、十字キーとAボタンですぐ操作できるよう、最初に選ばれるボタンを決めておく。
+## 確認ダイアログだけは、うっかり押しても困らない「キャンセル」を最初に選ぶ。
+func _focus_default(screen: Control) -> void:
+	var target: Control = null
+	if screen == title_screen:
+		target = _continue_button if _continue_button.visible else _new_game_button
+	elif screen == day_end_screen:
+		target = _start_day_button
+	elif screen == pause_screen:
+		target = _resume_button
+	elif screen == achievements_screen:
+		target = _achievements_back_button
+	elif screen == diary_screen:
+		target = _diary_back_button
+	elif screen == confirm_new_game_screen:
+		target = _confirm_new_game_cancel
+	if target:
+		target.grab_focus.call_deferred()
+
+
+## サブ画面（実績・日記・確認ダイアログ）を開いていたら閉じて true を返す
+func go_back() -> bool:
+	if achievements_screen.visible:
+		show_only(pause_screen)
+		return true
+	if diary_screen.visible or confirm_new_game_screen.visible:
+		show_only(title_screen)
+		return true
+	return false
+
+
+## ゲームパッド使用中かどうかで、画面下の操作ヒントを切り替える
+func set_hint_pad(pad: bool) -> void:
+	if _hint_pad == pad:
+		return
+	_hint_pad = pad
+	_apply_hint()
+
+
+func _apply_hint() -> void:
+	_hint_label.text = tr("HUD_HINT_PAD") if _hint_pad else tr("HUD_HINT")
 
 
 func refresh_texts() -> void:
@@ -131,7 +178,7 @@ func refresh_texts() -> void:
 	_diary_button.text = tr("BTN_DIARY")
 	_diary_back_button.text = tr("BTN_BACK")
 	_quit_button.text = tr("BTN_QUIT")
-	_hint_label.text = tr("HUD_HINT")
+	_apply_hint()
 	_gap_hint.text = tr("HUD_GAP_HINT")
 	_tears_label.text = tr("HUD_TEARS")
 	_end_shift_button.text = tr("HUD_END_SHIFT")
@@ -155,6 +202,14 @@ func refresh_texts() -> void:
 
 
 func _process(delta: float) -> void:
+	# 実績・日記の一覧は、十字キー/スティックの上下でもスクロールできるようにする
+	var scroll: ScrollContainer = null
+	if achievements_screen.visible:
+		scroll = _ach_scroll
+	elif diary_screen.visible:
+		scroll = _diary_scroll
+	if scroll:
+		scroll.scroll_vertical += int(Input.get_axis("ui_up", "ui_down") * 900.0 * delta)
 	# 所持金はいきなり切り替わらず、数字がパラパラと数え上がる/下がる演出
 	if _money_shown != GameState.money and _money_label:
 		var diff := GameState.money - _money_shown
@@ -167,7 +222,13 @@ func _process(delta: float) -> void:
 func update_hud(grams_today: int, step_text: String, step_progress: float,
 		tears: float, wide_gaps: bool, remaining_for_day: int = 0) -> void:
 	_day_label.text = tr("HUD_DAY") % GameState.day
-	_today_label.text = tr("HUD_TODAY") % grams_today
+	# 1日の目安（最低量）に届くまでは「本日 120 / 200 g」と目標を並べて見せる。届いたら緑色に
+	if remaining_for_day > 0:
+		_today_label.text = tr("HUD_TODAY_GOAL") % [grams_today, grams_today + remaining_for_day]
+		_today_label.add_theme_color_override("font_color", COL_TEXT)
+	else:
+		_today_label.text = tr("HUD_TODAY") % grams_today
+		_today_label.add_theme_color_override("font_color", COL_GOOD)
 	_step_label.text = step_text
 	_step_bar.value = step_progress * 100.0
 	_gap_hint.visible = wide_gaps
@@ -535,6 +596,7 @@ func _build_achievements() -> Control:
 	box.add_child(_spacer(8))
 
 	var scroll := ScrollContainer.new()
+	_ach_scroll = scroll
 	scroll.custom_minimum_size = Vector2(0, 380)
 	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 	box.add_child(scroll)
@@ -599,6 +661,7 @@ func _build_diary_recap() -> Control:
 	box.add_child(_spacer(8))
 
 	var scroll := ScrollContainer.new()
+	_diary_scroll = scroll
 	scroll.custom_minimum_size = Vector2(0, 420)
 	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 	box.add_child(scroll)
@@ -661,6 +724,13 @@ func _slider_row(parent: Control, label: Label, key: String, initial: float,
 		label.text = tr(key) % roundi(v * 100)
 		live.call(v))
 	slider.drag_ended.connect(func(_changed): commit.call(slider.value))
+	# 十字キーで選んでいるスライダーが分かるよう、選択中はラベルを金色にする
+	slider.focus_entered.connect(func(): label.add_theme_color_override("font_color", COL_ACCENT))
+	slider.focus_exited.connect(func(): label.add_theme_color_override("font_color", COL_DIM))
+	# 十字キーの左右で値を動かしたときも、ドラッグ終了と同じく保存する
+	slider.gui_input.connect(func(e: InputEvent):
+		if e.is_action_released("ui_left") or e.is_action_released("ui_right"):
+			commit.call(slider.value))
 	row.add_child(slider)
 	return slider
 

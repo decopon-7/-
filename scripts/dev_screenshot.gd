@@ -10,6 +10,7 @@
 #         （--gear_lv=0〜5 で全道具のLv、--skin=0〜3 で称号スキンを指定。省略時はLv5・称号なし）
 #   achievements: 実績一覧画面を確認する（--skin=0〜3 で称号を指定可能）
 #   diary: 日記の回想画面を確認する（--diary_days=1,2,40 のように読んだことにする日を指定可能）
+#   （どのショットでも --pad=1 を付けると、ゲームパッド用の操作ヒントになる）
 #   bowl: ボウルの中身の見た目を確認する（--bowl_grams=750 のように溜まった量を指定可能。省略時750）
 #   title_withsave: セーブがある状態のタイトル画面（つづきから／はじめからの見分けやすさを確認）
 #   newgame_confirm: 「はじめから」を押したときの確認ダイアログを確認する
@@ -37,6 +38,9 @@ func _ready() -> void:
 	if _args.has("lang"):
 		GameState.set_locale(_args["lang"])
 		get_parent().ui.refresh_texts()
+	if _args.get("pad", "0") == "1":
+		# ゲームパッド用の操作ヒント表示を確認する
+		get_parent().ui.set_hint_pad(true)
 
 
 func _process(_delta: float) -> void:
