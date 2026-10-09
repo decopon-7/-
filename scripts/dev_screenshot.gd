@@ -15,7 +15,8 @@
 #   bowl: ボウルの中身の見た目を確認する（--bowl_grams=750 のように溜まった量を指定可能。省略時750）
 #   title_withsave: セーブがある状態のタイトル画面（つづきから／はじめからの見分けやすさを確認）
 #   newgame_confirm: 「はじめから」を押したときの確認ダイアログを確認する
-#   room: タイトル画面の引きの画から、UIを消して厨房全体を見る（--day=12 で日めくりの日付も指定可能）
+#   room: タイトル画面の引きの画から、UIを消して厨房全体を見る（--day=12 で日めくりの日付、
+#         --hour=21.5 で時計と窓の外の時刻を指定可能。--hour はどのショットでも使える）
 extends Node
 
 var _args := {}
@@ -40,6 +41,10 @@ func _ready() -> void:
 	if _args.has("lang"):
 		GameState.set_locale(_args["lang"])
 		get_parent().ui.refresh_texts()
+	if _args.has("hour"):
+		# 掛け時計と窓の外の明るさを、実際の時刻ではなく指定の時刻で確認する（例 --hour=21.5）
+		get_parent().kitchen.debug_hour = float(_args["hour"])
+		get_parent().kitchen._update_sky()
 	if _args.get("pad", "0") == "1":
 		# ゲームパッド用の操作ヒント表示を確認する
 		get_parent().ui.set_hint_pad(true)

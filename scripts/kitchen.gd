@@ -9,8 +9,9 @@
 #   - 業務用のガステーブルと寸胴鍋（カレーの仕込み中）、雪平鍋、オレンジのガス管、棚下の一斗缶
 #   - ステンレスの業務用冷蔵庫と、マグネットで留めた仕入れのメモ
 #   - 酒屋さんからもらった日めくりカレンダー（土曜は青、日曜は赤。六曜つき）と丸い掛け時計
+#     （時計と窓の外の明るさは、遊んでいる人の実際の時刻に合わせる）
 #   - 「火の用心」の札、逆富士型の蛍光灯、床の排水溝のグレーチング
-#   - 客席との境の紺の暖簾、その奥の客席の赤い丸椅子
+#   - 客席との境の紺の暖簾、その奥の4人掛けのテーブル席と赤い丸椅子
 #   - 漁師さんから届いた発泡スチロールの箱、白い長靴、青いポリバケツ
 #   - 玉ねぎは産地の印刷が入った段ボール箱と、赤いネット袋
 #   - 作業台の奥には菜箸立て、醤油の一升瓶、マスキングテープに手書きの「塩」「砂糖」
@@ -46,6 +47,25 @@ var rng: RandomNumberGenerator
 var _fan: Node3D
 var _noren: Array[Node3D] = []
 var _second_hand: Node3D
+var _minute_hand: Node3D
+var _hour_hand: Node3D
+var _glass_mats: Array[ShaderMaterial] = []
+var _sun: SpotLight3D
+var _sky_timer := 0.0
+## 確認用：0〜24 を入れると、実際の時刻の代わりにその時刻で表示する（負なら実際の時刻）
+var debug_hour := -1.0
+
+# 窓の外の明るさ・色（時刻ごと）。[時, 空の上, 空の下, 明るさ, 差し込む光の色, 光の強さ]
+const SKY_KEYS := [
+	[0.0, Color(0.1, 0.13, 0.26), Color(0.07, 0.09, 0.16), 0.55, Color(0.5, 0.6, 0.9), 0.06],
+	[4.5, Color(0.1, 0.13, 0.26), Color(0.07, 0.09, 0.16), 0.55, Color(0.5, 0.6, 0.9), 0.06],
+	[6.0, Color(1.0, 0.82, 0.68), Color(0.85, 0.75, 0.78), 1.05, Color(1.0, 0.82, 0.66), 0.45],
+	[9.0, Color(1.0, 0.96, 0.86), Color(0.86, 0.88, 0.86), 1.25, Color(1.0, 0.92, 0.78), 0.6],
+	[15.0, Color(0.95, 0.97, 1.0), Color(0.85, 0.88, 0.9), 1.25, Color(1.0, 0.97, 0.92), 0.6],
+	[17.3, Color(1.0, 0.68, 0.38), Color(0.92, 0.52, 0.38), 1.1, Color(1.0, 0.62, 0.32), 0.55],
+	[19.0, Color(0.1, 0.13, 0.26), Color(0.07, 0.09, 0.16), 0.55, Color(0.5, 0.6, 0.9), 0.06],
+	[24.0, Color(0.1, 0.13, 0.26), Color(0.07, 0.09, 0.16), 0.55, Color(0.5, 0.6, 0.9), 0.06],
+]
 var _cal_month: Label3D
 var _cal_date: Label3D
 var _cal_week: Label3D
@@ -74,9 +94,48 @@ func _process(delta: float) -> void:
 		_fan.rotate_z(-delta * 9.0)
 	for i in _noren.size():
 		_noren[i].rotation.x = sin(_time * 0.8 + i * 1.3) * 0.025 + sin(_time * 0.37 + i) * 0.015
-	if _second_hand:
-		# 秒針はカチッ、カチッと1秒ずつ進む
-		_second_hand.rotation.z = -TAU * float(int(Time.get_ticks_msec() / 1000.0) % 60) / 60.0
+	_update_clock()
+	_sky_timer -= delta
+	if _sky_timer <= 0.0:
+		_sky_timer = 5.0  # 窓の明るさはゆっくりしか変わらないので、ときどき更新すれば十分
+		_update_sky()
+
+
+## いまの時刻（時、0〜24の小数）。掛け時計と窓の外の明るさは、遊んでいる人の実際の時刻に合わせる
+func _now_hour() -> float:
+	if debug_hour >= 0.0:
+		return debug_hour
+	var t := Time.get_time_dict_from_system()
+	return t["hour"] + t["minute"] / 60.0 + t["second"] / 3600.0
+
+
+func _update_clock() -> void:
+	if _second_hand == null:
+		return
+	var hour := _now_hour()
+	var minutes := fmod(hour * 60.0, 60.0)
+	# 秒針はカチッ、カチッと1秒ずつ、長針と短針はなめらかに進む
+	_second_hand.rotation.z = -TAU * floorf(fmod(hour * 3600.0, 60.0)) / 60.0
+	_minute_hand.rotation.z = -TAU * minutes / 60.0
+	_hour_hand.rotation.z = -TAU * fmod(hour, 12.0) / 12.0
+
+
+## 窓の外：朝は暖かい光、昼は白っぽく、夕方は橙、夜は暗い紺。差し込む光もそれに合わせる
+func _update_sky() -> void:
+	var hour := _now_hour()
+	var k := 0
+	while k < SKY_KEYS.size() - 2 and hour >= SKY_KEYS[k + 1][0]:
+		k += 1
+	var a: Array = SKY_KEYS[k]
+	var b: Array = SKY_KEYS[k + 1]
+	var t := clampf((hour - a[0]) / (b[0] - a[0]), 0.0, 1.0)
+	for m in _glass_mats:
+		m.set_shader_parameter("sky_top", (a[1] as Color).lerp(b[1], t))
+		m.set_shader_parameter("sky_bottom", (a[2] as Color).lerp(b[2], t))
+		m.set_shader_parameter("brightness", lerpf(a[3], b[3], t))
+	if _sun:
+		_sun.light_color = (a[4] as Color).lerp(b[4], t)
+		_sun.light_energy = lerpf(a[5], b[5], t)
 
 
 ## 日めくりカレンダーを「その日」にめくる
@@ -198,6 +257,7 @@ func _build_window() -> void:
 		gm.shader = GLASS_SHADER
 		gm.set_shader_parameter("bar_count", 3.5)
 		glass.material_override = gm
+		_glass_mats.append(gm)
 		glass.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		glass.position = Vector3(sx, (y0 + y1) * 0.5, sz)
 		add_child(glass)
@@ -433,7 +493,7 @@ func _build_wall_things() -> void:
 	_label("みなと酒店", Vector3(0, -0.108, 0.004), 0.02, Color(0.98, 0.92, 0.75), cal, 0.8)
 	set_day(1)
 
-	# 丸い掛け時計（出入り口の上）。朝の仕込みの時間、6時45分
+	# 丸い掛け時計（出入り口の上）。遊んでいる人の実際の時刻を指す
 	var clock := Node3D.new()
 	clock.position = Vector3(DOORWAY.get_center().x, 2.2, BACK_Z + 0.02)
 	add_child(clock)
@@ -446,8 +506,8 @@ func _build_wall_things() -> void:
 		var a := TAU * k / 12.0
 		var tick := _box(Vector3(0.006 if k % 3 else 0.01, 0.02, 0.003), Vector3(sin(a) * 0.1, cos(a) * 0.1, 0.022), ink, clock)
 		tick.rotation.z = -a
-	_clock_hand(clock, 0.06, 0.008, -TAU * (6.75 / 12.0), ink, 0.024)
-	_clock_hand(clock, 0.09, 0.005, -TAU * (45.0 / 60.0), ink, 0.026)
+	_hour_hand = _clock_hand(clock, 0.06, 0.008, 0.0, ink, 0.024)
+	_minute_hand = _clock_hand(clock, 0.09, 0.005, 0.0, ink, 0.026)
 	_second_hand = _clock_hand(clock, 0.1, 0.002, 0.0, _mat(Color(0.8, 0.1, 0.08), 0.5), 0.028)
 
 	# 逆富士型の蛍光灯（天井）
@@ -537,19 +597,30 @@ func _build_doorway() -> void:
 	for s in [-1.0, 1.0]:
 		_box(Vector3(0.06, CEILING_Y, rd), Vector3(rcx + s * rw * 0.5, CEILING_Y * 0.5, rcz), cream)
 	_box(Vector3(rw, 0.04, rd), Vector3(rcx, CEILING_Y + 0.02, rcz), cream)
+	# 4人掛けのテーブル席。厨房から見て奥へ長く置き、丸椅子は左右に2つずつ
+	# （手前に椅子を並べると、カウンター席を背中側から見ているように見えてしまうため）
 	var table_wood := _mat(Color(0.55, 0.4, 0.26), 0.45)
-	var tz := room_z1 + 0.55
-	_box(Vector3(0.9, 0.035, 0.6), Vector3(rcx, 0.7, tz), table_wood)
-	_box(Vector3(0.06, 0.68, 0.06), Vector3(rcx, 0.34, tz), _mat(Color(0.15, 0.15, 0.15), 0.5, 0.6))
+	var tz := (room_z0 + room_z1) * 0.5 - 0.1
+	_box(Vector3(0.62, 0.035, 0.95), Vector3(rcx, 0.7, tz), table_wood)
+	var leg_mat := _mat(Color(0.15, 0.15, 0.15), 0.5, 0.6)
+	for lx in [-0.26, 0.26]:
+		for lz in [-0.4, 0.4]:
+			_box(Vector3(0.035, 0.68, 0.035), Vector3(rcx + lx, 0.34, tz + lz), leg_mat)
+	# 卓上：醤油差し、ソース、楊枝入れ、割り箸立て
 	_lathe_prop([Vector2(0, 0), Vector2(0.025, 0), Vector2(0.025, 0.08), Vector2(0.01, 0.11), Vector2(0, 0.11)],
-			_mat(Color(0.25, 0.12, 0.05), 0.1), Vector3(rcx + 0.2, 0.7175, tz))
+			_mat(Color(0.25, 0.12, 0.05), 0.1), Vector3(rcx - 0.05, 0.7175, tz - 0.05))
+	_lathe_prop([Vector2(0, 0), Vector2(0.022, 0), Vector2(0.022, 0.1), Vector2(0.008, 0.13), Vector2(0, 0.13)],
+			_mat(Color(0.15, 0.08, 0.04), 0.2), Vector3(rcx + 0.02, 0.7175, tz - 0.06))
+	_cyl(0.018, 0.018, 0.06, Vector3(rcx + 0.07, 0.7475, tz - 0.04), _mat(Color(0.9, 0.9, 0.88, 1.0), 0.2))
+	_box(Vector3(0.08, 0.12, 0.05), Vector3(rcx + 0.0, 0.7775, tz + 0.04), _mat(Color(0.5, 0.36, 0.22), 0.6))
 	var vinyl := _mat(Color(0.72, 0.12, 0.1), 0.35)
 	var chrome := _mat(Color(0.8, 0.8, 0.8), 0.25, 0.9)
-	for sx in [-0.3, 0.3]:
-		var p := Vector3(rcx + sx, 0.0, tz + 0.5)
-		_cyl(0.16, 0.16, 0.07, p + Vector3(0, 0.47, 0), vinyl)
-		_cyl(0.02, 0.02, 0.44, p + Vector3(0, 0.22, 0), chrome)
-		_cyl(0.14, 0.15, 0.015, p + Vector3(0, 0.008, 0), chrome)
+	for sx in [-0.42, 0.42]:
+		for sz in [-0.24, 0.24]:
+			var p := Vector3(rcx + sx, 0.0, tz + sz)
+			_cyl(0.16, 0.16, 0.07, p + Vector3(0, 0.47, 0), vinyl)
+			_cyl(0.02, 0.02, 0.44, p + Vector3(0, 0.22, 0), chrome)
+			_cyl(0.14, 0.15, 0.015, p + Vector3(0, 0.008, 0), chrome)
 
 
 ## 床に置いてあるもの：漁師さんからの発泡スチロール箱、白い長靴、青いポリバケツ、玉ねぎのネット
@@ -786,6 +857,9 @@ func _build_lights() -> void:
 	sun.light_color = Color(1.0, 0.92, 0.78)
 	sun.light_energy = 0.6
 	sun.shadow_enabled = true
+	_sun = sun
+	_update_clock()
+	_update_sky()
 	var dining := OmniLight3D.new()
 	dining.position = Vector3(DOORWAY.get_center().x, 1.9, -1.5)
 	dining.omni_range = 3.0
