@@ -121,7 +121,7 @@ const P = { fluff: 0.11, arm: 1.0, size: 1, bounce: 0.55, wiggle: 0.5 };
 const PALETTES = [
   { name: 'Coral',    body: '#ee6a4f', tip: '#f4dcc4' },
   { name: 'Lilac', body: '#9b80e0', tip: '#eadff6' },
-  { name: 'Lagoon',     body: '#27b0b2', tip: '#e6f1e2' },
+  { name: 'Lagoon',     body: '#1fa2a6', tip: '#e6f1e2' },
   { name: 'Rose',     body: '#ee86a8', tip: '#fbe6e6' },
   { name: 'Mustard',  body: '#e6ae33', tip: '#f8ecc9' },
 ];
@@ -141,7 +141,7 @@ renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
-renderer.toneMappingExposure = 1.05;
+renderer.toneMappingExposure = 0.98;
 
 const scene = new THREE.Scene();
 const pmrem = new THREE.PMREMGenerator(renderer);
@@ -158,26 +158,43 @@ controls.minDistance = 3.5;
 controls.maxDistance = 16;
 controls.maxPolarAngle = Math.PI * 0.49;
 
-scene.add(new THREE.HemisphereLight(0xffffff, 0xd9d1c8, 0.9));
-const key = new THREE.DirectionalLight(0xfff4e8, 2.4);
-key.position.set(3.5, 7, 5);
+scene.add(new THREE.HemisphereLight(0xffffff, 0x9c948c, 1.15));
+const key = new THREE.DirectionalLight(0xfff4e8, 2.1);
+key.position.set(-4, 7.5, 3.5);
 key.castShadow = true;
-key.shadow.mapSize.set(2048, 2048);
+key.shadow.mapSize.set(768, 768);
 Object.assign(key.shadow.camera, { left: -7, right: 7, top: 7, bottom: -7, near: 1, far: 25 });
 key.shadow.bias = -0.0006;
 key.shadow.normalBias = 0.03;
 scene.add(key);
 const rim = new THREE.DirectionalLight(0xdbe8ff, 0.9);
-rim.position.set(-5, 3, -5);
+rim.position.set(5, 3, -5);
 scene.add(rim);
 
 const floor = new THREE.Mesh(
   new THREE.PlaneGeometry(60, 60),
-  new THREE.ShadowMaterial({ opacity: 0.26 })
+  new THREE.ShadowMaterial({ opacity: 0.22 })
 );
 floor.rotation.x = -Math.PI / 2;
 floor.receiveShadow = true;
 scene.add(floor);
+
+// soft contact shadow that hugs the floor under the body (fades as it is lifted)
+const contact = new THREE.Mesh(
+  new THREE.PlaneGeometry(1, 1),
+  new THREE.MeshBasicMaterial({ transparent: true, depthWrite: false, color: 0x000000,
+    alphaMap: (() => {
+      const c = document.createElement('canvas'); c.width = c.height = 128;
+      const g = c.getContext('2d'), gr = g.createRadialGradient(64, 64, 0, 64, 64, 64);
+      gr.addColorStop(0, '#fff'); gr.addColorStop(0.45, '#999'); gr.addColorStop(1, '#000');
+      g.fillStyle = gr; g.fillRect(0, 0, 128, 128);
+      return new THREE.CanvasTexture(c);
+    })() })
+);
+contact.rotation.x = -Math.PI / 2;
+contact.position.y = 0.003;
+contact.renderOrder = -1;
+scene.add(contact);
 
 /* ---------- fur noise texture (used as alpha map for shells) ---------- */
 function makeFurTexture() {
@@ -227,7 +244,7 @@ scene.add(bodyGroup);
 const bodyGeo = new THREE.SphereGeometry(1, 72, 54);
 {
   const uv = bodyGeo.attributes.uv;
-  for (let i = 0; i < uv.count; i++) uv.setXY(i, uv.getX(i) * 2.4, uv.getY(i) * 1.2);
+  for (let i = 0; i < uv.count; i++) uv.setXY(i, uv.getX(i) * 1.9, uv.getY(i) * 0.95);
 }
 const bodyMesh = new THREE.Mesh(bodyGeo, bodyMat);
 bodyMesh.castShadow = true;
@@ -241,14 +258,56 @@ const bodyShells = bodyShellMats.map(m => {
 // face
 const face = new THREE.Group();
 bodyGroup.add(face);
+// iris painted in sphere-UV space: 512x256 equirect, +z (front) sits at u = 0.25
+function makeIrisTexture() {
+  const c = document.createElement('canvas');
+  c.width = 512; c.height = 256;
+  const g = c.getContext('2d'), cx = 128, cy = 128, k = 512 / TAU; // px per radian
+  g.fillStyle = '#1c0c07'; g.fillRect(0, 0, 512, 256);
+  const R = 1.02 * k, Rp = 0.46 * k;
+  let gr = g.createRadialGradient(cx, cy + R * 0.25, Rp * 0.5, cx, cy, R);
+  gr.addColorStop(0, '#8e5236'); gr.addColorStop(0.55, '#5e2c19');
+  gr.addColorStop(0.88, '#3a170c'); gr.addColorStop(1, '#1c0c07');
+  g.fillStyle = gr; g.beginPath(); g.arc(cx, cy, R, 0, TAU); g.fill();
+  // fibres
+  g.globalAlpha = 0.18;
+  for (let i = 0; i < 160; i++) {
+    const a = Math.random() * TAU, r0 = Rp * 1.05, r1 = R * (0.75 + Math.random() * 0.22);
+    g.strokeStyle = Math.random() < 0.5 ? '#e0a070' : '#2a1009';
+    g.lineWidth = 0.6 + Math.random();
+    g.beginPath(); g.moveTo(cx + Math.cos(a) * r0, cy + Math.sin(a) * r0);
+    g.lineTo(cx + Math.cos(a) * r1, cy + Math.sin(a) * r1); g.stroke();
+  }
+  g.globalAlpha = 1;
+  // lower iris catches light
+  gr = g.createRadialGradient(cx, cy + R * 0.55, 0, cx, cy + R * 0.55, R * 0.7);
+  gr.addColorStop(0, 'rgba(190,120,80,0.4)'); gr.addColorStop(1, 'rgba(190,120,80,0)');
+  g.fillStyle = gr; g.beginPath(); g.arc(cx, cy, R * 0.95, 0, TAU); g.fill();
+  g.fillStyle = '#0b0403'; g.beginPath(); g.arc(cx, cy, Rp, 0, TAU); g.fill();
+  const t = new THREE.CanvasTexture(c);
+  t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4;
+  return t;
+}
+function makeBlushTexture() {
+  const c = document.createElement('canvas');
+  c.width = c.height = 128;
+  const g = c.getContext('2d');
+  const gr = g.createRadialGradient(64, 64, 0, 64, 64, 64);
+  gr.addColorStop(0, 'rgba(255,110,130,0.75)'); gr.addColorStop(0.5, 'rgba(255,110,130,0.35)');
+  gr.addColorStop(1, 'rgba(255,110,130,0)');
+  g.fillStyle = gr; g.fillRect(0, 0, 128, 128);
+  const t = new THREE.CanvasTexture(c);
+  t.colorSpace = THREE.SRGBColorSpace;
+  return t;
+}
 const eyeMat = new THREE.MeshPhysicalMaterial({
-  color: 0x3b1a12, roughness: 0.1, clearcoat: 1, clearcoatRoughness: 0.05,
+  map: makeIrisTexture(), roughness: 0.18, clearcoat: 1, clearcoatRoughness: 0.03,
 });
 const glintMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
 const cheekMat = new THREE.MeshBasicMaterial({
-  color: 0xff6f86, transparent: true, opacity: 0.7, depthWrite: false,
+  map: makeBlushTexture(), transparent: true, depthWrite: false,
 });
-const mouthMat = new THREE.MeshBasicMaterial({ color: 0x3a2218 });
+const mouthMat = new THREE.MeshBasicMaterial({ color: 0x2a1610 });
 const eyes = [];
 const zAxis = new THREE.Vector3(0, 0, 1);
 function placeOnSphere(obj, dir, r) {
@@ -258,33 +317,36 @@ function placeOnSphere(obj, dir, r) {
 }
 for (const sx of [-1, 1]) {
   const g = new THREE.Group();
-  placeOnSphere(g, new THREE.Vector3(sx * 0.42, 0.1, 0.9), 1.0);
-  const eye = new THREE.Mesh(new THREE.SphereGeometry(0.15, 32, 24), eyeMat);
-  eye.scale.set(1, 1.15, 0.65);
+  placeOnSphere(g, new THREE.Vector3(sx * 0.46, 0.13, 0.88), 1.0);
+  const eye = new THREE.Mesh(new THREE.SphereGeometry(0.165, 48, 32), eyeMat);
+  eye.scale.set(1, 1.08, 0.78);
   g.add(eye);
-  const g1 = new THREE.Mesh(new THREE.SphereGeometry(0.04, 12, 10), glintMat);
-  g1.position.set(0.05, 0.07, 0.09);
+  // soft window reflection + a pin glint
+  const g1 = new THREE.Mesh(new THREE.PlaneGeometry(0.05, 0.06), glintMat);
+  glintMat.transparent = true; glintMat.opacity = 0.85;
+  g1.position.set(sx * -0.045 + 0.02, 0.06, 0.128);
   g.add(g1);
-  const g2 = new THREE.Mesh(new THREE.SphereGeometry(0.02, 10, 8), glintMat);
-  g2.position.set(-0.05, -0.05, 0.1);
+  const g2 = new THREE.Mesh(new THREE.CircleGeometry(0.014, 12), glintMat);
+  g2.position.set(0.05, -0.05, 0.124);
   g.add(g2);
   face.add(g);
   eyes.push(eye);
 
-  const cheek = new THREE.Mesh(new THREE.CircleGeometry(0.1, 24), cheekMat);
-  cheek.scale.set(1.25, 0.8, 1);
-  placeOnSphere(cheek, new THREE.Vector3(sx * 0.62, -0.1, 0.78), 1.012);
+  const cheek = new THREE.Mesh(new THREE.PlaneGeometry(0.34, 0.34), cheekMat);
+  cheek.scale.set(1.2, 0.75, 1);
+  placeOnSphere(cheek, new THREE.Vector3(sx * 0.55, -0.06, 0.83), 1.012);
   face.add(cheek);
 }
 {
   const pts = [];
   for (let i = 0; i <= 14; i++) {
-    const x = (i / 14 - 0.5) * 0.2;
-    const y = -0.2 - 0.045 * (1 - Math.pow(x / 0.1, 2));
+    // little "w" mouth
+    const x = (i / 14 - 0.5) * 0.22;
+    const y = 0.0 - 0.04 * (1 - Math.pow(x / 0.11, 2)) + 0.006 * (1 - Math.cos((x / 0.11) * TAU)) * 0.5;
     pts.push(new THREE.Vector3(x, y, 1).normalize().multiplyScalar(1.0));
   }
   const mouth = new THREE.Mesh(
-    new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), 20, 0.011, 6), mouthMat);
+    new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), 32, 0.0105, 6), mouthMat);
   face.add(mouth);
 }
 
@@ -607,11 +669,11 @@ function colourTube(t) {
     // ventral = tangent x lateral
     let vx = T_.y * pz, vy = T_.z * px - T_.x * pz, vz = -T_.y * px;
     const vl = Math.hypot(vx, vy, vz) || 1; vx /= vl; vy /= vl; vz /= vl;
-    const along = smooth(0.25, 0.5, u), tip = smooth(0.94, 1, u) * 0.5;
+    const along = smooth(0.45, 0.72, u), tip = smooth(0.94, 1, u) * 0.5;
     for (let j = 0; j <= M; j++) {
       const a = (j / M) * TAU, c = Math.cos(a), sn = Math.sin(a);
       const d = (n.x * c + b.x * sn) * vx + (n.y * c + b.y * sn) * vy + (n.z * c + b.z * sn) * vz;
-      const m = Math.min(1, smooth(0.0, 0.7, d) * along + tip) * 0.95;
+      const m = Math.min(1, smooth(0.1, 0.75, d) * along + tip) * 0.95;
       const k = (i * (M + 1) + j) * 3;
       ca[k] = colA.r + (colB.r - colA.r) * m;
       ca[k + 1] = colA.g + (colB.g - colA.g) * m;
@@ -643,7 +705,7 @@ function applyBody() {
   const sq = body.sq;
   const stretch = THREE.MathUtils.clamp(body.vel.y * 0.012, 0, 0.12);
   const breathe = Math.sin(T * 1.8) * 0.012;
-  const sy = (1 - sq + stretch + breathe) * 1.08;
+  const sy = (1 - sq + stretch + breathe) * 1.13;
   const sxz = 1 + sq * 0.5 - stretch * 0.4 - breathe * 0.5;
   bodyGroup.scale.set(s * sxz, s * sy, s * sxz);
   bodyGroup.position.set(body.pos.x, body.pos.y + (sy - 1) * s * 0.85, body.pos.z);
@@ -653,7 +715,15 @@ function applyBody() {
     THREE.MathUtils.clamp(-body.vel.x * 0.03, -0.3, 0.3));
   // fluff shells
   for (let i = 0; i < BSHELLS; i++) {
-    bodyShells[i].scale.setScalar(1 + P.fluff * (i + 1) / BSHELLS);
+    const f = (i + 1) / BSHELLS;
+    bodyShells[i].scale.setScalar(1 + P.fluff * f);
+    bodyShells[i].position.y = -P.fluff * 0.35 * f * f; // hair tips droop a little
+  }
+  {
+    const lift = Math.max(0, body.pos.y - baseY()) / s;
+    contact.position.x = body.pos.x; contact.position.z = body.pos.z;
+    contact.scale.setScalar(s * 4.6 * (1 + lift * 0.4));
+    contact.material.opacity = 0.3 / (1 + lift * 2.5);
   }
   face.scale.setScalar(1 + P.fluff * 1.1);
   // blink
@@ -663,17 +733,18 @@ function applyBody() {
 }
 
 /* ---------- colours ---------- */
+const WHITE = new THREE.Color(1, 1, 1);
 const colA = new THREE.Color(), colB = new THREE.Color(), colC = new THREE.Color();
 let currentPalette = PALETTES[0];
 function setPalette(p) {
   currentPalette = p;
   colA.set(p.body); colB.set(p.tip);
-  bodyMat.color.copy(colA);
+  bodyMat.color.copy(colA).multiplyScalar(0.7);
   bodyMat.sheenColor.copy(colA).lerp(new THREE.Color(1, 1, 1), 0.55);
   tentMat.sheenColor.copy(bodyMat.sheenColor);
   for (let i = 0; i < BSHELLS; i++) {
-    const m = 0.55 + 0.5 * (i / (BSHELLS - 1));
-    bodyShellMats[i].color.copy(colA).multiplyScalar(m);
+    const f = i / (BSHELLS - 1), m = 0.5 + 0.55 * f;
+    bodyShellMats[i].color.copy(colA).multiplyScalar(m).lerp(WHITE, 0.18 * f * f);
   }
   for (let i = 0; i < TSHELLS; i++) {
     const m = 0.6 + 0.45 * (i / (TSHELLS - 1));
