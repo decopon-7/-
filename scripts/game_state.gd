@@ -91,6 +91,9 @@ var locale := ""
 var sound_volume := 1.0
 var music_volume := 1.0
 var fullscreen := false
+## 厨房の掛け時計と窓の外を、遊んでいる人の実際の時刻に合わせるか。
+## 配信で自分の時刻を見せたくない人のために、オフにすると時刻は決まった値で固定される
+var clock_sync := true
 
 
 func _ready() -> void:
@@ -278,6 +281,11 @@ func set_fullscreen(value: bool) -> void:
 	save_game()
 
 
+func set_clock_sync(value: bool) -> void:
+	clock_sync = value
+	save_game()
+
+
 func set_locale(value: String) -> void:
 	locale = value
 	TranslationServer.set_locale(locale)
@@ -306,6 +314,7 @@ func save_game() -> void:
 		"sound_volume": sound_volume,
 		"music_volume": music_volume,
 		"fullscreen": fullscreen,
+		"clock_sync": clock_sync,
 	}, "\t"))
 
 
@@ -326,6 +335,7 @@ func load_game() -> void:
 	sound_volume = float(data.get("sound_volume", 0.0 if data.get("muted", false) else 1.0))
 	music_volume = float(data.get("music_volume", 1.0 if data.get("music_on", true) else 0.0))
 	fullscreen = bool(data.get("fullscreen", false))
+	clock_sync = bool(data.get("clock_sync", true))
 	var saved_levels: Dictionary = data.get("levels", {})
 	for id in UPGRADE_IDS:
 		levels[id] = clampi(int(saved_levels.get(id, 0)), 0, UPGRADES[id]["max"])

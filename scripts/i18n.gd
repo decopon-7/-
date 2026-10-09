@@ -85,6 +85,9 @@ const STRINGS := {
 	"OPT_MUSIC": {"ja": "BGM %d%%", "en": "Music %d%%"},
 	"BTN_FULLSCREEN_ON": {"ja": "画面表示: フルスクリーン", "en": "Display: Fullscreen"},
 	"BTN_FULLSCREEN_OFF": {"ja": "画面表示: ウィンドウ", "en": "Display: Windowed"},
+	# 掛け時計と窓の外を実際の時刻に合わせるか。配信で時刻を見せたくない人は「合わせない」にする
+	"BTN_CLOCK_SYNC_ON": {"ja": "時計: 実際の時刻に合わせる", "en": "Clock: Match real time"},
+	"BTN_CLOCK_SYNC_OFF": {"ja": "時計: 合わせない（時刻を隠す）", "en": "Clock: Fixed (hides your time)"},
 	"BTN_TO_TITLE": {"ja": "タイトルへ（自動保存）", "en": "Back to title (autosave)"},
 	"BTN_ACHIEVEMENTS": {"ja": "実績", "en": "Achievements"},
 	"BTN_BACK": {"ja": "戻る", "en": "Back"},
@@ -106,7 +109,7 @@ const STRINGS := {
 	"ACH_PROCESSOR_MAX_DESC": {"ja": "フードプロセッサーを最大Lvまで鍛える", "en": "Upgrade the food processor to max level"},
 	"ACH_CONTRACT_MAX": {"ja": "やり手の交渉人", "en": "Master Negotiator"},
 	"ACH_CONTRACT_MAX_DESC": {"ja": "仕入れ先との値段交渉を最大Lvまで進める", "en": "Max out the supplier price negotiation"},
-	"ACH_DAY10": {"ja": "十日目の朝", "en": "Ten Mornings In"},
+	"ACH_DAY10": {"ja": "十日目の仕込み", "en": "Ten Days In"},
 	"ACH_DAY10_DESC": {"ja": "10日目を迎える", "en": "Reach day 10"},
 	"ACH_MONEY1000": {"ja": "ひと財産", "en": "A Tidy Sum"},
 	"ACH_MONEY1000_DESC": {"ja": "所持金が1000円に達する", "en": "Have $1000 or more"},
@@ -165,7 +168,7 @@ const STRINGS := {
 		"en": "An old woman from the next town cried over her soup, saying it tasted like something from long ago. I didn't ask why.",
 	},
 	"DIARY_16": {
-		"ja": "夜、賄いを食べながら大将がぽつりと言った。「うちも昔、誰かを拾ったことがある」",
+		"ja": "賄いを食べながら、大将がぽつりと言った。「うちも昔、誰かを拾ったことがある」",
 		"en": "Over the staff meal, the owner said quietly, \"We took someone in once before, too.\"",
 	},
 	"DIARY_20": {

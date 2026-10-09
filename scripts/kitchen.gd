@@ -52,6 +52,7 @@ var _hour_hand: Node3D
 var _glass_mats: Array[ShaderMaterial] = []
 var _sun: SpotLight3D
 var _sky_timer := 0.0
+var _last_clock_sync := true
 ## 確認用：0〜24 を入れると、実際の時刻の代わりにその時刻で表示する（負なら実際の時刻）
 var debug_hour := -1.0
 
@@ -96,15 +97,25 @@ func _process(delta: float) -> void:
 		_noren[i].rotation.x = sin(_time * 0.8 + i * 1.3) * 0.025 + sin(_time * 0.37 + i) * 0.015
 	_update_clock()
 	_sky_timer -= delta
+	if GameState.clock_sync != _last_clock_sync:
+		_last_clock_sync = GameState.clock_sync
+		_sky_timer = 0.0  # 設定を切り替えたら、窓の外もすぐ変える
 	if _sky_timer <= 0.0:
 		_sky_timer = 5.0  # 窓の明るさはゆっくりしか変わらないので、ときどき更新すれば十分
 		_update_sky()
 
 
-## いまの時刻（時、0〜24の小数）。掛け時計と窓の外の明るさは、遊んでいる人の実際の時刻に合わせる
+## 時刻を合わせない設定のときに掛け時計が指す時刻（10時10分。時計の針がいちばん映える形）
+const FIXED_HOUR := 10.0 + 10.0 / 60.0
+
+
+## いまの時刻（時、0〜24の小数）。掛け時計と窓の外の明るさは、設定でオンなら遊んでいる人の
+## 実際の時刻に合わせる。オフなら固定の時刻（配信で自分の時刻を見せたくない人向け）
 func _now_hour() -> float:
 	if debug_hour >= 0.0:
 		return debug_hour
+	if not GameState.clock_sync:
+		return FIXED_HOUR
 	var t := Time.get_time_dict_from_system()
 	return t["hour"] + t["minute"] / 60.0 + t["second"] / 3600.0
 
@@ -114,8 +125,10 @@ func _update_clock() -> void:
 		return
 	var hour := _now_hour()
 	var minutes := fmod(hour * 60.0, 60.0)
-	# 秒針はカチッ、カチッと1秒ずつ、長針と短針はなめらかに進む
-	_second_hand.rotation.z = -TAU * floorf(fmod(hour * 3600.0, 60.0)) / 60.0
+	# 秒針はカチッ、カチッと1秒ずつ、長針と短針はなめらかに進む。
+	# 時刻を合わせない設定でも、秒針だけは動かして「止まった時計」に見えないようにする
+	var seconds := fmod(hour * 3600.0, 60.0) if GameState.clock_sync or debug_hour >= 0.0 else float(Time.get_ticks_msec() / 1000 % 60)
+	_second_hand.rotation.z = -TAU * floorf(seconds) / 60.0
 	_minute_hand.rotation.z = -TAU * minutes / 60.0
 	_hour_hand.rotation.z = -TAU * fmod(hour, 12.0) / 12.0
 

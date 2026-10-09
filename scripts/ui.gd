@@ -81,6 +81,8 @@ var _sound_slider: HSlider
 var _music_label: Label
 var _music_slider: HSlider
 var _fullscreen_button: Button
+var _clock_button: Button
+var _title_clock_button: Button
 var _achievements_button: Button
 var _to_title_button: Button
 var _version_label: Label
@@ -191,6 +193,8 @@ func refresh_texts() -> void:
 	_sound_label.text = tr("OPT_SOUND") % roundi(GameState.sound_volume * 100)
 	_music_label.text = tr("OPT_MUSIC") % roundi(GameState.music_volume * 100)
 	_fullscreen_button.text = tr("BTN_FULLSCREEN_ON") if GameState.fullscreen else tr("BTN_FULLSCREEN_OFF")
+	for b in [_clock_button, _title_clock_button]:
+		b.text = tr("BTN_CLOCK_SYNC_ON") if GameState.clock_sync else tr("BTN_CLOCK_SYNC_OFF")
 	_achievements_button.text = tr("BTN_ACHIEVEMENTS")
 	_achievements_back_button.text = tr("BTN_BACK")
 	_confirm_new_game_title.text = tr("CONFIRM_NEW_GAME") % GameState.day
@@ -466,11 +470,18 @@ func _build_title() -> Control:
 	_language_button = _button(box, func():
 		GameState.set_locale(I18n.next_locale(TranslationServer.get_locale()))
 		refresh_texts())
+	# 配信前にタイトル画面から時刻を隠せるよう、一時停止画面とは別にここにも置く
+	_title_clock_button = _button(box, _toggle_clock_sync)
 	_diary_button = _button(box, func():
 		refresh_diary_recap()
 		show_only(diary_screen))
 	_quit_button = _button(box, func(): get_tree().quit())
 	return c
+
+
+func _toggle_clock_sync() -> void:
+	GameState.set_clock_sync(not GameState.clock_sync)
+	refresh_texts()
 
 
 func _build_confirm_new_game() -> Control:
@@ -562,6 +573,7 @@ func _build_pause() -> Control:
 	_fullscreen_button = _button(box, func():
 		GameState.set_fullscreen(not GameState.fullscreen)
 		refresh_texts())
+	_clock_button = _button(box, _toggle_clock_sync)
 	_achievements_button = _button(box, func():
 		refresh_achievements()
 		show_only(achievements_screen))
