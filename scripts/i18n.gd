@@ -12,6 +12,12 @@ const STRINGS := {
 	"BTN_NEW_GAME": {"ja": "はじめから", "en": "New Game"},
 	"BTN_LANGUAGE": {"ja": "Language: 日本語", "en": "言語: English"},
 	"BTN_QUIT": {"ja": "終了", "en": "Quit"},
+	"CONFIRM_NEW_GAME": {
+		"ja": "はじめからにすると、%d日目までの実績・日記・エンドの記録が消えます。\n本当によろしいですか？",
+		"en": "Starting over erases your progress through Day %d\n(achievements, diary, ending reached). Are you sure?",
+	},
+	"BTN_CONFIRM_NEW_GAME": {"ja": "消してはじめから", "en": "Erase and Start Over"},
+	"BTN_CANCEL": {"ja": "キャンセル", "en": "Cancel"},
 
 	"HUD_DAY": {"ja": "%d日目の仕込み", "en": "Day %d prep"},
 	"HUD_TODAY": {"ja": "本日 %d g", "en": "%d g today"},

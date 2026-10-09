@@ -27,6 +27,7 @@ var day_end_screen: Control
 var pause_screen: Control
 var achievements_screen: Control
 var diary_screen: Control
+var confirm_new_game_screen: Control
 
 var _day_label: Label
 var _today_label: Label
@@ -52,6 +53,10 @@ var _new_game_button: Button
 var _language_button: Button
 var _diary_button: Button
 var _quit_button: Button
+
+var _confirm_new_game_title: Label
+var _confirm_new_game_yes: Button
+var _confirm_new_game_cancel: Button
 
 var _diary_recap_title: Label
 var _diary_back_button: Button
@@ -102,6 +107,8 @@ func _ready() -> void:
 	root.add_child(diary_screen)
 	title_screen = _build_title()
 	root.add_child(title_screen)
+	confirm_new_game_screen = _build_confirm_new_game()
+	root.add_child(confirm_new_game_screen)
 	refresh_texts()
 	_money_shown = GameState.money  # 起動時は0から数え上げず、いきなり現在値で表示
 
@@ -109,7 +116,7 @@ func _ready() -> void:
 # ---------------------------------------------------------------- 表示切替
 
 func show_only(screen: Control) -> void:
-	for s in [title_screen, day_end_screen, pause_screen, achievements_screen, diary_screen]:
+	for s in [title_screen, day_end_screen, pause_screen, achievements_screen, diary_screen, confirm_new_game_screen]:
 		s.visible = s == screen
 	hud.visible = screen == null or screen == pause_screen
 
@@ -139,6 +146,9 @@ func refresh_texts() -> void:
 	_fullscreen_button.text = tr("BTN_FULLSCREEN_ON") if GameState.fullscreen else tr("BTN_FULLSCREEN_OFF")
 	_achievements_button.text = tr("BTN_ACHIEVEMENTS")
 	_achievements_back_button.text = tr("BTN_BACK")
+	_confirm_new_game_title.text = tr("CONFIRM_NEW_GAME") % GameState.day
+	_confirm_new_game_yes.text = tr("BTN_CONFIRM_NEW_GAME")
+	_confirm_new_game_cancel.text = tr("BTN_CANCEL")
 	refresh_shop()
 	refresh_achievements()
 	refresh_diary_recap()
@@ -378,7 +388,20 @@ func _build_title() -> Control:
 		box.add_child(l)
 	box.add_child(_spacer(30))
 	_continue_button = _button(box, continue_pressed.emit)
-	_new_game_button = _button(box, new_game_pressed.emit)
+	_new_game_button = _button(box, func():
+		# 既にセーブがある状態でうっかり押すと今までの進行が消えてしまうので、
+		# 一度確認を挟む（セーブが無い、まっさらな状態なら即開始してよい）
+		if GameState.has_save():
+			show_only(confirm_new_game_screen)
+		else:
+			new_game_pressed.emit())
+	# 一番上に出る「ここから始める」ボタンだけ縁取りを明るくして、
+	# 言語切替・日記・終了などの脇役的なボタンと見分けやすくする
+	for primary in [_continue_button, _new_game_button]:
+		var primary_normal := _style(Color(0.24, 0.2, 0.13), 8)
+		primary_normal.border_color = COL_ACCENT
+		primary_normal.set_border_width_all(2)
+		primary.add_theme_stylebox_override("normal", primary_normal)
 	_language_button = _button(box, func():
 		GameState.set_locale(I18n.next_locale(TranslationServer.get_locale()))
 		refresh_texts())
@@ -386,6 +409,25 @@ func _build_title() -> Control:
 		refresh_diary_recap()
 		show_only(diary_screen))
 	_quit_button = _button(box, func(): get_tree().quit())
+	return c
+
+
+func _build_confirm_new_game() -> Control:
+	var c := _overlay(0.6)
+	var box := _center_box(c)
+	_confirm_new_game_title = _label(32, COL_ACCENT)
+	_confirm_new_game_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_confirm_new_game_title.custom_minimum_size = Vector2(620, 0)
+	_confirm_new_game_title.autowrap_mode = TextServer.AUTOWRAP_WORD
+	box.add_child(_confirm_new_game_title)
+	box.add_child(_spacer(16))
+	_confirm_new_game_yes = _button(box, func():
+		new_game_pressed.emit())
+	var danger := _style(Color(0.3, 0.14, 0.12), 8)
+	danger.border_color = COL_BAD
+	danger.set_border_width_all(2)
+	_confirm_new_game_yes.add_theme_stylebox_override("normal", danger)
+	_confirm_new_game_cancel = _button(box, func(): show_only(title_screen))
 	return c
 
 
@@ -651,7 +693,12 @@ func _make_theme() -> Theme:
 	t.set_stylebox("hover", "Button", hover)
 	t.set_stylebox("pressed", "Button", pressed)
 	t.set_stylebox("disabled", "Button", disabled)
-	t.set_stylebox("focus", "Button", StyleBoxEmpty.new())
+	# キーボード/コントローラーでの操作（Steam Deck対応などで将来必要になる）でも
+	# どのボタンを選んでいるか分かるよう、縁取りだけのフォーカスリングを重ねて描く
+	var focus := _style(Color(0, 0, 0, 0), 8)
+	focus.border_color = COL_ACCENT
+	focus.set_border_width_all(3)
+	t.set_stylebox("focus", "Button", focus)
 	t.set_color("font_color", "Button", COL_TEXT)
 	t.set_color("font_hover_color", "Button", COL_ACCENT)
 	t.set_color("font_disabled_color", "Button", Color(0.45, 0.44, 0.4))
@@ -659,6 +706,18 @@ func _make_theme() -> Theme:
 	t.set_stylebox("panel", "PanelContainer", _style(COL_PANEL, 12, 20))
 	t.set_stylebox("background", "ProgressBar", _style(Color(0.15, 0.15, 0.13), 4))
 	t.set_stylebox("fill", "ProgressBar", _style(COL_ACCENT, 4))
+
+	# 実績・日記のスクロールバーも、Godot標準のグレーのままだと浮いて見えるので
+	# 他のUIと同じ色味に揃える
+	var scroll_bg := _style(Color(0.15, 0.14, 0.12, 0.5), 6, 2)
+	var grabber := _style(Color(0.62, 0.56, 0.42), 6, 2)
+	var grabber_hi := _style(COL_ACCENT, 6, 2)
+	for scroll_type in ["VScrollBar", "HScrollBar"]:
+		t.set_stylebox("scroll", scroll_type, scroll_bg)
+		t.set_stylebox("scroll_focus", scroll_type, scroll_bg)
+		t.set_stylebox("grabber", scroll_type, grabber)
+		t.set_stylebox("grabber_highlight", scroll_type, grabber_hi)
+		t.set_stylebox("grabber_pressed", scroll_type, grabber_hi)
 	return t
 
 
