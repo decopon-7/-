@@ -14,6 +14,9 @@ const KNIFE_X_LIMIT := 0.26
 const ControlsScript := preload("res://scripts/controls.gd")
 const CRATE_ONION_SHADER := preload("res://shaders/onion_whole.gdshader")
 const WOOD_SHADER := preload("res://shaders/wood.gdshader")
+const TILE_SHADER := preload("res://shaders/tile.gdshader")
+const STEEL_SHADER := preload("res://shaders/brushed_steel.gdshader")
+const CLOTH_SHADER := preload("res://shaders/cloth.gdshader")
 ## ボウルに溜まる、みじん切りのかけら（見た目用）の最大個数と、満タン時の散らばり半径
 const BOWL_CHUNK_COUNT := 70
 const BOWL_CHUNK_RADIUS := 0.16
@@ -745,62 +748,6 @@ func _build_knife() -> void:
 	knife.add_child(knife_visual)
 	_rebuild_knife_visual()
 
-
-## 実績で解禁する見た目の称号（0=なし/1=ゴールド/2=プラチナ/3=ダイヤ）に応じた、
-## 道具の主要パーツを丸ごと塗り替えるための素材。称号がなければ null。
-func _current_skin_mat() -> StandardMaterial3D:
-	var m: StandardMaterial3D
-	match GameState.skin_tier:
-		1:
-			m = _mat(Color(0.85, 0.7, 0.25), 0.12, 1.0)
-			m.emission_enabled = true
-			m.emission = Color(0.6, 0.45, 0.1)
-			m.emission_energy_multiplier = 0.35
-		2:
-			m = _mat(Color(0.86, 0.88, 0.92), 0.05, 1.0)
-			m.emission_enabled = true
-			m.emission = Color(0.5, 0.55, 0.6)
-			m.emission_energy_multiplier = 0.3
-		3:
-			m = _mat(Color(0.82, 0.93, 0.98), 0.03, 0.9)
-			m.emission_enabled = true
-			m.emission = Color(0.35, 0.7, 0.95)
-			m.emission_energy_multiplier = 0.55
-	return m
-
-
-## 包丁のアップグレードLvに応じて見た目を変える（地味だが、育てた実感が出るように）
-## Lv0: ふつうの包丁 → Lv上がるごとに刃が長く・輝きが増し → 最大Lvで柄口に金の縁飾り
-## さらに実績で称号（ゴールド/プラチナ/ダイヤ）を得ていれば、そちらの色を丸ごと優先する
-func _rebuild_knife_visual() -> void:
-	if knife_visual == null:
-		return
-	for c in knife_visual.get_children():
-		c.queue_free()
-	var lv: int = GameState.levels["knife"]
-	var max_lv: int = GameState.UPGRADES["knife"]["max"]
-	var t: float = float(lv) / float(max_lv)  # 0.0〜1.0
-	var skin := _current_skin_mat()
-
-	var blade_len: float = lerpf(0.22, 0.285, t)
-	var steel := skin if skin else _mat(Color(0.8, 0.81, 0.83).lerp(Color(0.86, 0.89, 0.94), t), lerpf(0.2, 0.04, t), 0.95)
-	var wood := skin if skin else _mat(Color(0.2, 0.13, 0.08).lerp(Color(0.06, 0.05, 0.06), t), lerpf(0.6, 0.3, t))
-
-	# 刃は Z 方向（奥〜手前）に伸びる。原点が刃先の線。
-	_box(knife_visual, Vector3(0.003, 0.05, blade_len), Vector3(0, 0.025, -0.04 - (blade_len - 0.22) * 0.5), steel)
-	_box(knife_visual, Vector3(0.008, 0.03, 0.015), Vector3(0, 0.035, 0.075), steel)
-	_box(knife_visual, Vector3(0.018, 0.024, 0.12), Vector3(0, 0.037, 0.14), wood)
-
-	if lv >= 3:
-		# 中間Lv以降：口金（ボルスター）を真鍮色に（称号があればそちらを優先）
-		var brass := skin if skin else _mat(Color(0.8, 0.65, 0.25), 0.25, 0.9)
-		_box(knife_visual, Vector3(0.02, 0.026, 0.01), Vector3(0, 0.037, 0.083), brass)
-	if lv >= max_lv:
-		# 最大Lv：刃の背に金のライン、柄尻に金のキャップ（職人技の一振りという貫禄）
-		var gold := skin if skin else _mat(Color(0.95, 0.78, 0.35), 0.15, 1.0)
-		_box(knife_visual, Vector3(0.0032, 0.006, blade_len - 0.01), Vector3(0, 0.049, -0.04 - (blade_len - 0.22) * 0.5), gold)
-		_box(knife_visual, Vector3(0.02, 0.026, 0.006), Vector3(0, 0.037, 0.197), gold)
-
 	chips = CPUParticles3D.new()
 	var chip_mesh := BoxMesh.new()
 	chip_mesh.size = Vector3(0.004, 0.004, 0.004)
@@ -847,6 +794,165 @@ func _rebuild_knife_visual() -> void:
 	_gap_mat = StandardMaterial3D.new()
 	_gap_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	_gap_mat.albedo_color = Color(1.0, 0.3, 0.25)
+
+
+## 実績で解禁する見た目の称号（0=なし/1=ゴールド/2=プラチナ/3=ダイヤ）に応じた、
+## 道具の主要パーツを丸ごと塗り替えるための素材。称号がなければ null。
+func _current_skin_mat() -> StandardMaterial3D:
+	var m: StandardMaterial3D
+	match GameState.skin_tier:
+		1:
+			m = _mat(Color(0.85, 0.7, 0.25), 0.12, 1.0)
+			m.emission_enabled = true
+			m.emission = Color(0.6, 0.45, 0.1)
+			m.emission_energy_multiplier = 0.35
+		2:
+			m = _mat(Color(0.86, 0.88, 0.92), 0.05, 1.0)
+			m.emission_enabled = true
+			m.emission = Color(0.5, 0.55, 0.6)
+			m.emission_energy_multiplier = 0.3
+		3:
+			m = _mat(Color(0.82, 0.93, 0.98), 0.03, 0.9)
+			m.emission_enabled = true
+			m.emission = Color(0.35, 0.7, 0.95)
+			m.emission_energy_multiplier = 0.55
+	return m
+
+
+## 包丁のアップグレードLvに応じて見た目を変える（地味だが、育てた実感が出るように）
+## Lv0: ふつうの包丁 → Lv上がるごとに刃が長く・輝きが増し → 最大Lvで柄口に金の縁飾り
+## さらに実績で称号（ゴールド/プラチナ/ダイヤ）を得ていれば、そちらの色を丸ごと優先する
+func _rebuild_knife_visual() -> void:
+	if knife_visual == null:
+		return
+	for c in knife_visual.get_children():
+		c.queue_free()
+	var lv: int = GameState.levels["knife"]
+	var max_lv: int = GameState.UPGRADES["knife"]["max"]
+	var t: float = float(lv) / float(max_lv)  # 0.0〜1.0
+	var skin := _current_skin_mat()
+
+	var blade_len: float = lerpf(0.22, 0.285, t)
+	var steel := skin if skin else _mat(Color(0.8, 0.81, 0.83).lerp(Color(0.88, 0.9, 0.94), t), lerpf(0.24, 0.1, t), 0.72)
+	# 柄：Lv0は明るい朴（ほお）の木 → Lvが上がるほど濃い色、最大Lvは黒檀のような黒
+	var wood := skin if skin else _mat(Color(0.46, 0.33, 0.2).lerp(Color(0.07, 0.05, 0.05), t), lerpf(0.65, 0.3, t))
+	# 口金：Lv0〜2は水牛の角のような黒、Lv3以降は真鍮
+	var ferrule := skin if skin else (_mat(Color(0.8, 0.65, 0.25), 0.25, 0.9) if lv >= 3 else _mat(Color(0.08, 0.07, 0.07), 0.35))
+	for m in [steel, wood, ferrule]:
+		m.cull_mode = BaseMaterial3D.CULL_DISABLED
+
+	# 刃は Z 方向（奥〜手前）に伸びる。原点が刃先の線。かかと（柄側）は z=0.07 で固定し、Lvで前へ伸びる
+	var blade := MeshInstance3D.new()
+	blade.mesh = _knife_blade_mesh(blade_len, 0.05)
+	blade.material_override = steel
+	knife_visual.add_child(blade)
+	# 口金（柄の付け根の輪）と、八角形の和包丁の柄
+	var handle_y := 0.036
+	_loft(knife_visual, [
+		[0.072, 0.0105, 0.0125], [0.076, 0.0115, 0.0135], [0.088, 0.0115, 0.0135], [0.091, 0.0108, 0.0128],
+	], handle_y, 16, ferrule)
+	_loft(knife_visual, [
+		[0.09, 0.0098, 0.0118], [0.15, 0.0108, 0.0128], [0.205, 0.0112, 0.0132], [0.208, 0.0102, 0.0122],
+	], handle_y, 8, wood)
+	if lv >= max_lv:
+		# 最大Lv：柄尻に金のキャップ、刃の背のまっすぐな部分に金の細いライン
+		var gold := skin if skin else _mat(Color(0.95, 0.78, 0.35), 0.15, 1.0)
+		_loft(knife_visual, [
+			[0.206, 0.0104, 0.0124], [0.212, 0.0104, 0.0124], [0.214, 0.008, 0.01],
+		], handle_y, 8, gold)
+		var straight := blade_len * 0.55
+		_box(knife_visual, Vector3(0.0028, 0.0025, straight), Vector3(0, 0.0505, 0.07 - straight * 0.5), gold)
+
+
+## 牛刀の刃のメッシュ。刃線（下）はかかとからまっすぐ伸び、先の3割で反り上がって切っ先へ。
+## 峰（上）は先の4割で下がって切っ先で合流する。厚みは峰から刃先へ薄くなり、
+## 刃先の手前に角度の違う「切刃」の帯があるので、光が当たると刃先に沿って細い反射が出る。
+func _knife_blade_mesh(length: float, height: float) -> ArrayMesh:
+	var heel_z := 0.07
+	var stations := 28
+	var rows := 9
+	var st := SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	var grid := []  # [station][row] -> [y, half_thickness]
+	for i in stations + 1:
+		var u := float(i) / stations          # 0 = かかと, 1 = 切っ先
+		var belly := smoothstep(0.62, 1.0, u)
+		var edge_y := 0.009 * belly * belly
+		var spine_drop := smoothstep(0.55, 1.0, u)
+		var spine_y := lerpf(height, 0.0095, spine_drop * spine_drop)
+		var taper := lerpf(1.0, 0.25, smoothstep(0.5, 1.0, u))
+		var col := []
+		for j in rows + 1:
+			var v := float(j) / rows        # 0 = 刃先, 1 = 峰
+			var half := 0.0
+			if v < 0.16:
+				half = lerpf(0.00006, 0.0008, v / 0.16)
+			else:
+				half = lerpf(0.0008, 0.0013, (v - 0.16) / 0.84)
+			col.append([lerpf(edge_y, spine_y, v), half * taper])
+		grid.append(col)
+	var zat := func(i: int) -> float: return heel_z - length * float(i) / stations
+	for side in [-1.0, 1.0]:
+		for i in stations:
+			for j in rows:
+				var q := []
+				for c in [[i, j], [i + 1, j], [i, j + 1], [i + 1, j + 1]]:
+					var g: Array = grid[c[0]][c[1]]
+					q.append(Vector3(side * g[1], g[0], zat.call(c[0])))
+				_quad(st, q[0], q[1], q[2], q[3], side > 0.0)
+	# 峰（上面の細い帯）と、かかと（柄側の断面）
+	for i in stations:
+		var a: Array = grid[i][rows]
+		var b: Array = grid[i + 1][rows]
+		_quad(st, Vector3(-a[1], a[0], zat.call(i)), Vector3(-b[1], b[0], zat.call(i + 1)),
+				Vector3(a[1], a[0], zat.call(i)), Vector3(b[1], b[0], zat.call(i + 1)), true)
+	for j in rows:
+		var a: Array = grid[0][j]
+		var b: Array = grid[0][j + 1]
+		_quad(st, Vector3(-a[1], a[0], heel_z), Vector3(a[1], a[0], heel_z),
+				Vector3(-b[1], b[0], heel_z), Vector3(b[1], b[0], heel_z), true)
+	st.generate_normals()
+	return st.commit()
+
+
+func _quad(st: SurfaceTool, a: Vector3, b: Vector3, c: Vector3, d: Vector3, flip: bool) -> void:
+	var tris := [[a, b, c], [b, d, c]] if not flip else [[a, c, b], [b, c, d]]
+	for tri in tris:
+		for v in tri:
+			st.add_vertex(v)
+
+
+## 断面（楕円に近い多角形）を z 方向に並べてつないだ筒。rings は [z, 横の半径, 縦の半径] の並び。
+## 柄や口金に使う。sides=8 にすると和包丁らしい八角の柄になる
+func _loft(parent: Node, rings: Array, center_y: float, sides: int, material: Material) -> MeshInstance3D:
+	var st := SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	var pts := []
+	for r in rings:
+		var ring := []
+		for k in sides:
+			var ang := TAU * (float(k) + 0.5) / sides
+			ring.append(Vector3(cos(ang) * r[1], center_y + sin(ang) * r[2], r[0]))
+		pts.append(ring)
+	for i in pts.size() - 1:
+		for k in sides:
+			var k2 := (k + 1) % sides
+			_quad(st, pts[i][k], pts[i][k2], pts[i + 1][k], pts[i + 1][k2], false)
+	# 両端のふた
+	for end in [0, pts.size() - 1]:
+		var c := Vector3(0, center_y, rings[end][0])
+		for k in sides:
+			var tri := [c, pts[end][k], pts[end][(k + 1) % sides]]
+			if end == 0:
+				tri = [c, pts[end][(k + 1) % sides], pts[end][k]]
+			for v in tri:
+				st.add_vertex(v)
+	st.generate_normals()
+	var mi := MeshInstance3D.new()
+	mi.mesh = st.commit()
+	mi.material_override = material
+	parent.add_child(mi)
+	return mi
 
 
 func _build_processor() -> void:
@@ -1052,8 +1158,12 @@ func _build_kitchen() -> void:
 
 	# 作業台とまな板
 	_box(self, Vector3(2.2, 0.88, 0.9), Vector3(0, 0.44, 0), dark_steel)
-	_box(self, Vector3(2.3, 0.05, 1.0), Vector3(0, 0.915, 0), steel)
+	var counter_top := ShaderMaterial.new()
+	counter_top.shader = STEEL_SHADER
+	counter_top.set_shader_parameter("base_color", Color(0.44, 0.44, 0.44))
+	_box(self, Vector3(2.3, 0.05, 1.0), Vector3(0, 0.915, 0), counter_top)
 	_box(self, Vector3(0.6, 0.025, 0.36), Vector3(0, BOARD_TOP - 0.0125, 0.05), board)
+	_build_prep_corner()
 
 	# 玉ねぎのケース（右）。1個ずつ別のマテリアルにして、色味・筋の位相をばらつかせる
 	_crate(CRATE_POS + Vector3(0, -0.06, 0), Vector3(0.42, 0.14, 0.4), _wood_mat(Color(0.42, 0.27, 0.14), Color(0.25, 0.14, 0.07), 6.3))
@@ -1099,6 +1209,9 @@ func _build_kitchen() -> void:
 	bowl_fill.material_override = _mat(Color(0.93, 0.91, 0.8), 0.3)
 	add_child(bowl_fill)
 	_build_bowl_chunks()
+	# 作った直後は CylinderMesh の初期サイズ（半径0.5m）のままなので、
+	# 仕込みが始まる前（タイトル画面）でも空のボウルの状態にそろえておく
+	_update_bowl()
 
 	# 奥のシンク台・棚・鍋
 	_box(self, Vector3(3.6, 0.9, 0.6), Vector3(0, 0.45, -2.05), dark_steel)
@@ -1132,6 +1245,121 @@ func _build_kitchen() -> void:
 		pan.rotation.x = PI / 2
 		pan.position = Vector3(hx, 1.72, -2.27)
 		add_child(pan)
+
+
+## 作業台の奥：タイル張りの壁と、壁ぎわに並ぶ調味料・木べら立て、手前の布巾、
+## 玉ねぎの薄皮のくず。ゲームの画面では上の方に映る部分で、ここが空っぽだと真っ黒な帯になる
+func _build_prep_corner() -> void:
+	var counter_y := 0.94
+	var back_z := -0.5
+	# タイルの壁（作業台の奥の辺から立ち上がる）
+	var tiles := ShaderMaterial.new()
+	tiles.shader = TILE_SHADER
+	tiles.set_shader_parameter("tile_color", Color(0.7, 0.67, 0.6))
+	_box(self, Vector3(2.3, 0.9, 0.04), Vector3(0, counter_y + 0.45, back_z - 0.02), tiles)
+	# 壁ぎわを照らす、やわらかい手元灯（画面には映らない高さに置く）
+	var shelf_light := OmniLight3D.new()
+	shelf_light.position = Vector3(0, 1.32, back_z + 0.12)
+	shelf_light.omni_range = 1.15
+	shelf_light.light_color = Color(1.0, 0.84, 0.62)
+	shelf_light.light_energy = 0.3
+	add_child(shelf_light)
+
+	var ceramic := _mat(Color(0.88, 0.85, 0.78), 0.35)
+	var terracotta := _mat(Color(0.58, 0.33, 0.22), 0.6)
+	var amber := _mat(Color(0.42, 0.22, 0.05), 0.08)
+	amber.specular = 0.9
+	var lid_wood := _mat(Color(0.45, 0.3, 0.17), 0.55)
+	var cork := _mat(Color(0.62, 0.48, 0.32), 0.9)
+	var spoon_wood := _mat(Color(0.6, 0.45, 0.28), 0.6)
+	var z := back_z + 0.08
+
+	# 左奥：素焼きの木べら立てと、木べら・おたま
+	var crock := _lathe_prop([
+		Vector2(0, 0), Vector2(0.052, 0), Vector2(0.058, 0.012), Vector2(0.06, 0.12),
+		Vector2(0.064, 0.128), Vector2(0.053, 0.128), Vector2(0.051, 0.02), Vector2(0, 0.02),
+	], terracotta, Vector3(-0.95, counter_y, z))
+	for spec in [[-0.18, 0.12, 0.30], [0.15, -0.1, 0.27], [0.03, 0.2, 0.33]]:
+		var tool := Node3D.new()
+		tool.position = Vector3(0, 0.02, 0)
+		tool.rotation = Vector3(spec[1], 0, spec[0])
+		crock.add_child(tool)
+		var handle := MeshInstance3D.new()
+		var hm := CylinderMesh.new()
+		hm.top_radius = 0.005
+		hm.bottom_radius = 0.0065
+		hm.height = spec[2]
+		handle.mesh = hm
+		handle.material_override = spoon_wood
+		handle.position.y = spec[2] * 0.5
+		tool.add_child(handle)
+		var head := MeshInstance3D.new()
+		var head_mesh := SphereMesh.new()
+		head_mesh.radius = 0.022
+		head_mesh.height = 0.044
+		head.mesh = head_mesh
+		head.scale = Vector3(1.0, 1.4, 0.35)
+		head.material_override = spoon_wood
+		head.position.y = spec[2] + 0.02
+		tool.add_child(head)
+
+	# 油の瓶（琥珀色）と、塩の壺
+	_lathe_prop([
+		Vector2(0, 0), Vector2(0.03, 0), Vector2(0.032, 0.005), Vector2(0.032, 0.14),
+		Vector2(0.026, 0.162), Vector2(0.012, 0.182), Vector2(0.011, 0.214), Vector2(0, 0.214),
+	], amber, Vector3(-0.78, counter_y, z - 0.01))
+	_lathe_prop([Vector2(0, 0.213), Vector2(0.012, 0.213), Vector2(0.012, 0.232), Vector2(0, 0.232)],
+			cork, Vector3(-0.78, counter_y, z - 0.01))
+	_jar(Vector3(-0.66, counter_y, z + 0.01), 0.038, 0.075, ceramic, lid_wood)
+
+	# 右奥：大小の保存瓶（スパイス）
+	_jar(Vector3(0.42, counter_y, z), 0.03, 0.1, ceramic, lid_wood)
+	_jar(Vector3(0.5, counter_y, z + 0.01), 0.026, 0.07, _mat(Color(0.74, 0.62, 0.42), 0.4), lid_wood)
+	_jar(Vector3(0.95, counter_y, z), 0.045, 0.12, ceramic, _mat(Color(0.25, 0.25, 0.26), 0.35, 0.8))
+
+	# 手前左：たたんだ布巾
+	var towel := ShaderMaterial.new()
+	towel.shader = CLOTH_SHADER
+	var cloth := _box(self, Vector3(0.2, 0.014, 0.13), Vector3(-0.58, counter_y + 0.007, 0.33), towel)
+	cloth.rotation.y = 0.18
+
+	# ケースのまわりに落ちた、玉ねぎの薄皮のくず
+	var skin_mat := _mat(Color(0.5, 0.3, 0.14), 0.9)
+	skin_mat.cull_mode = BaseMaterial3D.CULL_DISABLED
+	for i in 9:
+		var flake := MeshInstance3D.new()
+		var q := QuadMesh.new()
+		q.size = Vector2(rng.randf_range(0.01, 0.022), rng.randf_range(0.006, 0.014))
+		flake.mesh = q
+		flake.material_override = skin_mat
+		flake.position = Vector3(rng.randf_range(0.32, 0.9), counter_y + 0.002, rng.randf_range(-0.38, 0.24))
+		flake.rotation = Vector3(-PI / 2 + rng.randf_range(-0.25, 0.25), rng.randf_range(-PI, PI), rng.randf_range(-0.2, 0.2))
+		add_child(flake)
+
+
+## 断面の輪郭を回転させた小物（瓶・壺など）を置く
+func _lathe_prop(path: Array, material: Material, pos: Vector3) -> MeshInstance3D:
+	var typed: Array[Vector2] = []
+	for v in path:
+		typed.append(v)
+	var mi := MeshInstance3D.new()
+	mi.mesh = _lathe(typed, 32)
+	mi.material_override = material
+	mi.position = pos
+	add_child(mi)
+	return mi
+
+
+## ふた付きの保存瓶
+func _jar(pos: Vector3, radius: float, height: float, body: Material, lid: Material) -> void:
+	_lathe_prop([
+		Vector2(0, 0), Vector2(radius * 0.92, 0), Vector2(radius, radius * 0.15),
+		Vector2(radius, height * 0.9), Vector2(radius * 0.86, height), Vector2(0, height),
+	], body, pos)
+	_lathe_prop([
+		Vector2(0, height - 0.002), Vector2(radius * 0.9, height - 0.002), Vector2(radius * 0.9, height + 0.016),
+		Vector2(radius * 0.8, height + 0.02), Vector2(0, height + 0.02),
+	], lid, pos)
 
 
 ## ボウルの中身を、なめらかな1色の山ではなく、小さなかけらが積もった表面に見せる。

@@ -5,7 +5,7 @@
 #   fresh: 1回も切っていない、まっさらな玉ねぎ（回転・スケールが落ち着いた状態）
 #   complete: 1品を完成させ、ヒットストップ・きらめき演出まで通す
 #   golden: 「幸運の玉ねぎ」の見た目を確認する（本番は確率抽選、ここでは強制的に出す）
-#   knife: 包丁のLv別の見た目を確認する（--knife_lv=0〜5 で指定、省略時は5＝最大Lv）
+#   knife: 包丁のLv別の見た目を確認する（--knife_lv=0〜5 で指定、省略時は5＝最大Lv。--close=1 で横から寄る）
 #   gear: ゴーグル・フードプロセッサー・包丁をまとめて確認する
 #         （--gear_lv=0〜5 で全道具のLv、--skin=0〜3 で称号スキンを指定。省略時はLv5・称号なし）
 #   achievements: 実績一覧画面を確認する（--skin=0〜3 で称号を指定可能）
@@ -95,9 +95,16 @@ func _process(_delta: float) -> void:
 		GameState.levels["knife"] = lv
 		main._rebuild_knife_visual()
 		main._knife_x = main.onion.global_position.x
+		if _args.get("close", "0") == "1":
+			# 包丁の形をよく見るため、確認用にカメラを横から寄せる
+			main.onion.visible = false
+			main._knife_x = 0.0
+			main.camera.look_at_from_position(Vector3(0.32, 1.12, 0.18), Vector3(0.0, 1.0, 0.03))
+			main._camera_base_transform = main.camera.global_transform
+			main.ui.hud.visible = false
 	if _frame == 20 and shot == "gear":
 		var lv := int(_args.get("gear_lv", 5))
-		GameState.skin_tier = int(_args.get("skin", 0))
+		_unlock_for_skin(int(_args.get("skin", 0)))
 		GameState.levels["knife"] = clampi(lv, 0, GameState.UPGRADES["knife"]["max"])
 		GameState.levels["goggles"] = clampi(lv, 0, GameState.UPGRADES["goggles"]["max"])
 		GameState.levels["processor"] = clampi(lv, 0, GameState.UPGRADES["processor"]["max"])
@@ -165,3 +172,16 @@ func _process(_delta: float) -> void:
 		img.save_png(out)
 		print("saved screenshot: ", out, "  progress=", main.onion.get_progress() if main.onion else -1.0)
 		get_tree().quit()
+
+
+## 称号スキンは実績から毎回計算し直されるので（フードプロセッサーの稼働時など）、
+## skin_tier を直接書き換えるのではなく、その称号に必要な実績を解除しておく
+func _unlock_for_skin(tier: int) -> void:
+	if tier >= 1:
+		for id in GameState.BASE_ACHIEVEMENT_IDS:
+			GameState.achievements[id] = true
+	if tier >= 2:
+		GameState.achievements["day40"] = true
+	if tier >= 3:
+		GameState.achievements["grams20000"] = true
+	GameState._recompute_skin_tier()
