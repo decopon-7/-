@@ -4,106 +4,197 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Plush Octopus</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;1,400;1,500&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
   :root {
-    --bg1: #efece7;
-    --bg2: #ddd8d1;
-    --ink: #1d1b19;
-    --muted: #6f6a64;
-    --panel: rgba(255, 255, 255, 0.62);
-    --line: rgba(0, 0, 0, 0.12);
+    --bg1: #ecebe8;
+    --bg2: #dedbd6;
+    --ink: #1b1a18;
+    --muted: #77726b;
+    --faint: #a29c94;
+    --panel: rgba(244, 242, 238, 0.72);
+    --line: rgba(27, 26, 24, 0.12);
+    --serif: "Cormorant Garamond", Georgia, "Times New Roman", serif;
+    --mono: "JetBrains Mono", ui-monospace, Menlo, monospace;
   }
   * { box-sizing: border-box; }
   html, body { margin: 0; height: 100%; overflow: hidden; }
   body {
-    background: radial-gradient(120% 90% at 50% 35%, var(--bg1), var(--bg2));
+    background: radial-gradient(120% 90% at 50% 40%, var(--bg1), var(--bg2));
     color: var(--ink);
-    font-family: "Helvetica Neue", Helvetica, Arial, "Hiragino Sans", sans-serif;
+    font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
     -webkit-font-smoothing: antialiased;
   }
   canvas { position: fixed; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; }
-  .title {
-    position: fixed; left: 32px; top: 28px; pointer-events: none;
+  .caps { font-size: 9px; letter-spacing: 0.22em; text-transform: uppercase; color: var(--muted); }
+
+  /* masthead */
+  .mast { position: fixed; left: 28px; top: 22px; pointer-events: none; }
+  .mast h1 {
+    margin: 14px 0 0; font-family: var(--serif); font-style: italic; font-weight: 400;
+    font-size: clamp(40px, 5.6vw, 76px); line-height: 0.86; letter-spacing: -0.01em;
   }
-  .title h1 {
-    margin: 0; font-family: "Cormorant Garamond", Georgia, "Times New Roman", serif;
-    font-style: italic; font-weight: 500; font-size: clamp(34px, 5vw, 58px); line-height: 1;
-    letter-spacing: -0.01em;
-  }
-  .title p { margin: 12px 0 0; max-width: 220px; font-size: 12px; line-height: 1.55; color: var(--muted); }
-  .hint {
-    position: fixed; left: 32px; bottom: 26px; font-size: 11px; letter-spacing: 0.04em;
-    color: var(--muted); pointer-events: none;
-  }
-  .panel {
-    position: fixed; right: 24px; top: 24px; width: 216px; padding: 16px 16px 14px;
-    background: var(--panel); border: 1px solid var(--line); border-radius: 14px;
-    backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
-    font-size: 11px; letter-spacing: 0.03em; user-select: none;
-  }
-  .panel h2 {
-    margin: 0 0 10px; font-size: 10px; font-weight: 600; text-transform: uppercase;
+  .mast h1 span { display: block; padding-left: 0.42em; }
+  .mast p { margin: 16px 0 0; font-family: var(--serif); font-size: 14px; line-height: 1.35; color: #4a4640; }
+
+  .live {
+    position: fixed; right: 24px; top: 18px; padding: 5px 10px; border: 1px solid var(--line);
+    border-radius: 999px; background: var(--panel); font-family: var(--mono); font-size: 9px;
     letter-spacing: 0.14em; color: var(--muted);
   }
-  .swatches { display: flex; gap: 8px; margin-bottom: 16px; align-items: center; flex-wrap: wrap; }
-  .sw {
-    width: 24px; height: 24px; border-radius: 50%; border: 2px solid transparent; padding: 0;
-    cursor: pointer; box-shadow: 0 0 0 1px var(--line) inset; transition: transform .15s;
+  .live i { display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: var(--ink); margin-right: 6px; vertical-align: 1px; }
+
+  /* specimen panel */
+  .panel {
+    position: fixed; right: 24px; top: 50px; width: 236px; padding: 14px 14px 12px;
+    background: var(--panel); border: 1px solid var(--line); border-radius: 4px;
+    backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
+    font-size: 11px; user-select: none;
   }
-  .sw:hover { transform: scale(1.12); }
-  .sw.on { border-color: var(--ink); }
-  .custom { position: relative; width: 24px; height: 24px; }
-  .custom input { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; }
-  .custom span {
-    display: block; width: 24px; height: 24px; border-radius: 50%;
-    background: conic-gradient(#f66, #fc4, #6d6, #4cf, #86f, #f6c, #f66);
-    box-shadow: 0 0 0 1px var(--line) inset;
+  .phead { display: flex; justify-content: space-between; align-items: baseline; padding-bottom: 10px; border-bottom: 1px solid var(--line); }
+  .phead em { font-family: var(--serif); font-size: 13px; color: var(--muted); }
+  .sec { padding: 10px 0; border-bottom: 1px solid var(--line); }
+  .sec:last-child { border-bottom: 0; padding-bottom: 0; }
+  .sec > .caps { display: block; margin-bottom: 8px; }
+  .seg { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; }
+  .seg button {
+    font: inherit; font-size: 11px; padding: 6px 0; border: 1px solid var(--line); border-radius: 3px;
+    background: rgba(255,255,255,.55); color: var(--ink); cursor: pointer; display: flex; gap: 5px;
+    align-items: center; justify-content: center;
   }
-  .row { margin-bottom: 12px; }
-  .row label { display: flex; justify-content: space-between; margin-bottom: 4px; }
-  .row label b { font-weight: 400; color: var(--muted); font-variant-numeric: tabular-nums; }
-  input[type=range] { width: 100%; margin: 0; accent-color: var(--ink); height: 16px; }
-  .btns { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-top: 14px; }
-  .btns button {
-    font: inherit; padding: 8px 0; border-radius: 8px; border: 1px solid var(--line);
-    background: rgba(255,255,255,.7); color: var(--ink); cursor: pointer;
-    transition: background .15s, transform .1s;
+  .seg button svg { width: 12px; height: 12px; }
+  .seg button.on { background: var(--ink); color: #f4f2ee; border-color: var(--ink); }
+  .furs { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+  .fur {
+    font: inherit; padding: 6px 6px 5px; border: 1px solid transparent; border-radius: 3px; background: transparent;
+    cursor: pointer; text-align: left; color: var(--muted);
   }
-  .btns button:hover { background: #fff; }
-  .btns button:active { transform: scale(.96); }
-  @media (max-width: 640px) {
-    .panel { right: 12px; left: 12px; top: auto; bottom: 12px; width: auto; }
-    .hint { display: none; }
-    .title { left: 18px; top: 16px; }
-    .title p { display: none; }
+  .fur b { display: block; height: 18px; border-radius: 2px; margin-bottom: 5px; box-shadow: inset 0 0 0 1px rgba(0,0,0,.06); }
+  .fur span { font-family: var(--serif); font-style: italic; font-size: 13px; }
+  .fur.on { border-color: var(--line); background: rgba(255,255,255,.6); color: var(--ink); }
+  .ctl { margin: 2px 0 9px; }
+  .ctl .top { display: flex; justify-content: space-between; align-items: baseline; }
+  .ctl .top b { font-family: var(--mono); font-weight: 500; font-size: 10px; }
+  .ctl .ends { display: flex; justify-content: space-between; font-family: var(--serif); font-style: italic; font-size: 12px; color: var(--faint); margin-top: -1px; }
+  input[type=range] { -webkit-appearance: none; appearance: none; width: 100%; height: 18px; background: transparent; margin: 2px 0 0; cursor: pointer; }
+  input[type=range]::-webkit-slider-runnable-track { height: 1px; background: var(--ink); opacity: .35; }
+  input[type=range]::-moz-range-track { height: 1px; background: rgba(27,26,24,.35); }
+  input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; width: 11px; height: 11px; margin-top: -5px; border-radius: 50%; background: #f4f2ee; border: 1.5px solid var(--ink); }
+  input[type=range]::-moz-range-thumb { width: 9px; height: 9px; border-radius: 50%; background: #f4f2ee; border: 1.5px solid var(--ink); }
+  .acts { display: grid; grid-template-columns: 1fr 1fr; gap: 5px; }
+  .acts button, .row2 button {
+    font: inherit; font-size: 11px; padding: 7px 0; border: 1px solid var(--line); border-radius: 3px;
+    background: rgba(255,255,255,.55); color: var(--ink); cursor: pointer;
+  }
+  .acts button:hover, .row2 button:hover, .seg button:not(.on):hover { background: #fff; }
+  .acts button:active { transform: scale(.97); }
+  .acts .wide { grid-column: span 2; }
+  .row2 { display: flex; align-items: center; gap: 12px; margin-top: 8px; font-size: 10px; color: var(--muted); }
+  .row2 label { display: flex; gap: 5px; align-items: center; cursor: pointer; }
+  .row2 input { margin: 0; accent-color: var(--ink); }
+  .row2 button { margin-left: auto; padding: 5px 12px; }
+
+  /* footer: tool note + live readouts */
+  .foot { position: fixed; left: 28px; bottom: 20px; width: 380px; pointer-events: none; }
+  .note { font-family: var(--serif); font-style: italic; font-size: 14px; line-height: 1.3; color: #3c3833; margin: 0 0 12px; }
+  .note .caps { font-style: normal; margin-right: 6px; }
+  .stats { display: grid; grid-template-columns: repeat(4, 1fr); border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+  .stat { padding: 7px 8px 8px 0; }
+  .stat + .stat { padding-left: 10px; border-left: 1px solid var(--line); }
+  .stat b { display: block; margin-top: 4px; font-family: var(--mono); font-weight: 500; font-size: 15px; }
+  .stat b small { font-size: 9px; font-weight: 400; color: var(--muted); margin-left: 2px; }
+  .fine { margin: 8px 0 0; font-size: 9px; line-height: 1.5; color: var(--faint); }
+  details.inside {
+    position: fixed; right: 24px; bottom: 20px; width: 236px; font-size: 11px; color: var(--muted);
+    background: var(--panel); border: 1px solid var(--line); border-radius: 4px; padding: 7px 10px;
+    backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
+  }
+  details.inside summary { cursor: pointer; list-style: none; display: flex; justify-content: space-between; }
+  details.inside summary::after { content: "▾"; }
+  details.inside[open] summary::after { content: "▴"; }
+  details.inside p { margin: 8px 0 2px; line-height: 1.45; }
+
+  @media (max-width: 760px) {
+    .foot, details.inside, .mast p { display: none; }
+    .panel { right: 10px; left: 10px; top: auto; bottom: 10px; width: auto; max-height: 46vh; overflow: auto; }
+    .mast { left: 16px; top: 14px; }
+    .live { right: 10px; top: 10px; }
   }
 </style>
 </head>
 <body>
 <canvas id="c"></canvas>
 
-<div class="title">
-  <h1>Plush<br>Octopus.</h1>
-  <p>A soft, fuzzy octopus with springy arms. Poke it, pick it up, make it hop.</p>
-</div>
-<div class="hint">Drag the body or an arm · Click to poke · Drag the background to orbit · Scroll to zoom</div>
+<header class="mast">
+  <div class="caps">Material studies / No. 012</div>
+  <h1>Plush<span>Octopus.</span></h1>
+  <p>Eight soft arms in a coat of mohair.<br>Floppy, clingy, heavy in the head.<br>Offer it a finger.</p>
+</header>
+<div class="live"><i></i><span id="fps">60</span> FPS · LIVE</div>
 
-<div class="panel">
-  <h2>Colour</h2>
-  <div class="swatches" id="swatches"></div>
-  <h2>Shape</h2>
-  <div class="row"><label>Fluff <b id="v-fluff"></b></label><input type="range" id="fluff" min="0" max="0.14" step="0.005"></div>
-  <div class="row"><label>Arm length <b id="v-arm"></b></label><input type="range" id="arm" min="0.6" max="1.5" step="0.05"></div>
-  <div class="row"><label>Size <b id="v-size"></b></label><input type="range" id="size" min="0.6" max="1.4" step="0.05"></div>
-  <h2>Motion</h2>
-  <div class="row"><label>Bounce <b id="v-bounce"></b></label><input type="range" id="bounce" min="0" max="1" step="0.05"></div>
-  <div class="row"><label>Wiggle <b id="v-wiggle"></b></label><input type="range" id="wiggle" min="0" max="1" step="0.05"></div>
-  <div class="btns">
-    <button id="hop">Hop</button>
-    <button id="wave">Wave</button>
-    <button id="reset">Reset</button>
+<aside class="panel">
+  <div class="phead"><span class="caps">The specimen</span><em>fig. 12</em></div>
+  <div class="sec">
+    <span class="caps">Tool</span>
+    <div class="seg" id="tools">
+      <button data-tool="hand" class="on"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 8V3.5a1 1 0 0 1 2 0V7m0-4.5a1 1 0 0 1 2 0V7m0-3a1 1 0 0 1 2 0V8m0-2.5a1 1 0 0 1 2 0V10a5 5 0 0 1-5 5H8a4 4 0 0 1-3.3-1.7L2.6 10a1 1 0 0 1 1.6-1.2L5 9.8"/></svg>Hand</button>
+      <button data-tool="finger"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"><path d="M7 9V2.5a1 1 0 0 1 2 0V8l3 .6a1.6 1.6 0 0 1 1.3 1.8l-.4 2.4A2.6 2.6 0 0 1 10.3 15H8.2a3 3 0 0 1-2.4-1.2L3.4 10.6a1 1 0 0 1 1.5-1.3z"/></svg>Finger</button>
+      <button data-tool="comb"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"><path d="M2 5h12v2.5H2zM3.5 7.5V13M6 7.5V13M8.5 7.5V13M11 7.5V13M13.5 7.5V11"/></svg>Comb</button>
+    </div>
   </div>
-</div>
+  <div class="sec">
+    <span class="caps">Fur</span>
+    <div class="furs" id="furs"></div>
+  </div>
+  <div class="sec">
+    <div class="ctl">
+      <div class="top"><span class="caps">Stuffing</span><b id="v-stuffing"></b></div>
+      <input type="range" id="stuffing" min="0" max="1" step="0.01">
+      <div class="ends"><span>loose</span><span>packed</span></div>
+    </div>
+    <div class="ctl">
+      <div class="top"><span class="caps">Pile</span><b id="v-pile"></b></div>
+      <input type="range" id="pile" min="1" max="14" step="0.5">
+      <div class="ends"><span>cropped</span><span>shaggy</span></div>
+    </div>
+    <div class="ctl" style="margin-bottom:0">
+      <div class="top"><span class="caps">Internal damping</span><b id="v-damping"></b></div>
+      <input type="range" id="damping" min="0" max="1" step="0.01">
+      <div class="ends"><span>bouncy</span><span>dozy</span></div>
+    </div>
+  </div>
+  <div class="sec">
+    <div class="acts">
+      <button class="wide" id="shake">Shake it</button>
+      <button id="squish">Squish</button>
+      <button id="toss">Toss</button>
+      <button id="smooth">Smooth fur</button>
+      <button id="reset">Reset</button>
+    </div>
+    <div class="row2">
+      <label><input type="checkbox" id="half">½-speed</label>
+      <label><input type="checkbox" id="mesh">Mesh</label>
+      <button id="pause">Pause</button>
+    </div>
+  </div>
+</aside>
+
+<footer class="foot">
+  <p class="note"><span class="caps" id="tool-name">Hand</span><span id="tool-note"></span></p>
+  <div class="stats">
+    <div class="stat"><span class="caps">Mass</span><b id="s-mass">480<small>g</small></b></div>
+    <div class="stat"><span class="caps">Volume</span><b id="s-vol">100.0<small>% at rest</small></b></div>
+    <div class="stat"><span class="caps">Kinetic</span><b id="s-kin">0.00<small>mJ</small></b></div>
+    <div class="stat"><span class="caps">Holding on</span><b id="s-hold">0<small>arms</small></b></div>
+  </div>
+  <p class="fine">Illustrative scale: 1 sim unit ≈ 14 cm, mohair-filled at a gentle density. Volume and energy are summed live over the body and every arm segment.</p>
+</footer>
+<details class="inside">
+  <summary class="caps">Inside the experiment</summary>
+  <p>The coat is drawn as stacked fur shells over a soft body. Each arm is a chain of verlet particles with length constraints, pulled toward a resting curl by springs. Combing tilts the shells; a finger draws nearby arm tips in to hold on.</p>
+</details>
 
 <script type="importmap">
 { "imports": {
@@ -117,7 +208,8 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 
 /* ---------- parameters & palettes ---------- */
-const P = { fluff: 0.11, arm: 1.0, size: 1, bounce: 0.55, wiggle: 0.5 };
+const P = { fluff: 0.11, arm: 1.0, size: 1, bounce: 0.52, wiggle: 0.5, stuffing: 0.42 };
+const PILE_PER_MM = 0.11 / 7;
 const PALETTES = [
   { name: 'Coral',    body: '#ee6a4f', tip: '#f4dcc4' },
   { name: 'Lilac', body: '#9b80e0', tip: '#eadff6' },
@@ -506,34 +598,86 @@ function updateGrabTarget() {
   if (ray.ray.intersectPlane(plane, hitPt)) grab.target.copy(hitPt);
 }
 
+let tool = 'hand';
+// finger: a fingertip that arms reach for and hold on to
+const finger = { on: false, p: new THREE.Vector3(), holding: 0 };
+const fingerMesh = new THREE.Mesh(
+  new THREE.SphereGeometry(0.09, 24, 16),
+  new THREE.MeshPhysicalMaterial({ color: 0xf0c4a8, roughness: 0.55, sheen: 0.4 }));
+fingerMesh.visible = false;
+fingerMesh.castShadow = true;
+scene.add(fingerMesh);
+// comb: the lay of the pile, in body space
+const furDir = new THREE.Vector3();
+let smoothing = false, combing = false;
+const combLast = new THREE.Vector3();
+
+function cameraPlaneThrough(p) {
+  camera.getWorldDirection(tmpV);
+  plane.setFromNormalAndCoplanarPoint(tmpV, p);
+}
+function updateFinger() {
+  const h = pick();
+  if (h) { finger.p.copy(h.point); }
+  else {
+    cameraPlaneThrough(body.pos);
+    if (!ray.ray.intersectPlane(plane, finger.p)) { finger.on = false; return; }
+  }
+  // stay in front of the surface a little so arms wrap around it
+  finger.p.addScaledVector(ray.ray.direction, -0.12 * S());
+  finger.p.y = Math.max(finger.p.y, 0.1);
+  finger.on = true;
+}
+function pokeAt(h, strength) {
+  if (h.type === 'body') {
+    body.vel.addScaledVector(ray.ray.direction, 2.5 * strength);
+    body.sqV += 3.5 * strength;
+  } else {
+    const t = tents[h.j];
+    for (let k = 1; k < N; k++) {
+      const w = Math.exp(-Math.abs(k - h.i) * 0.7);
+      t.prev[k].addScaledVector(ray.ray.direction, -w * 0.05 * strength);
+    }
+  }
+}
+
 canvas.addEventListener('pointerdown', e => {
   setRay(e);
   const h = pick();
   if (!h) return;
   controls.enabled = false;
   canvas.setPointerCapture(e.pointerId);
-  camera.getWorldDirection(tmpV);
-  plane.setFromNormalAndCoplanarPoint(tmpV, h.point);
+  if (tool === 'finger') { pokeAt(h, 1.3); grab.type = 'finger'; return; }
+  if (tool === 'comb') {
+    combing = true; smoothing = false; grab.type = 'comb';
+    cameraPlaneThrough(h.point); ray.ray.intersectPlane(plane, combLast);
+    return;
+  }
+  cameraPlaneThrough(h.point);
   grab.type = h.type; grab.j = h.j ?? -1; grab.i = h.i ?? -1;
   updateGrabTarget();
-  if (h.type === 'body') {
-    grab.offset.copy(body.pos).sub(h.point);
-    body.vel.addScaledVector(ray.ray.direction, 2.5);
-    body.sqV += 3.5;
-  } else {
-    const t = tents[h.j];
-    for (let k = 1; k < N; k++) {
-      const w = Math.exp(-Math.abs(k - h.i) * 0.7);
-      t.prev[k].addScaledVector(ray.ray.direction, -w * 0.05);
-    }
-  }
+  if (h.type === 'body') grab.offset.copy(body.pos).sub(h.point);
+  pokeAt(h, 1);
 });
 canvas.addEventListener('pointermove', e => {
   setRay(e);
+  if (tool === 'finger') { updateFinger(); canvas.style.cursor = 'none'; return; }
+  if (combing) {
+    if (ray.ray.intersectPlane(plane, hitPt)) {
+      // brush the pile along the stroke (body space ≈ world space; the body barely rotates)
+      furDir.addScaledVector(tmpV2.copy(hitPt).sub(combLast), 1.6 / S());
+      if (furDir.length() > 1) furDir.setLength(1);
+      combLast.copy(hitPt);
+    }
+    return;
+  }
   if (grab.type) { updateGrabTarget(); return; }
-  canvas.style.cursor = pick() ? 'grab' : 'default';
+  const h = pick();
+  canvas.style.cursor = h ? (tool === 'comb' ? 'crosshair' : 'grab') : 'default';
 });
+canvas.addEventListener('pointerleave', () => { finger.on = false; });
 function release(e) {
+  combing = false;
   if (!grab.type) return;
   if (grab.type === 'body') {
     const v = body.vel; if (v.length() > 12) v.setLength(12);
@@ -578,7 +722,7 @@ function stepBody(dt) {
   p.x = THREE.MathUtils.clamp(p.x, -lim, lim);
   p.z = THREE.MathUtils.clamp(p.z, -lim, lim);
   // squash & stretch spring
-  body.sqV += (-240 * body.sq - 11 * body.sqV) * dt;
+  body.sqV += (-(130 + 260 * P.stuffing) * body.sq - (8 + 6 * P.stuffing) * body.sqV) * dt;
   body.sq += body.sqV * dt;
   body.sq = THREE.MathUtils.clamp(body.sq, -0.25, 0.4);
 }
@@ -591,15 +735,28 @@ function stepTentacle(j, dt) {
   const damp = 0.972 + 0.02 * P.bounce;
   rootOf(t, t.pts[0]);
   t.prev[0].copy(t.pts[0]);
+  // only the arms within reach of an offered finger take hold
+  let cling = 0;
+  if (tool === 'finger' && finger.on) {
+    const d = t.pts[0].distanceTo(finger.p);
+    cling = 1 - smooth(L * 0.55, L * 1.0, d);
+  }
   for (let i = 1; i < N; i++) {
     const p = t.pts[i], pr = t.prev[i], g = t.tgt[i];
     const u = i / (N - 1);
-    const k = 110 * (1 - 0.25 * u) * kScale;
+    const k = 110 * (1 - 0.25 * u) * kScale * (0.65 + 0.8 * P.stuffing);
     const vx = (p.x - pr.x) * damp, vy = (p.y - pr.y) * damp, vz = (p.z - pr.z) * damp;
     pr.copy(p);
     p.x += vx + (g.x - p.x) * k * dt * dt;
     p.y += vy + ((g.y - p.y) * k - (4 + 12 * (1 - kScale)) * s) * dt * dt;
     p.z += vz + (g.z - p.z) * k * dt * dt;
+    if (cling > 0 && u > 0.45) {
+      // reach for the finger and wrap round it
+      const w = cling * smooth(0.45, 1, u) * 260;
+      p.x += (finger.p.x - p.x) * w * dt * dt;
+      p.y += (finger.p.y - p.y) * w * dt * dt;
+      p.z += (finger.p.z - p.z) * w * dt * dt;
+    }
   }
   const held = grab.type === 'tent' && grab.j === j ? grab.i : -1;
   if (held > 0) {
@@ -700,6 +857,7 @@ function fillTube(g, t, extra) {
   g.attributes.normal.needsUpdate = true;
 }
 
+let volumeRatio = 1;
 function applyBody() {
   const s = S();
   const sq = body.sq;
@@ -708,6 +866,7 @@ function applyBody() {
   const sy = (1 - sq + stretch + breathe) * 1.13;
   const sxz = 1 + sq * 0.5 - stretch * 0.4 - breathe * 0.5;
   bodyGroup.scale.set(s * sxz, s * sy, s * sxz);
+  volumeRatio = sxz * sxz * sy / 1.13;
   bodyGroup.position.set(body.pos.x, body.pos.y + (sy - 1) * s * 0.85, body.pos.z);
   bodyGroup.rotation.set(
     THREE.MathUtils.clamp(body.vel.z * 0.03, -0.3, 0.3),
@@ -717,7 +876,9 @@ function applyBody() {
   for (let i = 0; i < BSHELLS; i++) {
     const f = (i + 1) / BSHELLS;
     bodyShells[i].scale.setScalar(1 + P.fluff * f);
-    bodyShells[i].position.y = -P.fluff * 0.35 * f * f; // hair tips droop a little
+    // hair tips droop a little and lie the way they were combed
+    bodyShells[i].position.copy(furDir).multiplyScalar(P.fluff * 0.9 * Math.pow(f, 1.6));
+    bodyShells[i].position.y -= P.fluff * 0.35 * f * f;
   }
   {
     const lift = Math.max(0, body.pos.y - baseY()) / s;
@@ -726,6 +887,9 @@ function applyBody() {
     contact.material.opacity = 0.3 / (1 + lift * 2.5);
   }
   face.scale.setScalar(1 + P.fluff * 1.1);
+  if (smoothing) { furDir.multiplyScalar(0.9); if (furDir.lengthSq() < 1e-5) { furDir.set(0, 0, 0); smoothing = false; } }
+  fingerMesh.visible = tool === 'finger' && finger.on;
+  fingerMesh.position.copy(finger.p);
   // blink
   const bt = (T % 4.6);
   const blink = bt < 0.14 ? Math.sin(Math.PI * bt / 0.14) : 0;
@@ -753,46 +917,90 @@ function setPalette(p) {
 }
 
 /* ---------- UI ---------- */
-const sw = document.getElementById('swatches');
-const swBtns = PALETTES.map((p, i) => {
+const $ = id => document.getElementById(id);
+const NOTES = {
+  hand: 'Grab the head or any arm and pull — each arm stretches on its own. Let go mid-air to toss it. Drag the table to look around.',
+  finger: 'Hold a fingertip near it. The closest arms reach out, curl round and hold on. Tap to poke.',
+  comb: 'Stroke the fur to lay the pile the way you brush. Smooth fur puts it all back.',
+};
+function setTool(name) {
+  tool = name;
+  for (const b of $('tools').children) b.classList.toggle('on', b.dataset.tool === name);
+  $('tool-name').textContent = name;
+  $('tool-note').textContent = NOTES[name];
+  finger.on = false;
+  canvas.style.cursor = 'default';
+}
+for (const b of $('tools').children) b.onclick = () => setTool(b.dataset.tool);
+setTool('hand');
+
+const furBtns = PALETTES.slice(0, 3).map((p, i) => {
   const b = document.createElement('button');
-  b.className = 'sw' + (i === 0 ? ' on' : '');
-  b.style.background = p.body;
-  b.title = p.name;
-  b.onclick = () => { swBtns.forEach(x => x.classList.remove('on')); b.classList.add('on'); setPalette(p); };
-  sw.appendChild(b);
+  b.className = 'fur' + (i === 0 ? ' on' : '');
+  b.innerHTML = `<b style="background:linear-gradient(${p.body} 0 58%, ${p.tip} 58%)"></b><span>${p.name}</span>`;
+  b.onclick = () => { furBtns.forEach(x => x.classList.remove('on')); b.classList.add('on'); setPalette(p); };
+  $('furs').appendChild(b);
   return b;
 });
-{
-  const wrap = document.createElement('label');
-  wrap.className = 'custom'; wrap.title = 'Custom colour';
-  wrap.innerHTML = '<span></span><input type="color" value="#ee6a4f">';
-  wrap.querySelector('input').addEventListener('input', e => {
-    swBtns.forEach(x => x.classList.remove('on'));
-    const c = new THREE.Color(e.target.value);
-    setPalette({ name: 'Custom', body: e.target.value, tip: '#' + c.clone().lerp(new THREE.Color(TIP_CREAM), 0.75).getHexString() });
-  });
-  sw.appendChild(wrap);
+
+function bindSlider(id, get, set, fmt) {
+  const el = $(id), out = $('v-' + id);
+  el.value = get(); out.textContent = fmt(+el.value);
+  el.addEventListener('input', () => { set(+el.value); out.textContent = fmt(+el.value); });
 }
-for (const key of Object.keys(P)) {
-  const el = document.getElementById(key), out = document.getElementById('v-' + key);
-  el.value = P[key]; out.textContent = (+P[key]).toFixed(2);
-  el.addEventListener('input', () => { P[key] = +el.value; out.textContent = (+el.value).toFixed(2); });
-}
-document.getElementById('hop').onclick = () => {
+bindSlider('stuffing', () => P.stuffing, v => P.stuffing = v, v => v.toFixed(2));
+bindSlider('pile', () => P.fluff / PILE_PER_MM, v => P.fluff = v * PILE_PER_MM, v => `${v} mm`);
+bindSlider('damping', () => 1 - P.bounce, v => P.bounce = 1 - v, v => v.toFixed(2));
+
+const rnd = (a = 1) => (Math.random() * 2 - 1) * a;
+$('shake').onclick = () => {
   if (grab.type) return;
-  body.vel.y = 9.5; body.sqV -= 2;
+  body.vel.set(rnd(4), 4 + Math.random() * 2, rnd(3)); body.sqV += rnd(4);
+  for (const t of tents) for (let i = 1; i < N; i++) t.prev[i].add(tmpV.set(rnd(0.08), rnd(0.06), rnd(0.08)));
 };
-document.getElementById('wave').onclick = () => {
-  const j = Math.floor(Math.random() * NT);
-  tents[j].wave = 3;
-  tents[(j + 1) % NT].wave = 2.2;
+$('squish').onclick = () => { body.sqV += 7; };
+$('toss').onclick = () => {
+  if (grab.type) return;
+  body.vel.set(rnd(2.5), 10.5, rnd(1.5)); body.sqV -= 2;
 };
-document.getElementById('reset').onclick = () => {
+$('smooth').onclick = () => { smoothing = true; };
+$('reset').onclick = () => {
   body.pos.set(0, baseY(), 0); body.vel.set(0, 0, 0); body.sq = body.sqV = 0;
   for (const t of tents) t.wave = 0;
+  furDir.set(0, 0, 0);
   initTentacles();
 };
+let timeScale = 1, paused = false;
+$('half').onchange = e => { timeScale = e.target.checked ? 0.5 : 1; };
+$('mesh').onchange = e => {
+  const on = e.target.checked;
+  bodyMat.wireframe = tentMat.wireframe = on;
+  for (const m of bodyShells) m.visible = !on;
+  for (const t of tents) for (const m of t.shells) m.visible = !on;
+};
+$('pause').onclick = e => { paused = !paused; e.target.textContent = paused ? 'Play' : 'Pause'; };
+
+// live readouts
+const MASS_G = () => Math.round(480 * Math.pow(S(), 3) * (0.8 + 0.48 * P.stuffing));
+const UNIT_M = 0.14;
+function readouts() {
+  const m = MASS_G() / 1000;
+  let e = 0.5 * m * 0.6 * body.vel.lengthSq();
+  const mSeg = m * 0.4 / (NT * (N - 1));
+  for (const t of tents) for (let i = 1; i < N; i++) {
+    const v2 = t.pts[i].distanceToSquared(t.prev[i]) / (DT * DT);
+    e += 0.5 * mSeg * v2;
+  }
+  e *= UNIT_M * UNIT_M * 1000; // → mJ
+  let hold = 0;
+  if (tool === 'finger' && finger.on) for (const t of tents) if (t.pts[N - 1].distanceTo(finger.p) < 0.5 * S()) hold++;
+  if (grab.type === 'tent') hold = Math.max(hold, 1);
+  finger.holding = hold;
+  $('s-mass').innerHTML = `${MASS_G()}<small>g</small>`;
+  $('s-vol').innerHTML = `${(volumeRatio * 100).toFixed(1)}<small>% at rest</small>`;
+  $('s-kin').innerHTML = `${e.toFixed(2)}<small>mJ</small>`;
+  $('s-hold').innerHTML = `${hold}<small>${hold === 1 ? 'arm' : 'arms'}</small>`;
+}
 
 /* ---------- main loop ---------- */
 function resize() {
@@ -809,10 +1017,13 @@ resize();
 setPalette(PALETTES[0]);
 initTentacles();
 
-let last = performance.now(), acc = 0;
+let last = performance.now(), acc = 0, fpsAvg = 60, lastUi = 0;
 function frame(now) {
-  const dtf = Math.min((now - last) / 1000, 0.05);
-  last = now; T += dtf; acc += dtf;
+  const raw = Math.min((now - last) / 1000, 0.05);
+  last = now;
+  fpsAvg += (1 / Math.max(raw, 1e-3) - fpsAvg) * 0.05;
+  const dtf = paused ? 0 : raw * timeScale;
+  T += dtf; acc += dtf;
   for (const t of tents) if (t.wave > 0) t.wave = Math.max(0, t.wave - dtf);
   for (let j = 0; j < NT; j++) computeTargets(j);
   while (acc >= DT) {
@@ -824,6 +1035,7 @@ function frame(now) {
   applyBody();
   controls.update();
   renderer.render(scene, camera);
+  if (now - lastUi > 120) { lastUi = now; readouts(); $('fps').textContent = Math.round(fpsAvg); }
   requestAnimationFrame(frame);
 }
 requestAnimationFrame(frame);
@@ -838,7 +1050,7 @@ function advance(sec) {
     for (let j = 0; j < NT; j++) stepTentacle(j, DT);
   }
 }
-window.__octo = { body, tents, P, setPalette, PALETTES, camera, grab, advance, baseY };
+window.__octo = { body, tents, P, setPalette, PALETTES, camera, grab, advance, baseY, finger, furDir, setTool, readouts };
 </script>
 </body>
 </html>
