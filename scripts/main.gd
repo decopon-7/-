@@ -52,6 +52,8 @@ const HIT_STOP_SCALE := 0.15
 ## ごくたまに出てくる「幸運の玉ねぎ」（見た目が金色になり、報酬が増える驚きの演出）
 const GOLDEN_CHANCE := 0.04
 const GOLDEN_BONUS := 5.0
+const CHIP_COLOR := Color(0.95, 0.94, 0.85)
+const CHIP_COLOR_GOLDEN := Color(1.0, 0.82, 0.2)
 
 var state := State.TITLE
 var grams_today := 0
@@ -357,6 +359,7 @@ func chop_at(x: float) -> bool:
 	else:
 		Sfx.play("cut", 0.0, 0.1)
 	tears += (TEARS_PER_CHOP if mincing else TEARS_PER_CUT) * GameState.tear_multiplier()
+	chips.color = CHIP_COLOR_GOLDEN if onion.is_golden else CHIP_COLOR
 	chips.global_position = Vector3(x, BOARD_TOP + 0.03, WORK_POS.z)
 	_chips_time = 0.06
 	_shake(SHAKE_MINCE if mincing else SHAKE_CHOP)
@@ -805,8 +808,11 @@ func _build_knife() -> void:
 	chips = CPUParticles3D.new()
 	var chip_mesh := BoxMesh.new()
 	chip_mesh.size = Vector3(0.004, 0.004, 0.004)
-	chip_mesh.material = _mat(Color(0.95, 0.94, 0.85), 0.3)
+	var chip_mat := _mat(Color.WHITE, 0.3)
+	chip_mat.vertex_color_use_as_albedo = true  # 色は chips.color で決める（幸運の玉ねぎは金色）
+	chip_mesh.material = chip_mat
 	chips.mesh = chip_mesh
+	chips.color = CHIP_COLOR
 	chips.amount = 40
 	chips.lifetime = 0.5
 	chips.local_coords = false

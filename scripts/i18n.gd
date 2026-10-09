@@ -124,6 +124,10 @@ const STRINGS := {
 	"ACH_BOWL2500_DESC": {"ja": "1日で2500g刻む", "en": "Mince 2500 g in a single day"},
 	"ACH_BOWL5000": {"ja": "今日はよく働いた", "en": "A Hard Day's Work"},
 	"ACH_BOWL5000_DESC": {"ja": "1日で5000g刻む", "en": "Mince 5000 g in a single day"},
+	# 解除するまで一部を伏せて見せる説明
+	"ACH_BOWL_HINT": {"ja": "1日で???g刻む", "en": "Mince ??? g in a single day"},
+	"ACH_GRAMS20000_HINT": {"ja": "累計???g刻む（特別な実績：プラチナ→ダイヤ）", "en": "Mince ??? g in total (special: Platinum → Diamond)"},
+	"ACH_KNIFE_ONLY_HINT": {"ja": "???を一度も使わずに、累計???g刻む", "en": "Mince ??? g in total without ever using ???"},
 	"ACH_KNIFE_ONLY": {"ja": "包丁一本の職人", "en": "One-Knife Craftsman"},
 	"ACH_KNIFE_ONLY_DESC": {
 		"ja": "フードプロセッサーを一度も稼働させずに累計3000g刻む（買うだけなら可）",

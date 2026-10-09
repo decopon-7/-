@@ -635,7 +635,8 @@ func refresh_achievements() -> void:
 		unlocked += 1 if got else 0
 		row["name"].text = tr(a["name"])
 		row["name"].modulate = Color.WHITE if got else Color(1, 1, 1, 0.5)
-		row["desc"].text = tr(a["desc"])
+		# 秘密の実績は、解除するまで説明の一部が「???」
+		row["desc"].text = tr(a["hint"]) if not got and a.has("hint") else tr(a["desc"])
 		row["status"].text = tr("ACH_DONE") if got else tr("ACH_LOCKED")
 		row["status"].add_theme_color_override("font_color", COL_GOOD if got else COL_DIM)
 	_achievements_title.text = tr("ACHIEVEMENTS_TITLE") % [unlocked, GameState.ALL_ACHIEVEMENT_IDS.size()]

@@ -8,8 +8,9 @@
 #   knife: 包丁のLv別の見た目を確認する（--knife_lv=0〜5 で指定、省略時は5＝最大Lv。--close=1 で横から寄る）
 #   gear: ゴーグル・フードプロセッサー・包丁をまとめて確認する
 #         （--gear_lv=0〜5 で全道具のLv、--skin=0〜3 で称号スキンを指定。省略時はLv5・称号なし）
-#   achievements: 実績一覧画面を確認する（--skin=0〜3 で称号を指定可能）
+#   achievements: 実績一覧画面を確認する（--skin=0〜3 で称号、--scroll=1 で一覧の下の方）
 #   diary: 日記の回想画面を確認する（--diary_days=1,2,40 のように読んだことにする日を指定可能）
+#   （cut / mince / complete に --golden=1 を付けると、幸運の玉ねぎで工程を通す）
 #   （どのショットでも --pad=1 を付けると、ゲームパッド用の操作ヒントになる）
 #   bowl: ボウルの中身の見た目を確認する（--bowl_grams=750 のように溜まった量を指定可能。省略時750）
 #   title_withsave: セーブがある状態のタイトル画面（つづきから／はじめからの見分けやすさを確認）
@@ -57,6 +58,9 @@ func _process(_delta: float) -> void:
 			main.onion = null
 			main.order_queue.push_front(_args["order"])
 			main._spawn_onion(false)
+	if _frame == 10 and _args.get("golden", "0") == "1" and main.onion:
+		# 幸運の玉ねぎで工程を通す（みじん切りでも金色のままか確認）
+		main.onion.set_golden(true)
 	if shot in ["cut", "mince", "complete"]:
 		var o: Onion = main.onion
 		if _frame == 30:
@@ -123,6 +127,9 @@ func _process(_delta: float) -> void:
 		main._set_state(main.State.PAUSED)
 		main.ui.refresh_achievements()
 		main.ui.show_only(main.ui.achievements_screen)
+	if _frame == 40 and shot == "achievements" and _args.get("scroll", "0") == "1":
+		# 一覧の下の方（秘密の実績など）を確認する
+		main.ui._ach_scroll.scroll_vertical = 100000
 	if _frame == 20 and shot == "diary":
 		if _args.has("force_ending"):
 			GameState.ending_id = _args["force_ending"]

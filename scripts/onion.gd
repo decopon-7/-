@@ -88,6 +88,9 @@ func configure(id: String, order: Dictionary) -> void:
 func set_golden(on: bool) -> void:
 	is_golden = on
 	_apply_golden_tint()
+	# すでにみじん切りの途中でも、かけらの色をそろえる
+	for i in _chunk_color.size():
+		_chunk_color[i] = _chunk_tint(randf())
 
 
 func _apply_golden_tint() -> void:
@@ -276,8 +279,14 @@ func _add_chunk(pos: Vector3, size: float, rng: RandomNumberGenerator) -> void:
 	_chunk_target.append(pos)
 	_chunk_size.append(size)
 	_chunk_rot.append(rng.randf_range(-PI, PI))
-	var c := Color(0.95, 0.93, 0.82).lerp(Color(0.86, 0.87, 0.7), rng.randf())
-	_chunk_color.append(c)
+	_chunk_color.append(_chunk_tint(rng.randf()))
+
+
+## かけらの色。幸運の玉ねぎは、みじん切りになっても金色のまま
+func _chunk_tint(t: float) -> Color:
+	if is_golden:
+		return Color(1.0, 0.83, 0.22).lerp(Color(0.96, 0.68, 0.1), t)
+	return Color(0.95, 0.93, 0.82).lerp(Color(0.86, 0.87, 0.7), t)
 
 
 ## かけらをこんもりした山の形に並べ直す

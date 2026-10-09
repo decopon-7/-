@@ -33,6 +33,7 @@ const BOWL_ACHIEVEMENT_IDS := ["bowl1000", "bowl2500", "bowl5000"]
 const KNIFE_ONLY_ACHIEVEMENT_IDS := ["knife_only"]
 const ALL_ACHIEVEMENT_IDS := BASE_ACHIEVEMENT_IDS + TIER_ACHIEVEMENT_IDS \
 		+ BOWL_ACHIEVEMENT_IDS + KNIFE_ONLY_ACHIEVEMENT_IDS
+## "hint" がある実績は、解除するまで説明の一部を「???」で隠す（何を目指すかだけ分かる、ちょっとした秘密）
 const ACHIEVEMENTS := {
 	"knife_max": {"name": "ACH_KNIFE_MAX", "desc": "ACH_KNIFE_MAX_DESC"},
 	"goggles_max": {"name": "ACH_GOGGLES_MAX", "desc": "ACH_GOGGLES_MAX_DESC"},
@@ -43,11 +44,11 @@ const ACHIEVEMENTS := {
 	"golden1": {"name": "ACH_GOLDEN1", "desc": "ACH_GOLDEN1_DESC"},
 	"grams3000": {"name": "ACH_GRAMS3000", "desc": "ACH_GRAMS3000_DESC"},
 	"day40": {"name": "ACH_DAY40", "desc": "ACH_DAY40_DESC"},
-	"grams20000": {"name": "ACH_GRAMS20000", "desc": "ACH_GRAMS20000_DESC"},
+	"grams20000": {"name": "ACH_GRAMS20000", "desc": "ACH_GRAMS20000_DESC", "hint": "ACH_GRAMS20000_HINT"},
 	"bowl1000": {"name": "ACH_BOWL1000", "desc": "ACH_BOWL1000_DESC"},
-	"bowl2500": {"name": "ACH_BOWL2500", "desc": "ACH_BOWL2500_DESC"},
-	"bowl5000": {"name": "ACH_BOWL5000", "desc": "ACH_BOWL5000_DESC"},
-	"knife_only": {"name": "ACH_KNIFE_ONLY", "desc": "ACH_KNIFE_ONLY_DESC"},
+	"bowl2500": {"name": "ACH_BOWL2500", "desc": "ACH_BOWL2500_DESC", "hint": "ACH_BOWL_HINT"},
+	"bowl5000": {"name": "ACH_BOWL5000", "desc": "ACH_BOWL5000_DESC", "hint": "ACH_BOWL_HINT"},
+	"knife_only": {"name": "ACH_KNIFE_ONLY", "desc": "ACH_KNIFE_ONLY_DESC", "hint": "ACH_KNIFE_ONLY_HINT"},
 }
 ## 見た目の称号。0=なし 1=ゴールド 2=プラチナ 3=ダイヤ
 const SKIN_NAMES := ["", "SKIN_GOLD", "SKIN_PLATINUM", "SKIN_DIAMOND"]
