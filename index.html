@@ -1,0 +1,735 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Plush Octopus</title>
+<style>
+  :root {
+    --bg1: #efece7;
+    --bg2: #ddd8d1;
+    --ink: #1d1b19;
+    --muted: #6f6a64;
+    --panel: rgba(255, 255, 255, 0.62);
+    --line: rgba(0, 0, 0, 0.12);
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; overflow: hidden; }
+  body {
+    background: radial-gradient(120% 90% at 50% 35%, var(--bg1), var(--bg2));
+    color: var(--ink);
+    font-family: "Helvetica Neue", Helvetica, Arial, "Hiragino Sans", sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  canvas { position: fixed; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; }
+  .title {
+    position: fixed; left: 32px; top: 28px; pointer-events: none;
+  }
+  .title h1 {
+    margin: 0; font-family: "Cormorant Garamond", Georgia, "Times New Roman", serif;
+    font-style: italic; font-weight: 500; font-size: clamp(34px, 5vw, 58px); line-height: 1;
+    letter-spacing: -0.01em;
+  }
+  .title p { margin: 12px 0 0; max-width: 220px; font-size: 12px; line-height: 1.55; color: var(--muted); }
+  .hint {
+    position: fixed; left: 32px; bottom: 26px; font-size: 11px; letter-spacing: 0.04em;
+    color: var(--muted); pointer-events: none;
+  }
+  .panel {
+    position: fixed; right: 24px; top: 24px; width: 216px; padding: 16px 16px 14px;
+    background: var(--panel); border: 1px solid var(--line); border-radius: 14px;
+    backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
+    font-size: 11px; letter-spacing: 0.03em; user-select: none;
+  }
+  .panel h2 {
+    margin: 0 0 10px; font-size: 10px; font-weight: 600; text-transform: uppercase;
+    letter-spacing: 0.14em; color: var(--muted);
+  }
+  .swatches { display: flex; gap: 8px; margin-bottom: 16px; align-items: center; flex-wrap: wrap; }
+  .sw {
+    width: 24px; height: 24px; border-radius: 50%; border: 2px solid transparent; padding: 0;
+    cursor: pointer; box-shadow: 0 0 0 1px var(--line) inset; transition: transform .15s;
+  }
+  .sw:hover { transform: scale(1.12); }
+  .sw.on { border-color: var(--ink); }
+  .custom { position: relative; width: 24px; height: 24px; }
+  .custom input { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; }
+  .custom span {
+    display: block; width: 24px; height: 24px; border-radius: 50%;
+    background: conic-gradient(#f66, #fc4, #6d6, #4cf, #86f, #f6c, #f66);
+    box-shadow: 0 0 0 1px var(--line) inset;
+  }
+  .row { margin-bottom: 12px; }
+  .row label { display: flex; justify-content: space-between; margin-bottom: 4px; }
+  .row label b { font-weight: 400; color: var(--muted); font-variant-numeric: tabular-nums; }
+  input[type=range] { width: 100%; margin: 0; accent-color: var(--ink); height: 16px; }
+  .btns { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-top: 14px; }
+  .btns button {
+    font: inherit; padding: 8px 0; border-radius: 8px; border: 1px solid var(--line);
+    background: rgba(255,255,255,.7); color: var(--ink); cursor: pointer;
+    transition: background .15s, transform .1s;
+  }
+  .btns button:hover { background: #fff; }
+  .btns button:active { transform: scale(.96); }
+  @media (max-width: 640px) {
+    .panel { right: 12px; left: 12px; top: auto; bottom: 12px; width: auto; }
+    .hint { display: none; }
+    .title { left: 18px; top: 16px; }
+    .title p { display: none; }
+  }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+
+<div class="title">
+  <h1>Plush<br>Octopus.</h1>
+  <p>A soft, fuzzy octopus with springy arms. Poke it, pick it up, make it hop.</p>
+</div>
+<div class="hint">Drag the body or an arm · Click to poke · Drag the background to orbit · Scroll to zoom</div>
+
+<div class="panel">
+  <h2>Colour</h2>
+  <div class="swatches" id="swatches"></div>
+  <h2>Shape</h2>
+  <div class="row"><label>Fluff <b id="v-fluff"></b></label><input type="range" id="fluff" min="0" max="0.14" step="0.005"></div>
+  <div class="row"><label>Arm length <b id="v-arm"></b></label><input type="range" id="arm" min="0.6" max="1.5" step="0.05"></div>
+  <div class="row"><label>Size <b id="v-size"></b></label><input type="range" id="size" min="0.6" max="1.4" step="0.05"></div>
+  <h2>Motion</h2>
+  <div class="row"><label>Bounce <b id="v-bounce"></b></label><input type="range" id="bounce" min="0" max="1" step="0.05"></div>
+  <div class="row"><label>Wiggle <b id="v-wiggle"></b></label><input type="range" id="wiggle" min="0" max="1" step="0.05"></div>
+  <div class="btns">
+    <button id="hop">Hop</button>
+    <button id="wave">Wave</button>
+    <button id="reset">Reset</button>
+  </div>
+</div>
+
+<script type="importmap">
+{ "imports": {
+  "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js",
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/"
+} }
+</script>
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
+
+/* ---------- parameters & palettes ---------- */
+const P = { fluff: 0.07, arm: 1, size: 1, bounce: 0.55, wiggle: 0.5 };
+const PALETTES = [
+  { name: 'Coral',    body: '#ee6a4f', tip: '#f4dcc4' },
+  { name: 'Lavender', body: '#9b80e0', tip: '#eadff6' },
+  { name: 'Teal',     body: '#27b0b2', tip: '#e6f1e2' },
+  { name: 'Rose',     body: '#ee86a8', tip: '#fbe6e6' },
+  { name: 'Mustard',  body: '#e6ae33', tip: '#f8ecc9' },
+];
+const TIP_CREAM = '#f3e8d8';
+
+const NT = 8;        // tentacles
+const N = 14;        // points per tentacle
+const M = 14;        // radial segments
+const TSHELLS = 5;   // fur shells per tentacle
+const BSHELLS = 12;  // fur shells on the body
+const TAU = Math.PI * 2;
+
+/* ---------- renderer / scene ---------- */
+const canvas = document.getElementById('c');
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.05;
+
+const scene = new THREE.Scene();
+const pmrem = new THREE.PMREMGenerator(renderer);
+scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
+scene.environmentIntensity = 0.55;
+
+const camera = new THREE.PerspectiveCamera(32, 1, 0.1, 100);
+camera.position.set(0, 3.0, 9.5);
+const controls = new OrbitControls(camera, canvas);
+controls.target.set(0, 1.0, 0);
+controls.enableDamping = true;
+controls.enablePan = false;
+controls.minDistance = 4;
+controls.maxDistance = 16;
+controls.maxPolarAngle = Math.PI * 0.49;
+
+scene.add(new THREE.HemisphereLight(0xffffff, 0xd9d1c8, 0.9));
+const key = new THREE.DirectionalLight(0xfff4e8, 2.4);
+key.position.set(3.5, 7, 5);
+key.castShadow = true;
+key.shadow.mapSize.set(2048, 2048);
+Object.assign(key.shadow.camera, { left: -7, right: 7, top: 7, bottom: -7, near: 1, far: 25 });
+key.shadow.bias = -0.0006;
+key.shadow.normalBias = 0.03;
+scene.add(key);
+const rim = new THREE.DirectionalLight(0xdbe8ff, 0.9);
+rim.position.set(-5, 3, -5);
+scene.add(rim);
+
+const floor = new THREE.Mesh(
+  new THREE.PlaneGeometry(60, 60),
+  new THREE.ShadowMaterial({ opacity: 0.26 })
+);
+floor.rotation.x = -Math.PI / 2;
+floor.receiveShadow = true;
+scene.add(floor);
+
+/* ---------- fur noise texture (used as alpha map for shells) ---------- */
+function makeFurTexture() {
+  const s = 512, c = document.createElement('canvas');
+  c.width = c.height = s;
+  const g = c.getContext('2d');
+  g.fillStyle = '#505050';
+  g.fillRect(0, 0, s, s);
+  for (let i = 0; i < 30000; i++) {
+    const v = Math.random() * 255 | 0;
+    g.fillStyle = `rgb(${v},${v},${v})`;
+    g.beginPath();
+    g.arc(Math.random() * s, Math.random() * s, 0.5 + Math.random() * 1.0, 0, TAU);
+    g.fill();
+  }
+  const t = new THREE.CanvasTexture(c);
+  t.wrapS = t.wrapT = THREE.RepeatWrapping;
+  t.anisotropy = 4;
+  return t;
+}
+const furTex = makeFurTexture();
+
+/* ---------- materials ---------- */
+const bodyMat = new THREE.MeshPhysicalMaterial({
+  color: 0xffffff, roughness: 0.95, sheen: 1, sheenRoughness: 0.55,
+});
+const tentMat = new THREE.MeshPhysicalMaterial({
+  color: 0xffffff, vertexColors: true, roughness: 0.95, sheen: 1, sheenRoughness: 0.55,
+});
+const bodyShellMats = [], tentShellMats = [];
+for (let i = 0; i < BSHELLS; i++) {
+  bodyShellMats.push(new THREE.MeshStandardMaterial({
+    alphaMap: furTex, alphaTest: (i + 1) / (BSHELLS + 1) * 0.92, roughness: 1, metalness: 0,
+  }));
+}
+for (let i = 0; i < TSHELLS; i++) {
+  tentShellMats.push(new THREE.MeshStandardMaterial({
+    vertexColors: true, alphaMap: furTex, alphaTest: (i + 1) / (TSHELLS + 1) * 0.92, roughness: 1, metalness: 0,
+  }));
+}
+
+/* ---------- body ---------- */
+const bodyGroup = new THREE.Group();
+scene.add(bodyGroup);
+
+const bodyGeo = new THREE.SphereGeometry(1, 72, 54);
+{
+  const uv = bodyGeo.attributes.uv;
+  for (let i = 0; i < uv.count; i++) uv.setXY(i, uv.getX(i) * 1.5, uv.getY(i) * 0.75);
+}
+const bodyMesh = new THREE.Mesh(bodyGeo, bodyMat);
+bodyMesh.castShadow = true;
+bodyGroup.add(bodyMesh);
+const bodyShells = bodyShellMats.map(m => {
+  const mesh = new THREE.Mesh(bodyGeo, m);
+  bodyGroup.add(mesh);
+  return mesh;
+});
+
+// face
+const face = new THREE.Group();
+bodyGroup.add(face);
+const eyeMat = new THREE.MeshPhysicalMaterial({
+  color: 0x251815, roughness: 0.12, clearcoat: 1, clearcoatRoughness: 0.05,
+});
+const glintMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
+const cheekMat = new THREE.MeshBasicMaterial({
+  color: 0xff6f86, transparent: true, opacity: 0.7, depthWrite: false,
+});
+const mouthMat = new THREE.MeshBasicMaterial({ color: 0x3a2218 });
+const eyes = [];
+const zAxis = new THREE.Vector3(0, 0, 1);
+function placeOnSphere(obj, dir, r) {
+  dir = dir.clone().normalize();
+  obj.position.copy(dir).multiplyScalar(r);
+  obj.quaternion.setFromUnitVectors(zAxis, dir);
+}
+for (const sx of [-1, 1]) {
+  const g = new THREE.Group();
+  placeOnSphere(g, new THREE.Vector3(sx * 0.36, 0.2, 0.9), 1.0);
+  const eye = new THREE.Mesh(new THREE.SphereGeometry(0.16, 32, 24), eyeMat);
+  eye.scale.set(1, 1.15, 0.65);
+  g.add(eye);
+  const g1 = new THREE.Mesh(new THREE.SphereGeometry(0.04, 12, 10), glintMat);
+  g1.position.set(0.05, 0.07, 0.09);
+  g.add(g1);
+  const g2 = new THREE.Mesh(new THREE.SphereGeometry(0.02, 10, 8), glintMat);
+  g2.position.set(-0.05, -0.05, 0.1);
+  g.add(g2);
+  face.add(g);
+  eyes.push(eye);
+
+  const cheek = new THREE.Mesh(new THREE.CircleGeometry(0.13, 24), cheekMat);
+  cheek.scale.set(1.25, 0.8, 1);
+  placeOnSphere(cheek, new THREE.Vector3(sx * 0.62, -0.1, 0.78), 1.012);
+  face.add(cheek);
+}
+{
+  const pts = [];
+  for (let i = 0; i <= 14; i++) {
+    const x = (i / 14 - 0.5) * 0.2;
+    const y = -0.2 - 0.045 * (1 - Math.pow(x / 0.1, 2));
+    pts.push(new THREE.Vector3(x, y, 1).normalize().multiplyScalar(1.0));
+  }
+  const mouth = new THREE.Mesh(
+    new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), 20, 0.011, 6), mouthMat);
+  face.add(mouth);
+}
+
+/* ---------- tentacle tube geometry (updated in place each frame) ---------- */
+function makeTubeGeometry(vScale) {
+  const g = new THREE.BufferGeometry();
+  const vc = N * (M + 1);
+  g.setAttribute('position', new THREE.BufferAttribute(new Float32Array(vc * 3), 3));
+  g.setAttribute('normal', new THREE.BufferAttribute(new Float32Array(vc * 3), 3));
+  g.setAttribute('color', new THREE.BufferAttribute(new Float32Array(vc * 3), 3));
+  const uv = new Float32Array(vc * 2);
+  const idx = [];
+  for (let i = 0; i < N; i++) {
+    for (let j = 0; j <= M; j++) {
+      const k = i * (M + 1) + j;
+      uv[k * 2] = j / M * 0.5;
+      uv[k * 2 + 1] = i / (N - 1) * vScale;
+      if (i < N - 1 && j < M) {
+        const a = k, b = k + M + 1;
+        idx.push(a, a + 1, b, a + 1, b + 1, b);
+      }
+    }
+  }
+  g.setAttribute('uv', new THREE.BufferAttribute(uv, 2));
+  g.setIndex(idx);
+  return g;
+}
+
+const tents = [];
+for (let j = 0; j < NT; j++) {
+  const t = {
+    a: (j / NT) * TAU + 0.18,
+    pts: [], prev: [], tgt: [], rad: new Float32Array(N),
+    nrm: [], bin: [],
+    wave: 0,
+    seed: Math.random() * 10,
+  };
+  for (let i = 0; i < N; i++) {
+    t.pts.push(new THREE.Vector3()); t.prev.push(new THREE.Vector3());
+    t.tgt.push(new THREE.Vector3());
+    t.nrm.push(new THREE.Vector3()); t.bin.push(new THREE.Vector3());
+  }
+  t.base = new THREE.Mesh(makeTubeGeometry(0.9), tentMat);
+  t.base.castShadow = true;
+  t.base.frustumCulled = false;
+  scene.add(t.base);
+  t.shells = tentShellMats.map(m => {
+    const mesh = new THREE.Mesh(makeTubeGeometry(0.9), m);
+    mesh.frustumCulled = false;
+    scene.add(mesh);
+    return mesh;
+  });
+  tents.push(t);
+}
+
+/* ---------- state ---------- */
+const S = () => P.size;
+const body = {
+  pos: new THREE.Vector3(0, 1, 0),
+  vel: new THREE.Vector3(),
+  sq: 0, sqV: 0,
+};
+const baseY = () => S() * 1.0;
+body.pos.y = baseY();
+let T = 0;
+
+const tmpV = new THREE.Vector3();
+const tmpV2 = new THREE.Vector3();
+
+function rootOf(t, out) {
+  const s = S();
+  return out.set(
+    body.pos.x + Math.cos(t.a) * 0.6 * s,
+    body.pos.y - 0.6 * s,
+    body.pos.z + Math.sin(t.a) * 0.6 * s
+  );
+}
+function armLen() { return P.arm * S() * 2.5; }
+function radiusAt(tt) {
+  const s = S();
+  return THREE.MathUtils.lerp(0.27 * s, 0.075 * s, Math.pow(tt, 0.85));
+}
+const smooth = (a, b, x) => { x = Math.min(1, Math.max(0, (x - a) / (b - a))); return x * x * (3 - 2 * x); };
+
+function computeTargets(j) {
+  const t = tents[j], s = S(), L = armLen();
+  const root = rootOf(t, tmpV);
+  const dx = Math.cos(t.a), dz = Math.sin(t.a);
+  const px = -dz, pz = dx;
+  const curl = (j % 2 ? 1 : -1) * (0.55 + 0.45 * Math.sin(j * 1.7 + 0.4));
+  const wv = t.wave > 0 ? Math.sin(Math.PI * (1 - t.wave / 3)) : 0;
+  const wig = P.wiggle;
+  for (let i = 0; i < N; i++) {
+    const u = i / (N - 1);
+    t.rad[i] = radiusAt(u);
+    const d = L * u * 0.97;
+    const lat = curl * s * 0.8 * u * u
+      + Math.sin(T * 1.7 + t.seed - u * 5) * s * 0.3 * u * wig
+      + wv * Math.sin(T * 6 - u * 7) * s * 0.35 * u;
+    const floorY = t.rad[i];
+    const hang = root.y - floorY;
+    let y = floorY + hang * Math.exp(-4.2 * u);
+    const tipBob = (0.5 + 0.5 * Math.sin(T * 1.2 + t.seed * 1.9)) * wig;
+    y += s * (0.35 + 0.9 * tipBob) * Math.pow(smooth(0.55, 1, u), 1.4);
+    y += wv * L * 0.8 * Math.pow(u, 1.5);
+    t.tgt[i].set(root.x + dx * d + px * lat, y, root.z + dz * d + pz * lat);
+  }
+}
+
+function initTentacles() {
+  for (let j = 0; j < NT; j++) {
+    computeTargets(j);
+    const t = tents[j];
+    for (let i = 0; i < N; i++) { t.pts[i].copy(t.tgt[i]); t.prev[i].copy(t.tgt[i]); }
+  }
+}
+
+/* ---------- interaction ---------- */
+const ray = new THREE.Raycaster();
+const ndc = new THREE.Vector2();
+const sph = new THREE.Sphere();
+const plane = new THREE.Plane();
+const hitPt = new THREE.Vector3();
+const grab = { type: null, j: -1, i: -1, offset: new THREE.Vector3(), target: new THREE.Vector3() };
+
+function setRay(e) {
+  const r = canvas.getBoundingClientRect();
+  ndc.set(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1);
+  ray.setFromCamera(ndc, camera);
+}
+function pick() {
+  let best = null, bd = Infinity;
+  sph.center.copy(body.pos); sph.radius = S() * 1.08;
+  if (ray.ray.intersectSphere(sph, hitPt)) {
+    bd = ray.ray.origin.distanceTo(hitPt);
+    best = { type: 'body', point: hitPt.clone() };
+  }
+  for (let j = 0; j < NT; j++) {
+    const t = tents[j];
+    for (let i = 1; i < N; i++) {
+      sph.center.copy(t.pts[i]);
+      sph.radius = Math.max(t.rad[i] * 1.25, 0.12 * S());
+      if (ray.ray.intersectSphere(sph, hitPt)) {
+        const d = ray.ray.origin.distanceTo(hitPt);
+        if (d < bd) { bd = d; best = { type: 'tent', j, i, point: t.pts[i].clone() }; }
+      }
+    }
+  }
+  return best;
+}
+function updateGrabTarget() {
+  if (ray.ray.intersectPlane(plane, hitPt)) grab.target.copy(hitPt);
+}
+
+canvas.addEventListener('pointerdown', e => {
+  setRay(e);
+  const h = pick();
+  if (!h) return;
+  controls.enabled = false;
+  canvas.setPointerCapture(e.pointerId);
+  camera.getWorldDirection(tmpV);
+  plane.setFromNormalAndCoplanarPoint(tmpV, h.point);
+  grab.type = h.type; grab.j = h.j ?? -1; grab.i = h.i ?? -1;
+  updateGrabTarget();
+  if (h.type === 'body') {
+    grab.offset.copy(body.pos).sub(h.point);
+    body.vel.addScaledVector(ray.ray.direction, 2.5);
+    body.sqV += 3.5;
+  } else {
+    const t = tents[h.j];
+    for (let k = 1; k < N; k++) {
+      const w = Math.exp(-Math.abs(k - h.i) * 0.7);
+      t.prev[k].addScaledVector(ray.ray.direction, -w * 0.05);
+    }
+  }
+});
+canvas.addEventListener('pointermove', e => {
+  setRay(e);
+  if (grab.type) { updateGrabTarget(); return; }
+  canvas.style.cursor = pick() ? 'grab' : 'default';
+});
+function release(e) {
+  if (!grab.type) return;
+  if (grab.type === 'body') {
+    const v = body.vel; if (v.length() > 12) v.setLength(12);
+  }
+  grab.type = null;
+  controls.enabled = true;
+  try { canvas.releasePointerCapture(e.pointerId); } catch {}
+}
+canvas.addEventListener('pointerup', release);
+canvas.addEventListener('pointercancel', release);
+
+/* ---------- simulation ---------- */
+const DT = 1 / 120;
+const G_BODY = -26;
+
+function stepBody(dt) {
+  const s = S(), by = baseY();
+  const p = body.pos, v = body.vel;
+  if (grab.type === 'body') {
+    tmpV2.copy(grab.target).add(grab.offset);
+    tmpV2.y = THREE.MathUtils.clamp(tmpV2.y, by, by + 3.6 * s);
+    v.copy(tmpV2).sub(p).multiplyScalar(16);
+    if (v.length() > 20) v.setLength(20);
+    p.addScaledVector(v, dt);
+  } else {
+    const c = 3 + (1 - P.bounce) * 9;
+    v.x += (-p.x * 50 - c * v.x) * dt;
+    v.z += (-p.z * 50 - c * v.z) * dt;
+    if (p.y > by + 1e-4 || v.y > 0) v.y += G_BODY * dt;
+    p.addScaledVector(v, dt);
+    if (p.y < by) {
+      const impact = -v.y;
+      p.y = by;
+      if (impact > 0.6) {
+        body.sqV += impact * 0.45;
+        v.y = impact * P.bounce * 0.5;
+        if (v.y < 0.8) v.y = 0;
+      } else v.y = 0;
+    }
+  }
+  const lim = 4 * s;
+  p.x = THREE.MathUtils.clamp(p.x, -lim, lim);
+  p.z = THREE.MathUtils.clamp(p.z, -lim, lim);
+  // squash & stretch spring
+  body.sqV += (-240 * body.sq - 11 * body.sqV) * dt;
+  body.sq += body.sqV * dt;
+  body.sq = THREE.MathUtils.clamp(body.sq, -0.25, 0.4);
+}
+
+function stepTentacle(j, dt) {
+  const t = tents[j], s = S(), L = armLen();
+  const seg = L / (N - 1);
+  const lift = Math.max(0, body.pos.y - baseY()) / s;
+  const kScale = 1 / (1 + lift * 2.2);
+  const damp = 0.972 + 0.02 * P.bounce;
+  rootOf(t, t.pts[0]);
+  t.prev[0].copy(t.pts[0]);
+  for (let i = 1; i < N; i++) {
+    const p = t.pts[i], pr = t.prev[i], g = t.tgt[i];
+    const u = i / (N - 1);
+    const k = 95 * (1 - 0.5 * u) * kScale;
+    const vx = (p.x - pr.x) * damp, vy = (p.y - pr.y) * damp, vz = (p.z - pr.z) * damp;
+    pr.copy(p);
+    p.x += vx + (g.x - p.x) * k * dt * dt;
+    p.y += vy + ((g.y - p.y) * k - 14 * s) * dt * dt;
+    p.z += vz + (g.z - p.z) * k * dt * dt;
+    if (grab.type === 'tent' && grab.j === j && i >= grab.i - 1 && i <= grab.i + 1) {
+      p.lerp(grab.target, i === grab.i ? 0.45 : 0.2);
+    }
+  }
+  for (let it = 0; it < 3; it++) {
+    for (let i = 1; i < N; i++) {
+      const a = t.pts[i - 1], b = t.pts[i];
+      tmpV2.copy(b).sub(a);
+      const len = tmpV2.length() || 1e-6;
+      b.copy(a).addScaledVector(tmpV2, seg / len);
+      if (b.y < t.rad[i]) {
+        b.y = t.rad[i];
+        // floor friction
+        const pr = t.prev[i];
+        pr.x += (b.x - pr.x) * 0.06; pr.z += (b.z - pr.z) * 0.06;
+        pr.y = Math.min(pr.y, b.y);
+      }
+    }
+  }
+}
+
+/* ---------- mesh updates ---------- */
+const cN = new THREE.Vector3(), cT = new THREE.Vector3();
+function updateTentacleMesh(t) {
+  // parallel-transport frames
+  for (let i = 0; i < N; i++) {
+    const a = t.pts[Math.max(0, i - 1)], b = t.pts[Math.min(N - 1, i + 1)];
+    cT.copy(b).sub(a).normalize();
+    if (i === 0) {
+      cN.set(0, 1, 0).cross(cT);
+      if (cN.lengthSq() < 1e-4) cN.set(1, 0, 0).cross(cT);
+      cN.normalize();
+    } else {
+      cN.copy(t.nrm[i - 1]);
+      cN.addScaledVector(cT, -cN.dot(cT)).normalize();
+    }
+    t.nrm[i].copy(cN);
+    t.bin[i].copy(cT).cross(cN).negate().negate(); // b = t x n
+  }
+  fillTube(t.base.geometry, t, 0);
+  const h = P.fluff * S();
+  for (let k = 0; k < TSHELLS; k++) {
+    fillTube(t.shells[k].geometry, t, h * (k + 1) / TSHELLS * 1.6);
+  }
+}
+function fillTube(g, t, extra) {
+  const pos = g.attributes.position.array, nor = g.attributes.normal.array;
+  for (let i = 0; i < N; i++) {
+    const c = t.pts[i], n = t.nrm[i], b = t.bin[i];
+    const r = (t.rad[i] + extra) * (i === N - 1 ? 0.12 : i === N - 2 ? 0.8 : 1);
+    for (let j = 0; j <= M; j++) {
+      const a = (j / M) * TAU, ca = Math.cos(a), sa = Math.sin(a);
+      const k = (i * (M + 1) + j) * 3;
+      const nx = n.x * ca + b.x * sa, ny = n.y * ca + b.y * sa, nz = n.z * ca + b.z * sa;
+      nor[k] = nx; nor[k + 1] = ny; nor[k + 2] = nz;
+      pos[k] = c.x + nx * r; pos[k + 1] = c.y + ny * r; pos[k + 2] = c.z + nz * r;
+    }
+  }
+  g.attributes.position.needsUpdate = true;
+  g.attributes.normal.needsUpdate = true;
+}
+
+function applyBody() {
+  const s = S();
+  const sq = body.sq;
+  const stretch = THREE.MathUtils.clamp(body.vel.y * 0.012, 0, 0.12);
+  const breathe = Math.sin(T * 1.8) * 0.012;
+  const sy = 1 - sq + stretch + breathe;
+  const sxz = 1 + sq * 0.5 - stretch * 0.4 - breathe * 0.5;
+  bodyGroup.scale.set(s * sxz, s * sy, s * sxz);
+  bodyGroup.position.set(body.pos.x, body.pos.y - (1 - sy) * s * 0.85, body.pos.z);
+  bodyGroup.rotation.set(
+    THREE.MathUtils.clamp(body.vel.z * 0.03, -0.3, 0.3),
+    0,
+    THREE.MathUtils.clamp(-body.vel.x * 0.03, -0.3, 0.3));
+  // fluff shells
+  for (let i = 0; i < BSHELLS; i++) {
+    bodyShells[i].scale.setScalar(1 + P.fluff * (i + 1) / BSHELLS);
+  }
+  face.scale.setScalar(1 + P.fluff * 1.1);
+  // blink
+  const bt = (T % 4.6);
+  const blink = bt < 0.14 ? Math.sin(Math.PI * bt / 0.14) : 0;
+  for (const e of eyes) e.scale.y = 1.15 * (1 - blink * 0.9);
+}
+
+/* ---------- colours ---------- */
+const colA = new THREE.Color(), colB = new THREE.Color(), colC = new THREE.Color();
+let currentPalette = PALETTES[0];
+function setPalette(p) {
+  currentPalette = p;
+  colA.set(p.body); colB.set(p.tip);
+  bodyMat.color.copy(colA);
+  bodyMat.sheenColor.copy(colA).lerp(new THREE.Color(1, 1, 1), 0.55);
+  tentMat.sheenColor.copy(bodyMat.sheenColor);
+  for (let i = 0; i < BSHELLS; i++) {
+    const m = 0.62 + 0.4 * (i / (BSHELLS - 1));
+    bodyShellMats[i].color.copy(colA).multiplyScalar(m);
+  }
+  for (let i = 0; i < TSHELLS; i++) {
+    const m = 0.66 + 0.38 * (i / (TSHELLS - 1));
+    tentShellMats[i].color.setScalar(m);
+  }
+  for (const t of tents) {
+    const geos = [t.base.geometry, ...t.shells.map(s => s.geometry)];
+    for (const g of geos) {
+      const ca = g.attributes.color.array;
+      for (let i = 0; i < N; i++) {
+        const u = i / (N - 1);
+        colC.copy(colA).lerp(colB, smooth(0.55, 0.95, u) * 0.92);
+        for (let jj = 0; jj <= M; jj++) {
+          const k = (i * (M + 1) + jj) * 3;
+          ca[k] = colC.r; ca[k + 1] = colC.g; ca[k + 2] = colC.b;
+        }
+      }
+      g.attributes.color.needsUpdate = true;
+    }
+  }
+}
+
+/* ---------- UI ---------- */
+const sw = document.getElementById('swatches');
+const swBtns = PALETTES.map((p, i) => {
+  const b = document.createElement('button');
+  b.className = 'sw' + (i === 0 ? ' on' : '');
+  b.style.background = p.body;
+  b.title = p.name;
+  b.onclick = () => { swBtns.forEach(x => x.classList.remove('on')); b.classList.add('on'); setPalette(p); };
+  sw.appendChild(b);
+  return b;
+});
+{
+  const wrap = document.createElement('label');
+  wrap.className = 'custom'; wrap.title = 'Custom colour';
+  wrap.innerHTML = '<span></span><input type="color" value="#ee6a4f">';
+  wrap.querySelector('input').addEventListener('input', e => {
+    swBtns.forEach(x => x.classList.remove('on'));
+    const c = new THREE.Color(e.target.value);
+    setPalette({ name: 'Custom', body: e.target.value, tip: '#' + c.clone().lerp(new THREE.Color(TIP_CREAM), 0.75).getHexString() });
+  });
+  sw.appendChild(wrap);
+}
+for (const key of Object.keys(P)) {
+  const el = document.getElementById(key), out = document.getElementById('v-' + key);
+  el.value = P[key]; out.textContent = (+P[key]).toFixed(2);
+  el.addEventListener('input', () => { P[key] = +el.value; out.textContent = (+el.value).toFixed(2); });
+}
+document.getElementById('hop').onclick = () => {
+  if (grab.type) return;
+  body.vel.y = 9.5; body.sqV -= 2;
+};
+document.getElementById('wave').onclick = () => {
+  const j = Math.floor(Math.random() * NT);
+  tents[j].wave = 3;
+  tents[(j + 1) % NT].wave = 2.2;
+};
+document.getElementById('reset').onclick = () => {
+  body.pos.set(0, baseY(), 0); body.vel.set(0, 0, 0); body.sq = body.sqV = 0;
+  for (const t of tents) t.wave = 0;
+  initTentacles();
+};
+
+/* ---------- main loop ---------- */
+function resize() {
+  const w = innerWidth, h = innerHeight;
+  renderer.setSize(w, h, false);
+  camera.aspect = w / h;
+  const portrait = w / h < 0.9;
+  camera.fov = portrait ? 46 : 32;
+  camera.updateProjectionMatrix();
+}
+addEventListener('resize', resize);
+resize();
+
+setPalette(PALETTES[0]);
+initTentacles();
+
+let last = performance.now(), acc = 0;
+function frame(now) {
+  const dtf = Math.min((now - last) / 1000, 0.05);
+  last = now; T += dtf; acc += dtf;
+  for (const t of tents) if (t.wave > 0) t.wave = Math.max(0, t.wave - dtf);
+  for (let j = 0; j < NT; j++) computeTargets(j);
+  while (acc >= DT) {
+    stepBody(DT);
+    for (let j = 0; j < NT; j++) stepTentacle(j, DT);
+    acc -= DT;
+  }
+  for (const t of tents) updateTentacleMesh(t);
+  applyBody();
+  controls.update();
+  renderer.render(scene, camera);
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+
+// handy for testing
+window.__octo = { body, tents, P, setPalette, PALETTES };
+</script>
+</body>
+</html>
