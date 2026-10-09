@@ -14,9 +14,14 @@ const KNIFE_X_LIMIT := 0.26
 const ControlsScript := preload("res://scripts/controls.gd")
 const CRATE_ONION_SHADER := preload("res://shaders/onion_whole.gdshader")
 const WOOD_SHADER := preload("res://shaders/wood.gdshader")
-const TILE_SHADER := preload("res://shaders/tile.gdshader")
 const STEEL_SHADER := preload("res://shaders/brushed_steel.gdshader")
-const CLOTH_SHADER := preload("res://shaders/cloth.gdshader")
+const KitchenScript := preload("res://scripts/kitchen.gd")
+# カメラ：プレイ中は作業台を見下ろす。タイトル画面では一歩引いて、厨房全体を見せる
+const WORK_CAM_POS := Vector3(0, 1.5, 0.52)
+const WORK_CAM_LOOK := Vector3(0, 0.965, -0.01)
+const TITLE_CAM_POS := Vector3(0.15, 1.6, 2.35)
+const TITLE_CAM_LOOK := Vector3(-0.15, 1.18, -0.54)
+const CAM_MOVE_TIME := 1.4
 ## ボウルに溜まる、みじん切りのかけら（見た目用）の最大個数と、満タン時の散らばり半径
 const BOWL_CHUNK_COUNT := 70
 const BOWL_CHUNK_RADIUS := 0.16
@@ -90,6 +95,12 @@ var knife_visual: Node3D
 var sparkle: CPUParticles3D
 var camera_trauma := 0.0
 var _camera_base_transform: Transform3D
+var kitchen: Node3D
+# カメラの移動（タイトルの引きの画 ⇔ 作業台）。_cam_t が 1 になったら移動完了
+var _cam_from: Transform3D
+var _cam_goal: Transform3D
+var _cam_t := 1.0
+var _cam_time := 0.0
 var _hitstop_id := 0
 
 
@@ -119,6 +130,7 @@ func _ready() -> void:
 	_refill_orders()
 	_spawn_onion(false)
 	_set_state(State.TITLE)
+	set_camera_now(_title_camera())  # 起動時は動かさず、最初から引きの画で
 
 	var dev := preload("res://scripts/dev_screenshot.gd")
 	if dev.requested():
@@ -138,8 +150,11 @@ func _set_state(s: State) -> void:
 		State.TITLE:
 			ui.refresh_texts()
 			ui.show_only(ui.title_screen)
+			kitchen.set_day(GameState.day)
+			_move_camera(_title_camera())
 		State.PLAYING:
 			ui.show_only(null)
+			_move_camera(_work_camera())
 		State.PAUSED:
 			ui.show_only(ui.pause_screen)
 		State.DAY_END:
@@ -160,6 +175,7 @@ func _start_day() -> void:
 		_spawn_onion(true)
 	Sfx.play("bell", -8.0, 0.0, 1.2)
 	_prepare_orders()
+	kitchen.set_day(GameState.day)
 	_set_state(State.PLAYING)
 	GameState.check_achievements(grams_today)
 
@@ -206,6 +222,7 @@ func _process(delta: float) -> void:
 		Sfx.set_loop("processor", false)
 	_update_knife_pose(delta)
 	_update_tear_overlay(delta)
+	_update_camera_move(delta)
 	_update_camera_shake(delta)
 	_chips_time -= delta
 	chips.emitting = _chips_time > 0.0
@@ -687,6 +704,43 @@ func _on_skin_tier_changed(tier: int) -> void:
 
 # ================================================================ 手応え（カメラ・スクワッシュ・きらめき）
 
+func _work_camera() -> Transform3D:
+	return Transform3D.IDENTITY.translated(WORK_CAM_POS).looking_at(WORK_CAM_LOOK)
+
+
+func _title_camera() -> Transform3D:
+	return Transform3D.IDENTITY.translated(TITLE_CAM_POS).looking_at(TITLE_CAM_LOOK)
+
+
+## カメラをすぐにその位置へ置く（起動時・確認用のスクショなど）
+func set_camera_now(xf: Transform3D) -> void:
+	_cam_goal = xf
+	_cam_t = 1.0
+	_camera_base_transform = xf
+	if camera:
+		camera.global_transform = xf
+
+
+## カメラをゆっくりその位置へ動かす。同じ場所にいるなら何もしない
+func _move_camera(xf: Transform3D) -> void:
+	if _cam_goal.is_equal_approx(xf):
+		return
+	_cam_from = _camera_base_transform
+	_cam_goal = xf
+	_cam_t = 0.0
+
+
+func _update_camera_move(delta: float) -> void:
+	_cam_time += delta
+	if _cam_t < 1.0:
+		_cam_t = minf(1.0, _cam_t + delta / CAM_MOVE_TIME)
+		_camera_base_transform = _cam_from.interpolate_with(_cam_goal, smoothstep(0.0, 1.0, _cam_t))
+	elif state == State.TITLE:
+		# タイトル画面では、ほんの少しだけゆらゆらと視点が漂う（止まった写真に見えないように）
+		var drift := Vector3(sin(_cam_time * 0.21) * 0.05, sin(_cam_time * 0.33) * 0.02, 0.0)
+		_camera_base_transform = _cam_goal.translated_local(drift)
+
+
 ## trauma（0〜1）をためる。1フレームで指数的に減衰し、揺れ幅は trauma^2 でなめらかに立ち上がる
 func _shake(amount: float) -> void:
 	camera_trauma = clampf(camera_trauma + amount, 0.0, 1.0)
@@ -1091,38 +1145,9 @@ func _build_environment() -> void:
 	camera = Camera3D.new()
 	camera.fov = 50.0
 	add_child(camera)
-	camera.look_at_from_position(Vector3(0, 1.5, 0.52), Vector3(0, 0.965, -0.01))
-	_camera_base_transform = camera.global_transform
+	set_camera_now(_work_camera())
 
-	# 吊り下げランプ
-	var lamp_root := Node3D.new()
-	lamp_root.position = Vector3(0, 2.05, 0.0)
-	add_child(lamp_root)
-	var shade := MeshInstance3D.new()
-	var shade_mesh := CylinderMesh.new()
-	shade_mesh.top_radius = 0.04
-	shade_mesh.bottom_radius = 0.22
-	shade_mesh.height = 0.16
-	shade_mesh.cap_bottom = false
-	shade.mesh = shade_mesh
-	var shade_mat := _mat(Color(0.18, 0.22, 0.17), 0.5, 0.6)
-	shade_mat.cull_mode = BaseMaterial3D.CULL_DISABLED
-	shade.material_override = shade_mat
-	lamp_root.add_child(shade)
-	var bulb := MeshInstance3D.new()
-	var bulb_mesh := SphereMesh.new()
-	bulb_mesh.radius = 0.04
-	bulb_mesh.height = 0.08
-	bulb.mesh = bulb_mesh
-	var bulb_mat := _mat(Color(1, 0.9, 0.7), 0.5)
-	bulb_mat.emission_enabled = true
-	bulb_mat.emission = Color(1.0, 0.8, 0.5)
-	bulb_mat.emission_energy_multiplier = 6.0
-	bulb.material_override = bulb_mat
-	bulb.position.y = -0.07
-	lamp_root.add_child(bulb)
-	_box(lamp_root, Vector3(0.01, 1.0, 0.01), Vector3(0, 0.55, 0), _mat(Color(0.1, 0.1, 0.1), 0.6))
-
+	# 作業台の真上の蛍光灯の明かり（器具は kitchen.gd 側にある）
 	var light := SpotLight3D.new()
 	light.position = Vector3(0, 2.0, 0.0)
 	light.rotation.x = -PI / 2
@@ -1142,31 +1167,22 @@ func _build_environment() -> void:
 
 
 func _build_kitchen() -> void:
-	var concrete := _mat(Color(0.22, 0.2, 0.18), 0.95)
-	var wall := _mat(Color(0.78, 0.76, 0.7), 0.9)
-	var tile := _mat(Color(0.55, 0.6, 0.58), 0.4)
-	var steel := _mat(Color(0.32, 0.33, 0.33), 0.45, 0.7)
-	var dark_steel := _mat(Color(0.18, 0.19, 0.19), 0.5, 0.6)
-	var board := _wood_mat(Color(0.52, 0.37, 0.22), Color(0.33, 0.21, 0.11), 1.7)
+	# まな板は檜（ひのき）。白っぽい黄色で、木目は控えめ
+	var board := _wood_mat(Color(0.62, 0.48, 0.31), Color(0.46, 0.32, 0.19), 1.7)
 
-	# 床と壁（壁の下半分はタイル）
-	_box(self, Vector3(8, 0.1, 8), Vector3(0, -0.05, 0), concrete)
-	_box(self, Vector3(8, 3.2, 0.1), Vector3(0, 1.6, -2.4), wall)
-	_box(self, Vector3(0.1, 3.2, 8), Vector3(-3.2, 1.6, 0), wall)
-	_box(self, Vector3(0.1, 3.2, 8), Vector3(3.2, 1.6, 0), wall)
-	_box(self, Vector3(8, 1.5, 0.02), Vector3(0, 0.75, -2.34), tile)
+	# 部屋まわり（壁・窓・コンロ・冷蔵庫・暖簾・小物など）は kitchen.gd でまとめて組み立てる
+	kitchen = KitchenScript.new()
+	add_child(kitchen)
+	kitchen.build(CRATE_POS, rng)
 
-	# 作業台とまな板
-	_box(self, Vector3(2.2, 0.88, 0.9), Vector3(0, 0.44, 0), dark_steel)
+	# 作業台の天板とまな板（脚・下の棚は kitchen.gd）
 	var counter_top := ShaderMaterial.new()
 	counter_top.shader = STEEL_SHADER
 	counter_top.set_shader_parameter("base_color", Color(0.44, 0.44, 0.44))
 	_box(self, Vector3(2.3, 0.05, 1.0), Vector3(0, 0.915, 0), counter_top)
 	_box(self, Vector3(0.6, 0.025, 0.36), Vector3(0, BOARD_TOP - 0.0125, 0.05), board)
-	_build_prep_corner()
 
-	# 玉ねぎのケース（右）。1個ずつ別のマテリアルにして、色味・筋の位相をばらつかせる
-	_crate(CRATE_POS + Vector3(0, -0.06, 0), Vector3(0.42, 0.14, 0.4), _wood_mat(Color(0.42, 0.27, 0.14), Color(0.25, 0.14, 0.07), 6.3))
+	# 段ボール箱（kitchen.gd）の中の玉ねぎ。1個ずつ別のマテリアルにして、色味・筋の位相をばらつかせる
 	var stem_mat := _mat(Color(0.32, 0.2, 0.1), 0.7)
 	for i in 16:
 		var o := MeshInstance3D.new()
@@ -1212,154 +1228,6 @@ func _build_kitchen() -> void:
 	# 作った直後は CylinderMesh の初期サイズ（半径0.5m）のままなので、
 	# 仕込みが始まる前（タイトル画面）でも空のボウルの状態にそろえておく
 	_update_bowl()
-
-	# 奥のシンク台・棚・鍋
-	_box(self, Vector3(3.6, 0.9, 0.6), Vector3(0, 0.45, -2.05), dark_steel)
-	for x in [-1.1, 0.0, 1.1]:
-		_crate(Vector3(x, 0.84, -2.05), Vector3(0.9, 0.12, 0.45), steel)
-		_box(self, Vector3(0.03, 0.3, 0.03), Vector3(x, 1.05, -2.3), steel)
-		_box(self, Vector3(0.03, 0.03, 0.2), Vector3(x, 1.2, -2.2), steel)
-	_box(self, Vector3(3.0, 0.04, 0.35), Vector3(0, 1.75, -2.2), steel)
-	for i in 6:
-		var pot := MeshInstance3D.new()
-		var pot_mesh := CylinderMesh.new()
-		pot_mesh.top_radius = rng.randf_range(0.08, 0.13)
-		pot_mesh.bottom_radius = pot_mesh.top_radius
-		pot_mesh.height = rng.randf_range(0.1, 0.2)
-		pot.mesh = pot_mesh
-		pot.material_override = _mat(Color(0.6, 0.6, 0.62).lerp(Color(0.55, 0.35, 0.22), rng.randf() * 0.5), 0.3, 0.8)
-		pot.position = Vector3(-1.25 + i * 0.5, 1.77 + pot_mesh.height / 2, -2.2)
-		add_child(pot)
-	# 吊るしたおたまやフライパン
-	_box(self, Vector3(2.4, 0.02, 0.02), Vector3(0, 2.1, -2.3), steel)
-	for i in 5:
-		var hx := -0.9 + i * 0.45
-		_box(self, Vector3(0.012, 0.3, 0.012), Vector3(hx, 1.93, -2.28), steel)
-		var pan := MeshInstance3D.new()
-		var pan_mesh := CylinderMesh.new()
-		pan_mesh.top_radius = 0.1
-		pan_mesh.bottom_radius = 0.09
-		pan_mesh.height = 0.02
-		pan.mesh = pan_mesh
-		pan.material_override = dark_steel
-		pan.rotation.x = PI / 2
-		pan.position = Vector3(hx, 1.72, -2.27)
-		add_child(pan)
-
-
-## 作業台の奥：タイル張りの壁と、壁ぎわに並ぶ調味料・木べら立て、手前の布巾、
-## 玉ねぎの薄皮のくず。ゲームの画面では上の方に映る部分で、ここが空っぽだと真っ黒な帯になる
-func _build_prep_corner() -> void:
-	var counter_y := 0.94
-	var back_z := -0.5
-	# タイルの壁（作業台の奥の辺から立ち上がる）
-	var tiles := ShaderMaterial.new()
-	tiles.shader = TILE_SHADER
-	tiles.set_shader_parameter("tile_color", Color(0.7, 0.67, 0.6))
-	_box(self, Vector3(2.3, 0.9, 0.04), Vector3(0, counter_y + 0.45, back_z - 0.02), tiles)
-	# 壁ぎわを照らす、やわらかい手元灯（画面には映らない高さに置く）
-	var shelf_light := OmniLight3D.new()
-	shelf_light.position = Vector3(0, 1.32, back_z + 0.12)
-	shelf_light.omni_range = 1.15
-	shelf_light.light_color = Color(1.0, 0.84, 0.62)
-	shelf_light.light_energy = 0.3
-	add_child(shelf_light)
-
-	var ceramic := _mat(Color(0.88, 0.85, 0.78), 0.35)
-	var terracotta := _mat(Color(0.58, 0.33, 0.22), 0.6)
-	var amber := _mat(Color(0.42, 0.22, 0.05), 0.08)
-	amber.specular = 0.9
-	var lid_wood := _mat(Color(0.45, 0.3, 0.17), 0.55)
-	var cork := _mat(Color(0.62, 0.48, 0.32), 0.9)
-	var spoon_wood := _mat(Color(0.6, 0.45, 0.28), 0.6)
-	var z := back_z + 0.08
-
-	# 左奥：素焼きの木べら立てと、木べら・おたま
-	var crock := _lathe_prop([
-		Vector2(0, 0), Vector2(0.052, 0), Vector2(0.058, 0.012), Vector2(0.06, 0.12),
-		Vector2(0.064, 0.128), Vector2(0.053, 0.128), Vector2(0.051, 0.02), Vector2(0, 0.02),
-	], terracotta, Vector3(-0.95, counter_y, z))
-	for spec in [[-0.18, 0.12, 0.30], [0.15, -0.1, 0.27], [0.03, 0.2, 0.33]]:
-		var tool := Node3D.new()
-		tool.position = Vector3(0, 0.02, 0)
-		tool.rotation = Vector3(spec[1], 0, spec[0])
-		crock.add_child(tool)
-		var handle := MeshInstance3D.new()
-		var hm := CylinderMesh.new()
-		hm.top_radius = 0.005
-		hm.bottom_radius = 0.0065
-		hm.height = spec[2]
-		handle.mesh = hm
-		handle.material_override = spoon_wood
-		handle.position.y = spec[2] * 0.5
-		tool.add_child(handle)
-		var head := MeshInstance3D.new()
-		var head_mesh := SphereMesh.new()
-		head_mesh.radius = 0.022
-		head_mesh.height = 0.044
-		head.mesh = head_mesh
-		head.scale = Vector3(1.0, 1.4, 0.35)
-		head.material_override = spoon_wood
-		head.position.y = spec[2] + 0.02
-		tool.add_child(head)
-
-	# 油の瓶（琥珀色）と、塩の壺
-	_lathe_prop([
-		Vector2(0, 0), Vector2(0.03, 0), Vector2(0.032, 0.005), Vector2(0.032, 0.14),
-		Vector2(0.026, 0.162), Vector2(0.012, 0.182), Vector2(0.011, 0.214), Vector2(0, 0.214),
-	], amber, Vector3(-0.78, counter_y, z - 0.01))
-	_lathe_prop([Vector2(0, 0.213), Vector2(0.012, 0.213), Vector2(0.012, 0.232), Vector2(0, 0.232)],
-			cork, Vector3(-0.78, counter_y, z - 0.01))
-	_jar(Vector3(-0.66, counter_y, z + 0.01), 0.038, 0.075, ceramic, lid_wood)
-
-	# 右奥：大小の保存瓶（スパイス）
-	_jar(Vector3(0.42, counter_y, z), 0.03, 0.1, ceramic, lid_wood)
-	_jar(Vector3(0.5, counter_y, z + 0.01), 0.026, 0.07, _mat(Color(0.74, 0.62, 0.42), 0.4), lid_wood)
-	_jar(Vector3(0.95, counter_y, z), 0.045, 0.12, ceramic, _mat(Color(0.25, 0.25, 0.26), 0.35, 0.8))
-
-	# 手前左：たたんだ布巾
-	var towel := ShaderMaterial.new()
-	towel.shader = CLOTH_SHADER
-	var cloth := _box(self, Vector3(0.2, 0.014, 0.13), Vector3(-0.58, counter_y + 0.007, 0.33), towel)
-	cloth.rotation.y = 0.18
-
-	# ケースのまわりに落ちた、玉ねぎの薄皮のくず
-	var skin_mat := _mat(Color(0.5, 0.3, 0.14), 0.9)
-	skin_mat.cull_mode = BaseMaterial3D.CULL_DISABLED
-	for i in 9:
-		var flake := MeshInstance3D.new()
-		var q := QuadMesh.new()
-		q.size = Vector2(rng.randf_range(0.01, 0.022), rng.randf_range(0.006, 0.014))
-		flake.mesh = q
-		flake.material_override = skin_mat
-		flake.position = Vector3(rng.randf_range(0.32, 0.9), counter_y + 0.002, rng.randf_range(-0.38, 0.24))
-		flake.rotation = Vector3(-PI / 2 + rng.randf_range(-0.25, 0.25), rng.randf_range(-PI, PI), rng.randf_range(-0.2, 0.2))
-		add_child(flake)
-
-
-## 断面の輪郭を回転させた小物（瓶・壺など）を置く
-func _lathe_prop(path: Array, material: Material, pos: Vector3) -> MeshInstance3D:
-	var typed: Array[Vector2] = []
-	for v in path:
-		typed.append(v)
-	var mi := MeshInstance3D.new()
-	mi.mesh = _lathe(typed, 32)
-	mi.material_override = material
-	mi.position = pos
-	add_child(mi)
-	return mi
-
-
-## ふた付きの保存瓶
-func _jar(pos: Vector3, radius: float, height: float, body: Material, lid: Material) -> void:
-	_lathe_prop([
-		Vector2(0, 0), Vector2(radius * 0.92, 0), Vector2(radius, radius * 0.15),
-		Vector2(radius, height * 0.9), Vector2(radius * 0.86, height), Vector2(0, height),
-	], body, pos)
-	_lathe_prop([
-		Vector2(0, height - 0.002), Vector2(radius * 0.9, height - 0.002), Vector2(radius * 0.9, height + 0.016),
-		Vector2(radius * 0.8, height + 0.02), Vector2(0, height + 0.02),
-	], lid, pos)
 
 
 ## ボウルの中身を、なめらかな1色の山ではなく、小さなかけらが積もった表面に見せる。
@@ -1434,13 +1302,3 @@ func _box(parent: Node, size: Vector3, pos: Vector3, material: Material) -> Mesh
 	mi.position = pos
 	parent.add_child(mi)
 	return mi
-
-
-## 上が開いた箱（ケースやシンク）
-func _crate(center: Vector3, size: Vector3, material: Material) -> void:
-	var t := 0.015
-	_box(self, Vector3(size.x, t, size.z), center + Vector3(0, -size.y / 2, 0), material)
-	_box(self, Vector3(size.x, size.y, t), center + Vector3(0, 0, size.z / 2), material)
-	_box(self, Vector3(size.x, size.y, t), center + Vector3(0, 0, -size.z / 2), material)
-	_box(self, Vector3(t, size.y, size.z), center + Vector3(size.x / 2, 0, 0), material)
-	_box(self, Vector3(t, size.y, size.z), center + Vector3(-size.x / 2, 0, 0), material)

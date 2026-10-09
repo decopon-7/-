@@ -1,10 +1,12 @@
-// 厨房の壁のタイル（サブウェイタイル）。画像は使わず、ワールド座標の X・Y から
-// 互い違いに並んだ横長タイルと目地を描く。タイルごとに少しだけ色と艶を変える。
+// 厨房の壁のタイル。画像は使わず、ワールド座標の X・Y からタイルと目地を描く。
+// 日本の食堂の厨房でよく見る「100角（10cm角）の白タイルを目地をそろえて貼ったもの」が標準。
+// stagger=0.5 にすると1段ごとに半分ずらした貼り方になる。タイルごとに少しだけ色と艶を変える。
 shader_type spatial;
 
 uniform vec3 tile_color : source_color = vec3(0.86, 0.85, 0.8);
 uniform vec3 grout_color : source_color = vec3(0.42, 0.4, 0.37);
-uniform vec2 tile_size = vec2(0.15, 0.075);
+uniform vec2 tile_size = vec2(0.1, 0.1);
+uniform float stagger = 0.0;
 uniform float grout = 0.0045;
 
 varying vec3 wpos;
@@ -20,7 +22,7 @@ void vertex() {
 void fragment() {
 	vec2 p = wpos.xy / tile_size;
 	float row = floor(p.y);
-	p.x += mod(row, 2.0) * 0.5;  // 1段ごとに半分ずらす
+	p.x += mod(row, 2.0) * stagger;  // stagger>0 なら1段ごとにずらす
 	vec2 cell = floor(p);
 	vec2 f = fract(p) * tile_size;
 	// 目地からの距離（タイルの縁ほど少し丸く見えるよう、ふちに向かって暗くする）

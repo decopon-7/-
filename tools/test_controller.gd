@@ -26,10 +26,20 @@ func _run() -> void:
 	assert(owner != null, "title should focus a button")
 	print("title focus: ", owner.text)
 
+	# タイトルでは厨房全体を見せる引きの画
+	var cam: Camera3D = main.get("camera")
+	var title_cam: Transform3D = main.call("_title_camera")
+	assert(cam.global_transform.origin.distance_to(title_cam.origin) < 0.1, "title should use the wide camera")
+
 	# ゲーム開始（ボタンの pressed を直接発火）
 	main.call("_start_day")
 	await process_frame
 	assert(int(main.get("state")) == 1)
+	# 仕込みを始めると、ゆっくり作業台を見下ろす位置へ寄る
+	await create_timer(1.8).timeout
+	var work_cam: Transform3D = main.call("_work_camera")
+	print("camera: ", cam.global_transform.origin, " work=", work_cam.origin)
+	assert(cam.global_transform.origin.distance_to(work_cam.origin) < 0.01, "camera should arrive at the work view")
 
 	# スティック右へ：包丁がマウスではなくスティックに従って動く
 	var x0: float = main.get("_knife_x")

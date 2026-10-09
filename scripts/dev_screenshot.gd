@@ -14,6 +14,7 @@
 #   bowl: ボウルの中身の見た目を確認する（--bowl_grams=750 のように溜まった量を指定可能。省略時750）
 #   title_withsave: セーブがある状態のタイトル画面（つづきから／はじめからの見分けやすさを確認）
 #   newgame_confirm: 「はじめから」を押したときの確認ダイアログを確認する
+#   room: タイトル画面の引きの画から、UIを消して厨房全体を見る（--day=12 で日めくりの日付も指定可能）
 extends Node
 
 var _args := {}
@@ -47,7 +48,7 @@ func _process(_delta: float) -> void:
 	_frame += 1
 	var main := get_parent()
 	var shot: String = _args["shot"]
-	if _frame == 5 and not shot in ["title", "title_withsave", "newgame_confirm"]:
+	if _frame == 5 and not shot in ["title", "title_withsave", "newgame_confirm", "room"]:
 		main._start_day()
 		GameState.money = 480
 		if _args.has("order"):
@@ -100,7 +101,7 @@ func _process(_delta: float) -> void:
 			main.onion.visible = false
 			main._knife_x = 0.0
 			main.camera.look_at_from_position(Vector3(0.32, 1.12, 0.18), Vector3(0.0, 1.0, 0.03))
-			main._camera_base_transform = main.camera.global_transform
+			main.set_camera_now(main.camera.global_transform)
 			main.ui.hud.visible = false
 	if _frame == 20 and shot == "gear":
 		var lv := int(_args.get("gear_lv", 5))
@@ -139,11 +140,15 @@ func _process(_delta: float) -> void:
 		# ボウルの中身がよく見えるように、確認用にカメラだけ寄せる
 		# （_camera_base_transform も更新しないと、揺れ演出の復帰処理で毎フレーム元に戻ってしまう）
 		main.camera.look_at_from_position(Vector3(-0.56, 1.25, 0.28), main.BOWL_POS)
-		main._camera_base_transform = main.camera.global_transform
+		main.set_camera_now(main.camera.global_transform)
+	if _frame == 20 and shot == "room":
+		main.ui.title_screen.visible = false
+		main.kitchen.set_day(int(_args.get("day", 1)))
 	if _frame == 20 and shot == "title_withsave":
 		GameState.day = 5
 		GameState.save_game()
 		main.ui.refresh_texts()
+		main.kitchen.set_day(GameState.day)
 	if _frame == 20 and shot == "newgame_confirm":
 		GameState.day = 5
 		GameState.save_game()
