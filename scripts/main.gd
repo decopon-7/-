@@ -13,9 +13,14 @@ const KNIFE_LIFT := 0.09
 const KNIFE_X_LIMIT := 0.26
 const ControlsScript := preload("res://scripts/controls.gd")
 const CRATE_ONION_SHADER := preload("res://shaders/onion_whole.gdshader")
+const WOOD_SHADER := preload("res://shaders/wood.gdshader")
 ## ボウルに溜まる、みじん切りのかけら（見た目用）の最大個数と、満タン時の散らばり半径
 const BOWL_CHUNK_COUNT := 70
 const BOWL_CHUNK_RADIUS := 0.16
+## ボウルの寸法（高さ・壁の厚み・内側の底の高さ）
+const BOWL_HEIGHT := 0.15
+const BOWL_WALL := 0.007
+const BOWL_FLOOR_Y := 0.01
 
 ## 1日の最低量。これを刻むまでは「今日はここまで」で終われない
 ## （時間制限やノルマの罰則ではなく、1日を早送りしすぎてストーリーを消費し尽くさないための下限）
@@ -471,15 +476,77 @@ func _award(grams: int, pay: int) -> void:
 func _update_bowl() -> void:
 	var level := clampf(float(grams_today) / 1500.0, 0.0, 1.0)
 	bowl_fill.visible = level > 0.0
-	bowl_fill.scale = Vector3(1.0, maxf(level, 0.01), 1.0)
-	bowl_fill.position = BOWL_POS + Vector3(0, 0.01 + 0.15 * level * 0.5, 0)
-	# みじん切りのかけらが、盛り上がった中身の表面に乗っているように見せる。
-	# ボウルはすぼまった形なので、中身が少ないうちは散らばる半径も一緒に絞る
-	var fill_top_y := 0.01 + 0.15 * level
-	var radius_now := lerpf(0.1, BOWL_CHUNK_RADIUS, level)
-	bowl_chunks.position = BOWL_POS + Vector3(0, fill_top_y, 0)
-	bowl_chunks.scale = Vector3.ONE * (radius_now / BOWL_CHUNK_RADIUS)
+	# 中身は、ボウルの内側の形に沿った高さ・太さの筒にする（縦に潰すだけだと、少ないときに壁からはみ出す）
+	var top_y := BOWL_FLOOR_Y + (BOWL_HEIGHT - BOWL_FLOOR_Y - 0.012) * level
+	var fill := bowl_fill.mesh as CylinderMesh
+	fill.height = maxf(top_y - BOWL_FLOOR_Y, 0.001)
+	fill.bottom_radius = _bowl_inner_radius(BOWL_FLOOR_Y) - 0.002
+	fill.top_radius = _bowl_inner_radius(top_y) - 0.002
+	bowl_fill.position = BOWL_POS + Vector3(0, BOWL_FLOOR_Y + fill.height * 0.5, 0)
+	# みじん切りのかけらは、その中身の表面に乗せる（散らばる半径も、そこの内径に合わせる）
+	bowl_chunks.position = BOWL_POS + Vector3(0, top_y, 0)
+	bowl_chunks.scale = Vector3.ONE * ((_bowl_inner_radius(top_y) - 0.018) / BOWL_CHUNK_RADIUS)
 	bowl_chunks.multimesh.visible_instance_count = roundi(level * BOWL_CHUNK_COUNT)
+
+
+## ボウルの外側の半径（高さ y のとき）。底はすぼまり、口に向かってゆるやかに広がる
+func _bowl_outer_radius(y: float) -> float:
+	return 0.085 + 0.105 * pow(clampf(y / BOWL_HEIGHT, 0.0, 1.0), 0.6)
+
+
+func _bowl_inner_radius(y: float) -> float:
+	return _bowl_outer_radius(y) - BOWL_WALL
+
+
+## ボウル本体のメッシュ：外側の壁 → 口の縁（丸み） → 内側の壁 → 内側の底、の輪郭を回転させる
+func _bowl_mesh() -> ArrayMesh:
+	var path: Array[Vector2] = []
+	var steps := 14
+	for i in steps + 1:
+		var y := BOWL_HEIGHT * float(i) / steps
+		path.append(Vector2(_bowl_outer_radius(y), y))
+	# 口の縁は半円で丸める
+	var rim_c := Vector2(_bowl_outer_radius(BOWL_HEIGHT) - BOWL_WALL * 0.5, BOWL_HEIGHT)
+	for i in range(1, 6):
+		var a := PI * float(i) / 6.0
+		path.append(rim_c + Vector2(cos(a), sin(a)) * BOWL_WALL * 0.5)
+	for i in range(steps, -1, -1):
+		var y := BOWL_FLOOR_Y + (BOWL_HEIGHT - BOWL_FLOOR_Y) * float(i) / steps
+		path.append(Vector2(_bowl_inner_radius(y), y))
+	path.append(Vector2(0.0, BOWL_FLOOR_Y))
+	# 外側の底の中心から始める
+	path.push_front(Vector2(0.0, 0.0))
+	return _lathe(path, 56)
+
+
+## 断面の輪郭（半径, 高さ）を軸のまわりに回転させたメッシュ。法線は輪郭の向きからなめらかに求める
+func _lathe(path: Array[Vector2], segments: int) -> ArrayMesh:
+	var normals: Array[Vector2] = []
+	for i in path.size():
+		var a := path[maxi(i - 1, 0)]
+		var b := path[mini(i + 1, path.size() - 1)]
+		var tangent := (b - a).normalized()
+		normals.append(Vector2(tangent.y, -tangent.x))
+	var st := SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	for i in path.size() - 1:
+		for k in segments:
+			var a0 := TAU * float(k) / segments
+			var a1 := TAU * float(k + 1) / segments
+			var v := [[i, a0], [i, a1], [i + 1, a0], [i + 1, a1]]
+			var pos: Array[Vector3] = []
+			var nrm: Array[Vector3] = []
+			for e in v:
+				var p: Vector2 = path[e[0]]
+				var n: Vector2 = normals[e[0]]
+				var ang: float = e[1]
+				pos.append(Vector3(p.x * cos(ang), p.y, p.x * sin(ang)))
+				nrm.append(Vector3(n.x * cos(ang), n.y, n.x * sin(ang)))
+			for tri in [[0, 1, 2], [1, 3, 2]]:
+				for idx in tri:
+					st.set_normal(nrm[idx])
+					st.add_vertex(pos[idx])
+	return st.commit()
 
 
 func _update_gap_markers() -> void:
@@ -974,7 +1041,7 @@ func _build_kitchen() -> void:
 	var tile := _mat(Color(0.55, 0.6, 0.58), 0.4)
 	var steel := _mat(Color(0.32, 0.33, 0.33), 0.45, 0.7)
 	var dark_steel := _mat(Color(0.18, 0.19, 0.19), 0.5, 0.6)
-	var board := _mat(Color(0.52, 0.42, 0.3), 0.8)
+	var board := _wood_mat(Color(0.52, 0.37, 0.22), Color(0.33, 0.21, 0.11), 1.7)
 
 	# 床と壁（壁の下半分はタイル）
 	_box(self, Vector3(8, 0.1, 8), Vector3(0, -0.05, 0), concrete)
@@ -989,7 +1056,7 @@ func _build_kitchen() -> void:
 	_box(self, Vector3(0.6, 0.025, 0.36), Vector3(0, BOARD_TOP - 0.0125, 0.05), board)
 
 	# 玉ねぎのケース（右）。1個ずつ別のマテリアルにして、色味・筋の位相をばらつかせる
-	_crate(CRATE_POS + Vector3(0, -0.06, 0), Vector3(0.42, 0.14, 0.4), _mat(Color(0.45, 0.3, 0.18), 0.8))
+	_crate(CRATE_POS + Vector3(0, -0.06, 0), Vector3(0.42, 0.14, 0.4), _wood_mat(Color(0.42, 0.27, 0.14), Color(0.25, 0.14, 0.07), 6.3))
 	var stem_mat := _mat(Color(0.32, 0.2, 0.1), 0.7)
 	for i in 16:
 		var o := MeshInstance3D.new()
@@ -1020,25 +1087,15 @@ func _build_kitchen() -> void:
 		tip.position = Vector3(0, 0.042, 0)
 		o.add_child(tip)
 
-	# みじん切りをためるボウル（左）
+	# みじん切りをためるボウル（左）：断面の輪郭を回転させて作る、厚みのあるステンレスのボウル
 	var bowl := MeshInstance3D.new()
-	var bowl_mesh := CylinderMesh.new()
-	bowl_mesh.top_radius = 0.19
-	bowl_mesh.bottom_radius = 0.11
-	bowl_mesh.height = 0.15
-	bowl_mesh.cap_top = false
-	bowl.mesh = bowl_mesh
-	var bowl_mat := _mat(Color(0.75, 0.76, 0.78), 0.35, 0.3)
-	bowl_mat.cull_mode = BaseMaterial3D.CULL_DISABLED
+	bowl.mesh = _bowl_mesh()
+	var bowl_mat := _mat(Color(0.78, 0.8, 0.83), 0.28, 0.85)
 	bowl.material_override = bowl_mat
-	bowl.position = BOWL_POS + Vector3(0, 0.075, 0)
+	bowl.position = BOWL_POS
 	add_child(bowl)
 	bowl_fill = MeshInstance3D.new()
-	var fill_mesh := CylinderMesh.new()
-	fill_mesh.top_radius = 0.17
-	fill_mesh.bottom_radius = 0.11
-	fill_mesh.height = 0.15
-	bowl_fill.mesh = fill_mesh
+	bowl_fill.mesh = CylinderMesh.new()
 	bowl_fill.material_override = _mat(Color(0.93, 0.91, 0.8), 0.3)
 	add_child(bowl_fill)
 	_build_bowl_chunks()
@@ -1121,6 +1178,16 @@ func _fade_out_gradient() -> Gradient:
 
 
 # ================================================================ ヘルパー
+
+## 木目つきの素材。seed を変えると木目の位置がずれて、板ごとの違いになる
+func _wood_mat(base: Color, dark: Color, seed_value: float) -> ShaderMaterial:
+	var m := ShaderMaterial.new()
+	m.shader = WOOD_SHADER
+	m.set_shader_parameter("base_color", base)
+	m.set_shader_parameter("dark_color", dark)
+	m.set_shader_parameter("seed", seed_value)
+	return m
+
 
 func _mat(color: Color, roughness: float, metallic: float = 0.0) -> StandardMaterial3D:
 	var m := StandardMaterial3D.new()
