@@ -133,6 +133,7 @@ func _process(_delta: float) -> void:
 		if _args.get("unlock", "0") == "1":
 			GameState.achievements["knife_max"] = true
 			GameState.achievements["day10"] = true
+			GameState.achievements["total10000"] = true
 		main._set_state(main.State.PAUSED)
 		main.ui.refresh_achievements()
 		main.ui.show_only(main.ui.achievements_screen)

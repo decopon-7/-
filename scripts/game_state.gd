@@ -31,8 +31,10 @@ const BASE_ACHIEVEMENT_IDS := ["knife_max", "goggles_max", "processor_max", "con
 const TIER_ACHIEVEMENT_IDS := ["day40", "grams20000"]
 const BOWL_ACHIEVEMENT_IDS := ["bowl1000", "bowl2500", "bowl5000"]
 const KNIFE_ONLY_ACHIEVEMENT_IDS := ["knife_only"]
+## total_* は bowl_*（1日の量）の累計版。これも称号には関わらない、長く遊ぶ人向けのおまけの実績（3段階）。
+const TOTAL_ACHIEVEMENT_IDS := ["total10000", "total50000", "total100000"]
 const ALL_ACHIEVEMENT_IDS := BASE_ACHIEVEMENT_IDS + TIER_ACHIEVEMENT_IDS \
-		+ BOWL_ACHIEVEMENT_IDS + KNIFE_ONLY_ACHIEVEMENT_IDS
+		+ BOWL_ACHIEVEMENT_IDS + KNIFE_ONLY_ACHIEVEMENT_IDS + TOTAL_ACHIEVEMENT_IDS
 ## "hint" がある実績は、解除するまで説明の一部を「???」で隠す（何を目指すかだけ分かる、ちょっとした秘密）
 const ACHIEVEMENTS := {
 	"knife_max": {"name": "ACH_KNIFE_MAX", "desc": "ACH_KNIFE_MAX_DESC"},
@@ -48,6 +50,9 @@ const ACHIEVEMENTS := {
 	"bowl1000": {"name": "ACH_BOWL1000", "desc": "ACH_BOWL1000_DESC"},
 	"bowl2500": {"name": "ACH_BOWL2500", "desc": "ACH_BOWL2500_DESC", "hint": "ACH_BOWL_HINT"},
 	"bowl5000": {"name": "ACH_BOWL5000", "desc": "ACH_BOWL5000_DESC", "hint": "ACH_BOWL_HINT"},
+	"total10000": {"name": "ACH_TOTAL10000", "desc": "ACH_TOTAL10000_DESC"},
+	"total50000": {"name": "ACH_TOTAL50000", "desc": "ACH_TOTAL50000_DESC", "hint": "ACH_TOTAL_HINT"},
+	"total100000": {"name": "ACH_TOTAL100000", "desc": "ACH_TOTAL100000_DESC", "hint": "ACH_TOTAL_HINT"},
 	"knife_only": {"name": "ACH_KNIFE_ONLY", "desc": "ACH_KNIFE_ONLY_DESC", "hint": "ACH_KNIFE_ONLY_HINT"},
 }
 ## 見た目の称号。0=なし 1=ゴールド 2=プラチナ 3=ダイヤ
@@ -223,6 +228,9 @@ func _achievement_condition(id: String, grams_today: int) -> bool:
 		"bowl2500": return grams_today >= 2500
 		"bowl5000": return grams_today >= 5000
 		"knife_only": return total_grams >= 3000 and not processor_used
+		"total10000": return total_grams >= 10000
+		"total50000": return total_grams >= 50000
+		"total100000": return total_grams >= 100000
 		_: return false
 
 
