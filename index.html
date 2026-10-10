@@ -97,13 +97,14 @@
   .row2 button { margin-left: auto; padding: 5px 12px; }
 
   /* footer: tool note + live readouts */
-  .foot { position: fixed; left: 28px; bottom: 20px; width: 380px; pointer-events: none; }
+  .foot { position: fixed; left: 28px; bottom: 20px; width: 460px; pointer-events: none; }
   .note { font-family: var(--serif); font-style: italic; font-size: 14px; line-height: 1.3; color: #3c3833; margin: 0 0 12px; }
   .note .caps { font-style: normal; margin-right: 6px; }
   .stats { display: grid; grid-template-columns: repeat(4, 1fr); border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
   .stat { padding: 7px 8px 8px 0; }
   .stat + .stat { padding-left: 10px; border-left: 1px solid var(--line); }
-  .stat b { display: block; margin-top: 4px; font-family: var(--mono); font-weight: 500; font-size: 15px; }
+  .stat .caps { white-space: nowrap; }
+  .stat b { display: block; white-space: nowrap; margin-top: 4px; font-family: var(--mono); font-weight: 500; font-size: 15px; }
   .stat b small { font-size: 9px; font-weight: 400; color: var(--muted); margin-left: 2px; }
   .fine { margin: 8px 0 0; font-size: 9px; line-height: 1.5; color: var(--faint); }
   details.inside {
@@ -185,7 +186,7 @@
   <p class="note"><span class="caps" id="tool-name">Hand</span><span id="tool-note"></span></p>
   <div class="stats">
     <div class="stat"><span class="caps">Mass</span><b id="s-mass">480<small>g</small></b></div>
-    <div class="stat"><span class="caps">Volume</span><b id="s-vol">100.0<small>% at rest</small></b></div>
+    <div class="stat"><span class="caps">Volume</span><b id="s-vol">100.0<small>%</small></b></div>
     <div class="stat"><span class="caps">Kinetic</span><b id="s-kin">0.00<small>mJ</small></b></div>
     <div class="stat"><span class="caps">Holding on</span><b id="s-hold">0<small>arms</small></b></div>
   </div>
@@ -422,7 +423,7 @@ for (const sx of [-1, 1]) {
   g2.position.set(0.05, -0.05, 0.124);
   g.add(g2);
   face.add(g);
-  eyes.push(eye);
+  eyes.push(g);
 
   const cheek = new THREE.Mesh(new THREE.PlaneGeometry(0.34, 0.34), cheekMat);
   cheek.scale.set(1.2, 0.75, 1);
@@ -474,7 +475,7 @@ for (let j = 0; j < NT; j++) {
     pts: [], prev: [], tgt: [], rad: new Float32Array(N),
     nrm: [], bin: [], tan: [],
     colors: new Float32Array(N * (M + 1) * 3),
-    wave: 0,
+    wave: 0, cling: 0,
     seed: Math.random() * 10,
   };
   for (let i = 0; i < N; i++) {
@@ -693,6 +694,21 @@ canvas.addEventListener('pointercancel', release);
 const DT = 1 / 120;
 const G_BODY = -26;
 
+function updateCling() {
+  for (const t of tents) t.cling = 0;
+  if (tool !== 'finger' || !finger.on) return;
+  const L = armLen();
+  tents.map(t => [t, t.pts[0].distanceTo(finger.p)])
+    .sort((a, b) => a[1] - b[1]).slice(0, 3)
+    .forEach(([t, d]) => { t.cling = 1 - smooth(L * 0.55, L * 1.0, d); });
+}
+
+function stepFur(dt) {
+  if (!smoothing) return;
+  furDir.multiplyScalar(Math.exp(-dt * 7));
+  if (furDir.lengthSq() < 1e-6) { furDir.set(0, 0, 0); smoothing = false; }
+}
+
 function stepBody(dt) {
   const s = S(), by = baseY();
   const p = body.pos, v = body.vel;
@@ -736,11 +752,7 @@ function stepTentacle(j, dt) {
   rootOf(t, t.pts[0]);
   t.prev[0].copy(t.pts[0]);
   // only the arms within reach of an offered finger take hold
-  let cling = 0;
-  if (tool === 'finger' && finger.on) {
-    const d = t.pts[0].distanceTo(finger.p);
-    cling = 1 - smooth(L * 0.55, L * 1.0, d);
-  }
+  const cling = t.cling;
   for (let i = 1; i < N; i++) {
     const p = t.pts[i], pr = t.prev[i], g = t.tgt[i];
     const u = i / (N - 1);
@@ -751,11 +763,13 @@ function stepTentacle(j, dt) {
     p.y += vy + ((g.y - p.y) * k - (4 + 12 * (1 - kScale)) * s) * dt * dt;
     p.z += vz + (g.z - p.z) * k * dt * dt;
     if (cling > 0 && u > 0.45) {
-      // reach for the finger and wrap round it
+      // reach for the finger and coil round it: each arm takes its own lane of a small helix
+      const ang = t.a + Math.PI + (u - 0.45) * 9;
+      const rr = 0.2 * s * (1.15 - 0.5 * u);
       const w = cling * smooth(0.45, 1, u) * 260;
-      p.x += (finger.p.x - p.x) * w * dt * dt;
-      p.y += (finger.p.y - p.y) * w * dt * dt;
-      p.z += (finger.p.z - p.z) * w * dt * dt;
+      p.x += (finger.p.x + Math.cos(ang) * rr - p.x) * w * dt * dt;
+      p.y += (finger.p.y + (u - 0.8) * 0.5 * s - p.y) * w * dt * dt;
+      p.z += (finger.p.z + Math.sin(ang) * rr - p.z) * w * dt * dt;
     }
   }
   const held = grab.type === 'tent' && grab.j === j ? grab.i : -1;
@@ -838,11 +852,13 @@ function colourTube(t) {
     }
   }
 }
+// rounded tip: the last few rings close in along a quarter circle
+const TIP_ROUND = [1, 0.94, 0.74, 0.22];
 function fillTube(g, t, extra) {
   const pos = g.attributes.position.array, nor = g.attributes.normal.array;
   for (let i = 0; i < N; i++) {
     const c = t.pts[i], n = t.nrm[i], b = t.bin[i];
-    const r = (t.rad[i] + extra) * (i === N - 1 ? 0.3 : i === N - 2 ? 0.82 : 1);
+    const r = (t.rad[i] + extra * (i === N - 1 ? 0.4 : 1)) * TIP_ROUND[Math.max(0, i - (N - 4))];
     for (let j = 0; j <= M; j++) {
       const a = (j / M) * TAU, ca = Math.cos(a), sa = Math.sin(a);
       const k = (i * (M + 1) + j) * 3;
@@ -887,13 +903,12 @@ function applyBody() {
     contact.material.opacity = 0.3 / (1 + lift * 2.5);
   }
   face.scale.setScalar(1 + P.fluff * 1.1);
-  if (smoothing) { furDir.multiplyScalar(0.9); if (furDir.lengthSq() < 1e-5) { furDir.set(0, 0, 0); smoothing = false; } }
   fingerMesh.visible = tool === 'finger' && finger.on;
   fingerMesh.position.copy(finger.p);
   // blink
   const bt = (T % 4.6);
   const blink = bt < 0.14 ? Math.sin(Math.PI * bt / 0.14) : 0;
-  for (const e of eyes) e.scale.y = 1.15 * (1 - blink * 0.9);
+  for (const e of eyes) e.scale.y = 1 - blink * 0.92;
 }
 
 /* ---------- colours ---------- */
@@ -997,7 +1012,7 @@ function readouts() {
   if (grab.type === 'tent') hold = Math.max(hold, 1);
   finger.holding = hold;
   $('s-mass').innerHTML = `${MASS_G()}<small>g</small>`;
-  $('s-vol').innerHTML = `${(volumeRatio * 100).toFixed(1)}<small>% at rest</small>`;
+  $('s-vol').innerHTML = `${(volumeRatio * 100).toFixed(1)}<small>% of rest</small>`;
   $('s-kin').innerHTML = `${e.toFixed(2)}<small>mJ</small>`;
   $('s-hold').innerHTML = `${hold}<small>${hold === 1 ? 'arm' : 'arms'}</small>`;
 }
@@ -1027,6 +1042,8 @@ function frame(now) {
   for (const t of tents) if (t.wave > 0) t.wave = Math.max(0, t.wave - dtf);
   for (let j = 0; j < NT; j++) computeTargets(j);
   while (acc >= DT) {
+    updateCling();
+    stepFur(DT);
     stepBody(DT);
     for (let j = 0; j < NT; j++) stepTentacle(j, DT);
     acc -= DT;
@@ -1046,6 +1063,8 @@ function advance(sec) {
     T += DT;
     for (const t of tents) if (t.wave > 0) t.wave = Math.max(0, t.wave - DT);
     for (let j = 0; j < NT; j++) computeTargets(j);
+    updateCling();
+    stepFur(DT);
     stepBody(DT);
     for (let j = 0; j < NT; j++) stepTentacle(j, DT);
   }
