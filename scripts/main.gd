@@ -134,8 +134,9 @@ func _ready() -> void:
 	_set_state(State.TITLE)
 	set_camera_now(_title_camera())  # 起動時は動かさず、最初から引きの画で
 
+	# 開発用の画面撮影ツール。製品版（書き出したビルド）では動かさない
 	var dev := preload("res://scripts/dev_screenshot.gd")
-	if dev.requested():
+	if OS.is_debug_build() and dev.requested():
 		add_child(dev.new())
 
 

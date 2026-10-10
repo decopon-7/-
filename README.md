@@ -74,6 +74,18 @@
 2. Godot を起動 →「インポート」→ このフォルダの `project.godot` を選択
 3. F5 で実行
 
+### Windows 向けに書き出す
+
+Godot の「エクスポートテンプレート 4.4.1」を入れたうえで、次を実行すると `build/` に配布用の zip ができます
+（`export_presets.cfg` に設定済み）。
+
+```
+GODOT=/path/to/godot tools/build_windows.sh
+```
+
+- `OnionTears.exe`（データ込みの単一ファイル）と、同梱が必要な `THIRD_PARTY_LICENSES.txt` が入ります。
+- 書き出したビルドでは、開発用の画面撮影ツール（`--shot=...`）は動きません。
+
 ## フォルダ構成
 
 ```

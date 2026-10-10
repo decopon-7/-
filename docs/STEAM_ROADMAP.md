@@ -202,6 +202,12 @@
 5. **ビルドとアップロード**
    - Godot の「エクスポート」で Windows（必須）/ Linux（Steam Deck 向け）/ macOS 用に書き出す
    - 書き出しには Godot の「エクスポートテンプレート」を事前にダウンロードする
+   - **Windows 版は書き出し済み**：`tools/build_windows.sh` で、単一の `OnionTears.exe`（データ込み・約100MB）と
+     `THIRD_PARTY_LICENSES.txt`（Godot と フォントのライセンス表記。再配布に必要）を含む zip ができる。
+     スクリプトはコンパイル済みでソースは入らず、`tools/`・`docs/` も含まれない。
+     **未確認・未対応**：①実際の Windows PC での起動確認（このビルド環境では動かせない）
+     ②exe のアイコンと会社名などの情報（`rcedit` が必要。Windows 上で書き出すと設定できる）
+     ③コード署名（無いと SmartScreen の警告が出ることがある）。Linux / macOS 版は未書き出し
    - SteamPipe（`steamcmd` の `run_app_build`）でアップロード
 6. **審査**：ストアページとビルドはそれぞれ Valve の審査あり（数営業日）。
    発売ボタンを押せるのは「近日登場」ページ公開から 2 週間以上経ってから。
